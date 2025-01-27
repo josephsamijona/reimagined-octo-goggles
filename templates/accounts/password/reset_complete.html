@@ -1,0 +1,96 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Password Reset Complete - JHBRIDGE</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'css/auth.css' %}">
+    <link rel="icon" type="image/x-icon" href="{% static 'images/favicon.ico' %}">
+</head>
+<body>
+    <div class="main-container">
+        <header class="auth-header">
+            <img src="{% static 'images/logo.png' %}" alt="JHBRIDGE Logo" class="logo">
+        </header>
+
+        <div class="auth-container">
+            <div class="auth-content">
+                <div class="success-icon">
+                    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="12" cy="12" r="10" stroke="#00C853" stroke-width="2"/>
+                        <path d="M8 12L11 15L16 9" stroke="#00C853" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </div>
+
+                <h1 class="auth-title">Password Reset Successfully</h1>
+                <p class="success-message">Your password has been reset. You can now use your new password to login.</p>
+
+                <div class="security-notice">
+                    <div class="notice-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M12 3L4 7V12C4 16.4183 7.58172 20 12 20C16.4183 20 20 16.4183 20 12V7L12 3Z" stroke="#0088FF" stroke-width="2"/>
+                        </svg>
+                    </div>
+                    <p class="notice-text">
+                        For security reasons, you will be logged out of all other devices.
+                    </p>
+                </div>
+
+                <div class="action-buttons">
+                    <a href="{% url 'dbdint:login' %}" class="btn btn-primary">Login with New Password</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        .success-icon {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .success-message {
+            text-align: center;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 1.1rem;
+            margin-bottom: 2rem;
+        }
+
+        .security-notice {
+            background: rgba(0, 136, 255, 0.1);
+            border-radius: 12px;
+            padding: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .notice-icon {
+            flex-shrink: 0;
+        }
+
+        .notice-text {
+            margin: 0;
+            font-size: 0.9rem;
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .action-buttons {
+            text-align: center;
+        }
+
+        .action-buttons .btn {
+            min-width: 200px;
+        }
+
+        @media (max-width: 768px) {
+            .action-buttons .btn {
+                width: 100%;
+            }
+        }
+    </style>
+</body>
+</html>

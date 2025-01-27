@@ -1,0 +1,155 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reset Email Sent - JHBRIDGE</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'css/auth.css' %}">
+    <link rel="icon" type="image/x-icon" href="{% static 'images/favicon.ico' %}">
+</head>
+<body>
+    <div class="main-container">
+        <header class="auth-header">
+            <img src="{% static 'images/logo.png' %}" alt="JHBRIDGE Logo" class="logo">
+        </header>
+
+        <div class="auth-container">
+            <div class="auth-content">
+                <div class="status-icon">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="12" cy="12" r="10" stroke="#0088FF" stroke-width="2"/>
+                        <path d="M8 12L11 15L16 9" stroke="#0088FF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </div>
+
+                <h1 class="auth-title">Check Your Email</h1>
+                <div class="message-container">
+                    <p class="message-text">
+                        We've sent you instructions to reset your password. Please check your email inbox.
+                    </p>
+                    <p class="message-subtext">
+                        If you don't receive an email within a few minutes, please check your spam folder.
+                    </p>
+                </div>
+
+                <div class="info-box">
+                    <div class="info-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <circle cx="12" cy="12" r="10" stroke="#FFB020" stroke-width="2"/>
+                            <path d="M12 8V12" stroke="#FFB020" stroke-width="2" stroke-linecap="round"/>
+                            <circle cx="12" cy="16" r="1" fill="#FFB020"/>
+                        </svg>
+                    </div>
+                    <p class="info-text">
+                        The password reset link will expire in 24 hours for security reasons.
+                    </p>
+                </div>
+
+                <div class="action-links">
+                    <a href="{% url 'dbdint:login' %}" class="btn btn-primary">Return to Login</a>
+                    <a href="{% url 'dbdint:password_reset' %}" class="text-accent">Resend Email</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            background: var(--primary-blue);
+            color: var(--white);
+        }
+
+        .main-container {
+            width: 100%;
+            max-width: 500px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .auth-container {
+            animation: slideUp 0.5s ease-out;
+        }
+
+        .status-icon {
+            text-align: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .auth-title {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+            text-align: center;
+        }
+
+        .message-container {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .message-text {
+            font-size: 1.1rem;
+            color: rgba(255, 255, 255, 0.9);
+            margin-bottom: 1rem;
+        }
+
+        .message-subtext {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 0.9rem;
+        }
+
+        .info-box {
+            background: rgba(255, 176, 32, 0.1);
+            border-radius: 12px;
+            padding: 1rem;
+            display: flex;
+            align-items: flex-start;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .info-icon {
+            flex-shrink: 0;
+        }
+
+        .info-text {
+            margin: 0;
+            font-size: 0.9rem;
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .action-links {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .btn-primary {
+            width: 100%;
+            text-align: center;
+        }
+
+        .text-accent {
+            color: var(--accent-blue);
+            text-decoration: none;
+            font-size: 0.9rem;
+        }
+
+        .text-accent:hover {
+            text-decoration: underline;
+        }
+
+        @media (max-width: 768px) {
+            .main-container {
+                padding: 1rem;
+            }
+        }
+    </style>
+</body>
+</html>
