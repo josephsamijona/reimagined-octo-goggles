@@ -111,8 +111,8 @@ class Interpreter(models.Model):
     # Informations bancaires pour ACH
     bank_name = models.CharField(max_length=100, null=True, blank=True)
     account_holder_name = models.CharField(max_length=100, null=True, blank=True)
-    routing_number = models.CharField(max_length=9, null=True, blank=True)
-    account_number = models.CharField(max_length=17, null=True, blank=True)
+    routing_number = models.CharField(max_length=100, null=True, blank=True)
+    account_number = models.CharField(max_length=100, null=True, blank=True)
     account_type = models.CharField(
         max_length=10, 
         choices=[('checking', 'Checking'), ('savings', 'Savings')],
