@@ -137,6 +137,12 @@ class InterpreterAdmin(admin.ModelAdmin):
                 ('user', 'active'),
             )
         }),
+        ('Profile Information', {
+            'fields': (
+                'profile_image',
+                'bio'
+            )
+        }),
         ('Contact Information', {
             'fields': (
                 'address',

@@ -15,6 +15,17 @@ class Language(models.Model):
     def __str__(self):
         return self.name
 
+class Languagee(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+    code = models.CharField(max_length=10, unique=True)  # ISO code
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
 class User(AbstractUser):
     class Roles(models.TextChoices):
         CLIENT = 'CLIENT', _('Client')
@@ -107,6 +118,8 @@ class Interpreter(models.Model):
     availability = models.JSONField(null=True, blank=True)  # Format: {"monday": ["9:00-17:00"]}
     radius_of_service = models.IntegerField(null=True, blank=True)
     hourly_rate = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    
+    
     
     # Informations bancaires pour ACH
     bank_name = models.CharField(max_length=100, null=True, blank=True)

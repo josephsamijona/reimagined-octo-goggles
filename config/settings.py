@@ -18,7 +18,7 @@ load_dotenv()
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Quick-start development settings - unsuitable for production
-SECRET_KEY = os.getenv('SECRET_KEY', "django-insecure-@8ffh2740d37z4ri6o%u*xz+mt&!gpc3d4#uomr)$o(8d_-bm@")
+SECRET_KEY = os.getenv('SECRET_KEY')
 
 DEBUG = os.getenv('DEBUG', 'True') == 'True'
 
