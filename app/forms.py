@@ -732,7 +732,7 @@ class InterpreterRegistrationForm3(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['w9_on_file'].label = "I confirm I will provide a W-9 form"
+        self.fields['w9_on_file'].label = "I confirm I will provide a 1099 form"
         self.fields['w9_on_file'].required = True
 
     def clean_zip_code(self):

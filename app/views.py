@@ -1,6 +1,7 @@
 # views.py
 
 # Django core imports
+from django.contrib.auth.decorators import login_required
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import login
@@ -77,6 +78,15 @@ from .models import (
     User,ServiceType,AssignmentNotification
 )
 import logging
+from django.core.mail import EmailMessage
+from django.template.loader import render_to_string
+from datetime import datetime
+from icalendar import Calendar, Event
+import pytz
+import os
+import uuid
+from email.utils import make_msgid
+
 
 logger = logging.getLogger(__name__)
 
@@ -1614,6 +1624,219 @@ class AssignmentListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
 
 
 
+def generate_ics_file(assignment):
+    """Génère le fichier ICS pour un rendez-vous"""
+    cal = Calendar()
+    cal.add('prodid', '-//JHBRIDGE//Interpretation Assignment//EN')
+    cal.add('version', '2.0')
+    
+    event = Event()
+    
+    # Configuration de l'événement
+    event.add('summary', f'Interpretation Assignment - {assignment.service_type.name}')
+    event.add('dtstart', assignment.start_time)
+    event.add('dtend', assignment.end_time)
+    event.add('dtstamp', datetime.now(pytz.UTC))
+    event.add('location', f"{assignment.location}, {assignment.city}, {assignment.state}")
+    
+    # Description détaillée
+    description = f"""
+    Service: {assignment.service_type.name}
+    Languages: {assignment.source_language.name} → {assignment.target_language.name}
+    Location: {assignment.location}, {assignment.city}, {assignment.state}
+    
+    Special Requirements: {assignment.special_requirements or 'None'}
+    
+    IMPORTANT: If you encounter any issues on the day of the appointment, 
+    please call JHBRIDGE immediately at (774) 223-8771
+    """
+    event.add('description', description)
+    
+    # Ajout des rappels (30 minutes et 24 heures avant)
+    alarm1 = Event()
+    alarm1.add('action', 'DISPLAY')
+    alarm1.add('description', 'Reminder: Upcoming interpretation assignment in 24 hours')
+    alarm1.add('trigger', timedelta(hours=-24))
+    event.add_component(alarm1)
+    
+    alarm2 = Event()
+    alarm2.add('action', 'DISPLAY')
+    alarm2.add('description', 'Reminder: Upcoming interpretation assignment in 30 minutes')
+    alarm2.add('trigger', timedelta(minutes=-30))
+    event.add_component(alarm2)
+    
+    cal.add_component(event)
+    return cal.to_ical()
+
+def send_completion_email(assignment):
+    """Sends a completion confirmation email to the interpreter"""
+    subject = 'Assignment Completion Confirmation - JHBRIDGE'
+    
+    # Calculate total duration and payment
+    duration = assignment.end_time - assignment.start_time
+    hours = duration.total_seconds() / 3600
+    total_payment = assignment.total_interpreter_payment
+    
+    # Context for the template
+    context = {
+        'interpreter_name': assignment.interpreter.user.get_full_name(),
+        'assignment_id': assignment.id,
+        'start_time': assignment.start_time.strftime('%B %d, %Y at %I:%M %p'),
+        'end_time': assignment.end_time.strftime('%I:%M %p'),
+        'location': assignment.location,
+        'city': assignment.city,
+        'state': assignment.state,
+        'service_type': assignment.service_type.name,
+        'source_language': assignment.source_language.name,
+        'target_language': assignment.target_language.name,
+        'interpreter_rate': assignment.interpreter_rate,
+        'duration_hours': round(hours, 2),
+        'total_payment': total_payment,
+        'completed_at': assignment.completed_at.strftime('%B %d, %Y at %I:%M %p'),
+        'minimum_hours': assignment.minimum_hours
+    }
+    
+    # Generate HTML email content
+    email_html = render_to_string('emails/assignment_completion.html', context)
+    
+    # Create and send email
+    email = EmailMessage(
+        subject=subject,
+        body=email_html,
+        from_email='noreply@jhbridge.com',
+        to=[assignment.interpreter.user.email],
+    )
+    email.content_subtype = "html"
+    
+    return email.send()
+
+def send_confirmation_email(assignment):
+    """Envoie l'email de confirmation avec le fichier ICS"""
+    subject = 'Assignment Confirmation - JHBRIDGE'
+    
+    # Contexte pour le template
+    context = {
+        'interpreter_name': assignment.interpreter.user.get_full_name(),
+        'assignment_id': assignment.id,
+        'start_time': assignment.start_time.strftime('%B %d, %Y at %I:%M %p'),
+        'end_time': assignment.end_time.strftime('%I:%M %p'),
+        'location': assignment.location,
+        'city': assignment.city,
+        'state': assignment.state,
+        'service_type': assignment.service_type.name,
+        'source_language': assignment.source_language.name,
+        'target_language': assignment.target_language.name,
+        'interpreter_rate': assignment.interpreter_rate,
+        'special_requirements': assignment.special_requirements
+    }
+    
+    # Génération du contenu HTML de l'email
+    email_html = render_to_string('emails/assignment_confirmation.html', context)
+    
+    # Création de l'email
+    email = EmailMessage(
+        subject=subject,
+        body=email_html,
+        from_email='noreply@jhbridge.com',
+        to=[assignment.interpreter.user.email],
+    )
+    email.content_subtype = "html"  # Pour envoyer en HTML
+    
+    # Génération et ajout du fichier ICS
+    ics_content = generate_ics_file(assignment)
+    email.attach('appointment.ics', ics_content, 'text/calendar')
+    
+    # Envoi de l'email
+    return email.send()
+
+
+def send_admin_notification_email(assignment):
+    """Sends notification email to admin users when interpreter accepts assignment"""
+    # Get all admin users
+    admin_users = User.objects.filter(role='ADMIN', is_active=True)
+    
+    if not admin_users.exists():
+        return False
+        
+    subject = f'Interpreter Accepted Assignment - ID: {assignment.id}'
+    
+    # Context for the template
+    context = {
+        'interpreter_name': assignment.interpreter.user.get_full_name(),
+        'interpreter_email': assignment.interpreter.user.email,
+        'interpreter_phone': assignment.interpreter.user.phone,  # Using the phone field from User model
+        'assignment_id': assignment.id,
+        'start_time': assignment.start_time.strftime('%B %d, %Y at %I:%M %p'),
+        'end_time': assignment.end_time.strftime('%I:%M %p'),
+        'location': assignment.location,
+        'city': assignment.city,
+        'state': assignment.state,
+        'service_type': assignment.service_type.name,
+        'source_language': assignment.source_language.name,
+        'target_language': assignment.target_language.name,
+        'interpreter_rate': assignment.interpreter_rate,
+        'special_requirements': assignment.special_requirements
+    }
+    
+    # Generate HTML email content
+    email_html = render_to_string('emails/admin_assignment_notification.html', context)
+    
+    # Create email
+    email = EmailMessage(
+        subject=subject,
+        body=email_html,
+        from_email='noreply@jhbridge.com',
+        to=[admin.email for admin in admin_users],
+    )
+    email.content_subtype = "html"
+    
+    # Generate and attach ICS file
+    ics_content = generate_ics_file(assignment)
+    email.attach('admin_appointment.ics', ics_content, 'text/calendar')
+    
+    return email.send()
+
+@require_POST
+@login_required
+def accept_assignment(request, pk):
+    assignment = get_object_or_404(Assignment, pk=pk)
+    
+    if assignment.interpreter != request.user.interpreter_profile:
+        return JsonResponse({'error': 'Unauthorized'}, status=403)
+        
+    if not assignment.can_be_confirmed():
+        return JsonResponse({'error': 'Invalid status'}, status=400)
+
+    # Check for schedule conflicts
+    conflicting_assignments = Assignment.objects.filter(
+        interpreter=request.user.interpreter_profile,
+        status__in=['CONFIRMED', 'IN_PROGRESS'],
+        start_time__lt=assignment.end_time,
+        end_time__gt=assignment.start_time
+    ).exists()
+
+    if conflicting_assignments:
+        return JsonResponse({
+            'error': 'Schedule conflict',
+            'message': 'You already have an assignment during this time period'
+        }, status=400)
+
+    if assignment.confirm():
+        # Send confirmation email to interpreter
+        try:
+            send_confirmation_email(assignment)
+        except Exception as e:
+            print(f"Error sending confirmation email: {str(e)}")
+            
+        # Send notification email to admin users
+        try:
+            send_admin_notification_email(assignment)
+        except Exception as e:
+            print(f"Error sending admin notification email: {str(e)}")
+            
+        return JsonResponse({'status': 'success'})
+    return JsonResponse({'error': 'Could not confirm assignment'}, status=400)
+
 class AssignmentDetailView(LoginRequiredMixin, UserPassesTestMixin, View):
     def test_func(self):
         return self.request.user.role == 'INTERPRETER'
@@ -1648,6 +1871,7 @@ class AssignmentDetailView(LoginRequiredMixin, UserPassesTestMixin, View):
         return JsonResponse(data)
 
 @require_POST
+@login_required
 def accept_assignment(request, pk):
     assignment = get_object_or_404(Assignment, pk=pk)
     
@@ -1657,7 +1881,7 @@ def accept_assignment(request, pk):
     if not assignment.can_be_confirmed():
         return JsonResponse({'error': 'Invalid status'}, status=400)
 
-    # Vérifier les conflits d'horaire
+    # Check for schedule conflicts
     conflicting_assignments = Assignment.objects.filter(
         interpreter=request.user.interpreter_profile,
         status__in=['CONFIRMED', 'IN_PROGRESS'],
@@ -1672,10 +1896,23 @@ def accept_assignment(request, pk):
         }, status=400)
 
     if assignment.confirm():
+        # Send confirmation email to interpreter
+        try:
+            send_confirmation_email(assignment)
+        except Exception as e:
+            print(f"Error sending confirmation email: {str(e)}")
+            
+        # Send notification email to superadmin
+        try:
+            send_admin_notification_email(assignment)
+        except Exception as e:
+            print(f"Error sending admin notification email: {str(e)}")
+            
         return JsonResponse({'status': 'success'})
     return JsonResponse({'error': 'Could not confirm assignment'}, status=400)
 
 @require_POST
+@login_required
 def reject_assignment(request, pk):
     assignment = get_object_or_404(Assignment, pk=pk)
     
@@ -1691,6 +1928,7 @@ def reject_assignment(request, pk):
     return JsonResponse({'error': 'Could not reject assignment'}, status=400)
 
 @require_POST
+@login_required
 def start_assignment(request, pk):
     assignment = get_object_or_404(Assignment, pk=pk)
     
@@ -1712,6 +1950,7 @@ def start_assignment(request, pk):
     return JsonResponse({'error': 'Could not start assignment'}, status=400)
 
 @require_POST
+@login_required
 def complete_assignment(request, pk):
     assignment = get_object_or_404(Assignment, pk=pk)
     
@@ -1722,14 +1961,22 @@ def complete_assignment(request, pk):
         return JsonResponse({'error': 'Invalid status'}, status=400)
         
     if assignment.complete():
+        # Send completion confirmation email
+        try:
+            send_completion_email(assignment)
+        except Exception as e:
+            # Log the error but don't block the completion
+            print(f"Error sending completion email: {str(e)}")
+            
         return JsonResponse({
             'status': 'success',
             'payment': str(assignment.total_interpreter_payment)
         })
     return JsonResponse({'error': 'Could not complete assignment'}, status=400)
 
+@login_required
 def get_assignment_counts(request):
-    if not request.user.is_authenticated or request.user.role != 'INTERPRETER':
+    if request.user.role != 'INTERPRETER':
         return JsonResponse({'error': 'Unauthorized'}, status=403)
     
     interpreter = request.user.interpreter_profile
@@ -1744,6 +1991,7 @@ def get_assignment_counts(request):
     return JsonResponse(counts)
 
 @require_POST
+@login_required
 def mark_assignments_as_read(request):
     interpreter = request.user.interpreter_profile
     AssignmentNotification.objects.filter(
@@ -1752,8 +2000,9 @@ def mark_assignments_as_read(request):
     ).update(is_read=True)
     return JsonResponse({'status': 'success'})
 
+@login_required
 def get_unread_assignments_count(request):
-    if not request.user.is_authenticated or request.user.role != 'INTERPRETER':
+    if request.user.role != 'INTERPRETER':
         return JsonResponse({'count': 0})
         
     count = AssignmentNotification.get_unread_count(

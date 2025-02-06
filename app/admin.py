@@ -7,6 +7,11 @@ from django.contrib import messages
 from django.utils import timezone
 from django.utils.safestring import mark_safe
 from . import models
+from django.core.mail import send_mail
+from django.template.loader import render_to_string
+from django.utils.html import strip_tags
+from django.conf import settings
+from django.utils.translation import gettext as _
 
 # Custom actions
 def mark_as_active(modeladmin, request, queryset):
@@ -301,45 +306,166 @@ class QuoteAdmin(admin.ModelAdmin):
 
 @admin.register(models.Assignment)
 class AssignmentAdmin(admin.ModelAdmin):
-    list_display = ('id', 'get_client', 'get_interpreter', 'start_time', 'status')
-    list_filter = ('status', 'service_type', 'start_time')
-    search_fields = ('client__company_name', 'interpreter__user__first_name', 'interpreter__user__last_name')
-    raw_id_fields = ('quote', 'interpreter', 'client')
-    readonly_fields = ('created_at', 'updated_at', 'completed_at')
+   list_display = ('id', 'get_client', 'get_interpreter', 'start_time', 'status')
+   list_filter = ('status', 'service_type', 'start_time')
+   search_fields = ('client__company_name', 'interpreter__user__first_name', 'interpreter__user__last_name')
+   raw_id_fields = ('quote', 'interpreter', 'client')
+   readonly_fields = ('created_at', 'updated_at', 'completed_at')
 
-    fieldsets = (
-        ('Assignment Information', {
-            'fields': (('quote', 'service_type'), ('interpreter', 'client'))
-        }),
-        ('Language Details', {
-            'fields': ('source_language', 'target_language')
-        }),
-        ('Schedule', {
-            'fields': ('start_time', 'end_time')
-        }),
-        ('Location', {
-            'fields': ('location', ('city', 'state', 'zip_code'))
-        }),
-        ('Financial Information', {
-            'fields': ('interpreter_rate', 'minimum_hours', 'total_interpreter_payment'),
-            'classes': ('collapse',)
-        }),
-        ('Status and Notes', {
-            'fields': ('status', 'notes', 'special_requirements')
-        }),
-        ('System Information', {
-            'fields': ('created_at', 'updated_at', 'completed_at'),
-            'classes': ('collapse',)
-        })
-    )
+   fieldsets = (
+       ('Assignment Information', {
+           'fields': (('quote', 'service_type'), ('interpreter', 'client'))
+       }),
+       ('Language Details', {
+           'fields': ('source_language', 'target_language')
+       }),
+       ('Schedule', {
+           'fields': ('start_time', 'end_time')
+       }),
+       ('Location', {
+           'fields': ('location', ('city', 'state', 'zip_code'))
+       }),
+       ('Financial Information', {
+           'fields': ('interpreter_rate', 'minimum_hours', 'total_interpreter_payment'),
+           'classes': ('collapse',)
+       }),
+       ('Status and Notes', {
+           'fields': ('status', 'notes', 'special_requirements')
+       }),
+       ('System Information', {
+           'fields': ('created_at', 'updated_at', 'completed_at'),
+           'classes': ('collapse',)
+       })
+   )
 
-    def get_client(self, obj):
-        return obj.client.company_name
-    get_client.short_description = 'Client'
+   def get_client(self, obj):
+       return obj.client.company_name
+   get_client.short_description = 'Client'
 
-    def get_interpreter(self, obj):
-        return f"{obj.interpreter.user.first_name} {obj.interpreter.user.last_name}"
-    get_interpreter.short_description = 'Interpreter'
+   def get_interpreter(self, obj):
+       if obj.interpreter:
+           return f"{obj.interpreter.user.first_name} {obj.interpreter.user.last_name}"
+       return "-"
+   get_interpreter.short_description = 'Interpreter'
+
+   def save_model(self, request, obj, form, change):
+       print("\n" + "="*50)
+       print("SAVE MODEL PROCESS STARTED")
+       print("="*50)
+       print(f"Operation type: {'Modification' if change else 'New Creation'}")
+       print(f"Form changed fields: {form.changed_data}")
+       print(f"Current Assignment ID: {obj.pk}")
+       print(f"Current Status: {obj.status}")
+       
+       try:
+           print("\nCHECKING INTERPRETER")
+           if obj.interpreter:
+               print(f"Interpreter assigned: {obj.interpreter.user.get_full_name()}")
+               print(f"Interpreter email: {obj.interpreter.user.email}")
+           else:
+               print("No interpreter assigned")
+
+           # Determine if email should be sent
+           should_send = False
+           
+           if not change:  # New creation
+               print("\nNEW APPOINTMENT CREATION")
+               should_send = (obj.status == models.Assignment.Status.PENDING and 
+                            obj.interpreter is not None)
+               print(f"Should send email (new): {should_send}")
+               if should_send:
+                   print("Reason: New appointment with PENDING status and interpreter assigned")
+               else:
+                   print("Reason for not sending:")
+                   if obj.status != models.Assignment.Status.PENDING:
+                       print(f"- Status is not PENDING (current: {obj.status})")
+                   if not obj.interpreter:
+                       print("- No interpreter assigned")
+           
+           else:  # Modification
+               print("\nAPPOINTMENT MODIFICATION")
+               old_obj = self.model.objects.get(pk=obj.pk)
+               print(f"Old status: {old_obj.status}")
+               print(f"New status: {obj.status}")
+               
+               should_send = (old_obj.status != obj.status and 
+                            obj.status == models.Assignment.Status.PENDING and 
+                            obj.interpreter is not None)
+               print(f"Should send email (modification): {should_send}")
+               if should_send:
+                   print("Reason: Status changed to PENDING with interpreter assigned")
+               else:
+                   print("Reason for not sending:")
+                   if old_obj.status == obj.status:
+                       print("- Status not changed")
+                   if obj.status != models.Assignment.Status.PENDING:
+                       print(f"- New status is not PENDING (current: {obj.status})")
+                   if not obj.interpreter:
+                       print("- No interpreter assigned")
+           
+           if should_send:
+               print("\nPREPARING EMAIL")
+               try:
+                   # Prepare email context
+                   context = {
+                       'interpreter_name': f"{obj.interpreter.user.first_name} {obj.interpreter.user.last_name}",
+                       'assignment_id': obj.id,
+                       'start_time': obj.start_time.strftime("%m/%d/%Y %H:%M"),
+                       'end_time': obj.end_time.strftime("%m/%d/%Y %H:%M"),
+                       'location': obj.location,
+                       'city': obj.city,
+                       'state': obj.state,
+                       'client_name': obj.client.company_name,
+                       'service_type': obj.service_type.name,
+                       'source_language': obj.source_language.name,
+                       'target_language': obj.target_language.name,
+                       'interpreter_rate': obj.interpreter_rate,
+                       'special_requirements': obj.special_requirements or "No special requirements"
+                   }
+                   print("Email context prepared successfully")
+                   
+                   print("\nEMAIL SETTINGS")
+                   print(f"From email: {settings.DEFAULT_FROM_EMAIL}")
+                   print(f"Email backend: {settings.EMAIL_BACKEND}")
+                   
+                   print("\nRENDERING EMAIL TEMPLATE")
+                   html_message = render_to_string(
+                       'emails/new_assignment_notification.html',
+                       context,
+                       request=request
+                   )
+                   print("Template rendered successfully")
+                   
+                   print("\nSENDING EMAIL")
+                   print(f"To: {obj.interpreter.user.email}")
+                   send_mail(
+                       subject=_('New Appointment to Confirm - Action Required'),
+                       message=strip_tags(html_message),
+                       from_email=settings.DEFAULT_FROM_EMAIL,
+                       recipient_list=[obj.interpreter.user.email],
+                       html_message=html_message,
+                       fail_silently=False
+                   )
+                   print("EMAIL SENT SUCCESSFULLY ✓")
+                   
+               except Exception as email_error:
+                   print("\nEMAIL ERROR")
+                   print(f"Error type: {type(email_error)}")
+                   print(f"Error message: {str(email_error)}")
+                   if hasattr(email_error, '__dict__'):
+                       print(f"Error details: {email_error.__dict__}")
+                   
+       except Exception as e:
+           print("\nGENERAL ERROR")
+           print(f"Error type: {type(e)}")
+           print(f"Error message: {str(e)}")
+           if hasattr(e, '__dict__'):
+               print(f"Error details: {e.__dict__}")
+       
+       print("\nSAVING MODEL")
+       super().save_model(request, obj, form, change)
+       print("Model saved successfully")
+       print("="*50 + "\n")
 
 @admin.register(models.Payment)
 class PaymentAdmin(admin.ModelAdmin):
