@@ -80,8 +80,8 @@ from .models import (
 import logging
 from django.core.mail import EmailMessage
 from django.template.loader import render_to_string
-from datetime import datetime
-from icalendar import Calendar, Event
+from icalendar import Calendar, Event, Alarm, vCalAddress, vText
+from datetime import datetime, timedelta
 import pytz
 import os
 import uuid
@@ -1625,45 +1625,72 @@ class AssignmentListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
 
 
 def generate_ics_file(assignment):
-    """Génère le fichier ICS pour un rendez-vous"""
+    """Génère le fichier ICS pour un rendez-vous d'interprétation"""
     cal = Calendar()
     cal.add('prodid', '-//JHBRIDGE//Interpretation Assignment//EN')
     cal.add('version', '2.0')
     
     event = Event()
     
-    # Configuration de l'événement
-    event.add('summary', f'Interpretation Assignment - {assignment.service_type.name}')
+    # Configuration de l'événement d'interprétation
+    event.add('summary', f'Interpretation Assignment at {assignment.location}')
     event.add('dtstart', assignment.start_time)
     event.add('dtend', assignment.end_time)
     event.add('dtstamp', datetime.now(pytz.UTC))
+    event.add('created', datetime.now(pytz.UTC))
+    event.add('uid', f'assignment-{assignment.id}@jhbridge.com')
+    event.add('status', 'CONFIRMED')
     event.add('location', f"{assignment.location}, {assignment.city}, {assignment.state}")
+
+    # Ajout de JHBRIDGE comme organisateur
+    organizer = vCalAddress('mailto:jhbridgetranslation@gmail.com')
+    organizer.params['cn'] = vText('JHBRIDGE')
+    event.add('organizer', organizer)
     
     # Description détaillée
     description = f"""
-    Service: {assignment.service_type.name}
+    INTERPRETATION ASSIGNMENT DETAILS
+    
+    Service Type: {assignment.service_type.name}
     Languages: {assignment.source_language.name} → {assignment.target_language.name}
     Location: {assignment.location}, {assignment.city}, {assignment.state}
+    Assignment ID: {assignment.id}
+    Rate: ${assignment.interpreter_rate}/hour
     
     Special Requirements: {assignment.special_requirements or 'None'}
     
-    IMPORTANT: If you encounter any issues on the day of the appointment, 
-    please call JHBRIDGE immediately at (774) 223-8771
+    EMERGENCY CONTACT:
+    If you encounter any issues, call JHBRIDGE immediately at (774) 223-8771
     """
     event.add('description', description)
     
-    # Ajout des rappels (30 minutes et 24 heures avant)
-    alarm1 = Event()
+    # Alarm 2 jours avant
+    alarm1 = Alarm()
     alarm1.add('action', 'DISPLAY')
-    alarm1.add('description', 'Reminder: Upcoming interpretation assignment in 24 hours')
-    alarm1.add('trigger', timedelta(hours=-24))
+    alarm1.add('description', 'Reminder: You have an interpretation assignment in 2 days')
+    alarm1.add('trigger', timedelta(days=-2))
     event.add_component(alarm1)
     
-    alarm2 = Event()
+    # Alarm 24 heures avant
+    alarm2 = Alarm()
     alarm2.add('action', 'DISPLAY')
-    alarm2.add('description', 'Reminder: Upcoming interpretation assignment in 30 minutes')
-    alarm2.add('trigger', timedelta(minutes=-30))
+    alarm2.add('description', 'Reminder: You have an interpretation assignment tomorrow')
+    alarm2.add('trigger', timedelta(hours=-24))
     event.add_component(alarm2)
+    
+    # Alarm 2 heures avant
+    alarm3 = Alarm()
+    alarm3.add('action', 'DISPLAY')
+    alarm3.add('description', 'Reminder: Interpretation assignment starting in 2 hours')
+    alarm3.add('trigger', timedelta(hours=-2))
+    event.add_component(alarm3)
+    
+    # Alarm 30 minutes avant
+    alarm4 = Alarm()
+    alarm4.add('action', 'DISPLAY')
+    alarm4.add('description', 'Reminder: Interpretation assignment starting in 30 minutes')
+    alarm4.add('trigger', timedelta(minutes=-30))
+    event.add_component(alarm4)
     
     cal.add_component(event)
     return cal.to_ical()
@@ -1677,7 +1704,6 @@ def send_completion_email(assignment):
     hours = duration.total_seconds() / 3600
     total_payment = assignment.total_interpreter_payment
     
-    # Context for the template
     context = {
         'interpreter_name': assignment.interpreter.user.get_full_name(),
         'assignment_id': assignment.id,
@@ -1696,16 +1722,21 @@ def send_completion_email(assignment):
         'minimum_hours': assignment.minimum_hours
     }
     
-    # Generate HTML email content
     email_html = render_to_string('emails/assignment_completion.html', context)
     
-    # Create and send email
     email = EmailMessage(
         subject=subject,
         body=email_html,
         from_email='noreply@jhbridge.com',
         to=[assignment.interpreter.user.email],
     )
+    
+    # Add unique headers to ensure new thread
+    email.extra_headers = {
+        'Message-ID': make_msgid(domain='jhbridge.com'),
+        'X-Entity-Ref-ID': str(uuid.uuid4()),
+    }
+    
     email.content_subtype = "html"
     
     return email.send()
@@ -1733,26 +1764,31 @@ def send_confirmation_email(assignment):
     # Génération du contenu HTML de l'email
     email_html = render_to_string('emails/assignment_confirmation.html', context)
     
-    # Création de l'email
+    # Création de l'email avec Message-ID unique
     email = EmailMessage(
         subject=subject,
         body=email_html,
         from_email='noreply@jhbridge.com',
         to=[assignment.interpreter.user.email],
     )
-    email.content_subtype = "html"  # Pour envoyer en HTML
+    
+    # Add unique headers to ensure new thread
+    email.extra_headers = {
+        'Message-ID': make_msgid(domain='jhbridge.com'),
+        'X-Entity-Ref-ID': str(uuid.uuid4()),
+    }
+    
+    email.content_subtype = "html"
     
     # Génération et ajout du fichier ICS
     ics_content = generate_ics_file(assignment)
     email.attach('appointment.ics', ics_content, 'text/calendar')
     
-    # Envoi de l'email
     return email.send()
 
 
 def send_admin_notification_email(assignment):
     """Sends notification email to admin users when interpreter accepts assignment"""
-    # Get all admin users
     admin_users = User.objects.filter(role='ADMIN', is_active=True)
     
     if not admin_users.exists():
@@ -1764,7 +1800,7 @@ def send_admin_notification_email(assignment):
     context = {
         'interpreter_name': assignment.interpreter.user.get_full_name(),
         'interpreter_email': assignment.interpreter.user.email,
-        'interpreter_phone': assignment.interpreter.user.phone,  # Using the phone field from User model
+        'interpreter_phone': assignment.interpreter.user.phone,
         'assignment_id': assignment.id,
         'start_time': assignment.start_time.strftime('%B %d, %Y at %I:%M %p'),
         'end_time': assignment.end_time.strftime('%I:%M %p'),
@@ -1781,13 +1817,20 @@ def send_admin_notification_email(assignment):
     # Generate HTML email content
     email_html = render_to_string('emails/admin_assignment_notification.html', context)
     
-    # Create email
+    # Create email with unique Message-ID
     email = EmailMessage(
         subject=subject,
         body=email_html,
         from_email='noreply@jhbridge.com',
         to=[admin.email for admin in admin_users],
     )
+    
+    # Add unique headers to ensure new thread
+    email.extra_headers = {
+        'Message-ID': make_msgid(domain='jhbridge.com'),
+        'X-Entity-Ref-ID': str(uuid.uuid4()),
+    }
+    
     email.content_subtype = "html"
     
     # Generate and attach ICS file
