@@ -1624,68 +1624,49 @@ class AssignmentListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
 
 
 
+# Définition du fuseau horaire du Massachusetts (Boston)
+TZ_BOSTON = pytz.timezone('America/New_York')
+
 def generate_ics_file(assignment):
-    """Génère le fichier ICS pour un rendez-vous d'interprétation"""
+    """Génère le fichier ICS pour un rendez-vous d'interprétation."""
     cal = Calendar()
     cal.add('prodid', '-//JHBRIDGE//Interpretation Assignment//EN')
     cal.add('version', '2.0')
     
     event = Event()
-    
-    # Configuration de l'événement d'interprétation
     event.add('summary', f'Interpretation Assignment at {assignment.location}')
-    event.add('dtstart', assignment.start_time)
-    event.add('dtend', assignment.end_time)
+    
+    # Conversion en heure locale de Boston
+    dtstart = timezone.localtime(assignment.start_time, TZ_BOSTON)
+    dtend = timezone.localtime(assignment.end_time, TZ_BOSTON)
+    
+    event.add('dtstart', dtstart)
+    event.add('dtend', dtend)
     event.add('dtstamp', datetime.now(pytz.UTC))
     event.add('created', datetime.now(pytz.UTC))
     event.add('uid', f'assignment-{assignment.id}@jhbridge.com')
     event.add('status', 'CONFIRMED')
     event.add('location', f"{assignment.location}, {assignment.city}, {assignment.state}")
 
-    # Ajout de JHBRIDGE comme organisateur
-    organizer = vCalAddress('mailto:jhbridgetranslation@gmail.com')
-    organizer.params['cn'] = vText('JHBRIDGE')
-    event.add('organizer', organizer)
-    
-    # Description détaillée
-    description = f"""
-    INTERPRETATION ASSIGNMENT DETAILS
-    
-    Service Type: {assignment.service_type.name}
-    Languages: {assignment.source_language.name} → {assignment.target_language.name}
-    Location: {assignment.location}, {assignment.city}, {assignment.state}
-    Assignment ID: {assignment.id}
-    Rate: ${assignment.interpreter_rate}/hour
-    
-    Special Requirements: {assignment.special_requirements or 'None'}
-    
-    EMERGENCY CONTACT:
-    If you encounter any issues, call JHBRIDGE immediately at (774) 223-8771
-    """
-    event.add('description', description)
-    
-    # Alarm 2 jours avant
+    # Alarmes
     alarm1 = Alarm()
     alarm1.add('action', 'DISPLAY')
     alarm1.add('description', 'Reminder: You have an interpretation assignment in 2 days')
     alarm1.add('trigger', timedelta(days=-2))
     event.add_component(alarm1)
     
-    # Alarm 24 heures avant
     alarm2 = Alarm()
     alarm2.add('action', 'DISPLAY')
     alarm2.add('description', 'Reminder: You have an interpretation assignment tomorrow')
     alarm2.add('trigger', timedelta(hours=-24))
     event.add_component(alarm2)
     
-    # Alarm 2 heures avant
     alarm3 = Alarm()
     alarm3.add('action', 'DISPLAY')
     alarm3.add('description', 'Reminder: Interpretation assignment starting in 2 hours')
     alarm3.add('trigger', timedelta(hours=-2))
     event.add_component(alarm3)
     
-    # Alarm 30 minutes avant
     alarm4 = Alarm()
     alarm4.add('action', 'DISPLAY')
     alarm4.add('description', 'Reminder: Interpretation assignment starting in 30 minutes')
@@ -1696,19 +1677,23 @@ def generate_ics_file(assignment):
     return cal.to_ical()
 
 def send_completion_email(assignment):
-    """Sends a completion confirmation email to the interpreter"""
+    """Envoie un email de confirmation de complétion à l'interprète."""
     subject = 'Assignment Completion Confirmation - JHBRIDGE'
     
-    # Calculate total duration and payment
     duration = assignment.end_time - assignment.start_time
     hours = duration.total_seconds() / 3600
     total_payment = assignment.total_interpreter_payment
     
+    # Conversion en heure locale Boston
+    start_local = timezone.localtime(assignment.start_time, TZ_BOSTON)
+    end_local = timezone.localtime(assignment.end_time, TZ_BOSTON)
+    completed_local = timezone.localtime(assignment.completed_at, TZ_BOSTON) if assignment.completed_at else None
+
     context = {
         'interpreter_name': assignment.interpreter.user.get_full_name(),
         'assignment_id': assignment.id,
-        'start_time': assignment.start_time.strftime('%B %d, %Y at %I:%M %p'),
-        'end_time': assignment.end_time.strftime('%I:%M %p'),
+        'start_time': start_local.strftime('%B %d, %Y at %I:%M %p'),
+        'end_time': end_local.strftime('%I:%M %p'),
         'location': assignment.location,
         'city': assignment.city,
         'state': assignment.state,
@@ -1718,7 +1703,7 @@ def send_completion_email(assignment):
         'interpreter_rate': assignment.interpreter_rate,
         'duration_hours': round(hours, 2),
         'total_payment': total_payment,
-        'completed_at': assignment.completed_at.strftime('%B %d, %Y at %I:%M %p'),
+        'completed_at': completed_local.strftime('%B %d, %Y at %I:%M %p') if completed_local else '',
         'minimum_hours': assignment.minimum_hours
     }
     
@@ -1731,26 +1716,27 @@ def send_completion_email(assignment):
         to=[assignment.interpreter.user.email],
     )
     
-    # Add unique headers to ensure new thread
     email.extra_headers = {
         'Message-ID': make_msgid(domain='jhbridge.com'),
         'X-Entity-Ref-ID': str(uuid.uuid4()),
     }
     
     email.content_subtype = "html"
-    
     return email.send()
 
 def send_confirmation_email(assignment):
-    """Envoie l'email de confirmation avec le fichier ICS"""
+    """Envoie l'email de confirmation avec le fichier ICS."""
     subject = 'Assignment Confirmation - JHBRIDGE'
     
-    # Contexte pour le template
+    # Conversion en heure locale Boston
+    start_local = timezone.localtime(assignment.start_time, TZ_BOSTON)
+    end_local = timezone.localtime(assignment.end_time, TZ_BOSTON)
+    
     context = {
         'interpreter_name': assignment.interpreter.user.get_full_name(),
         'assignment_id': assignment.id,
-        'start_time': assignment.start_time.strftime('%B %d, %Y at %I:%M %p'),
-        'end_time': assignment.end_time.strftime('%I:%M %p'),
+        'start_time': start_local.strftime('%B %d, %Y at %I:%M %p'),
+        'end_time': end_local.strftime('%I:%M %p'),
         'location': assignment.location,
         'city': assignment.city,
         'state': assignment.state,
@@ -1761,10 +1747,8 @@ def send_confirmation_email(assignment):
         'special_requirements': assignment.special_requirements
     }
     
-    # Génération du contenu HTML de l'email
     email_html = render_to_string('emails/assignment_confirmation.html', context)
     
-    # Création de l'email avec Message-ID unique
     email = EmailMessage(
         subject=subject,
         body=email_html,
@@ -1772,7 +1756,6 @@ def send_confirmation_email(assignment):
         to=[assignment.interpreter.user.email],
     )
     
-    # Add unique headers to ensure new thread
     email.extra_headers = {
         'Message-ID': make_msgid(domain='jhbridge.com'),
         'X-Entity-Ref-ID': str(uuid.uuid4()),
@@ -1780,30 +1763,30 @@ def send_confirmation_email(assignment):
     
     email.content_subtype = "html"
     
-    # Génération et ajout du fichier ICS
+    # Génération du fichier ICS
     ics_content = generate_ics_file(assignment)
     email.attach('appointment.ics', ics_content, 'text/calendar')
     
     return email.send()
 
-
 def send_admin_notification_email(assignment):
-    """Sends notification email to admin users when interpreter accepts assignment"""
+    """Envoie un email aux admins lorsque l'interprète accepte l'assignement."""
     admin_users = User.objects.filter(role='ADMIN', is_active=True)
-    
     if not admin_users.exists():
         return False
         
     subject = f'Interpreter Accepted Assignment - ID: {assignment.id}'
     
-    # Context for the template
+    start_local = timezone.localtime(assignment.start_time, TZ_BOSTON)
+    end_local = timezone.localtime(assignment.end_time, TZ_BOSTON)
+    
     context = {
         'interpreter_name': assignment.interpreter.user.get_full_name(),
         'interpreter_email': assignment.interpreter.user.email,
         'interpreter_phone': assignment.interpreter.user.phone,
         'assignment_id': assignment.id,
-        'start_time': assignment.start_time.strftime('%B %d, %Y at %I:%M %p'),
-        'end_time': assignment.end_time.strftime('%I:%M %p'),
+        'start_time': start_local.strftime('%B %d, %Y at %I:%M %p'),
+        'end_time': end_local.strftime('%I:%M %p'),
         'location': assignment.location,
         'city': assignment.city,
         'state': assignment.state,
@@ -1814,10 +1797,8 @@ def send_admin_notification_email(assignment):
         'special_requirements': assignment.special_requirements
     }
     
-    # Generate HTML email content
     email_html = render_to_string('emails/admin_assignment_notification.html', context)
     
-    # Create email with unique Message-ID
     email = EmailMessage(
         subject=subject,
         body=email_html,
@@ -1825,7 +1806,6 @@ def send_admin_notification_email(assignment):
         to=[admin.email for admin in admin_users],
     )
     
-    # Add unique headers to ensure new thread
     email.extra_headers = {
         'Message-ID': make_msgid(domain='jhbridge.com'),
         'X-Entity-Ref-ID': str(uuid.uuid4()),
@@ -1833,30 +1813,26 @@ def send_admin_notification_email(assignment):
     
     email.content_subtype = "html"
     
-    # Generate and attach ICS file
     ics_content = generate_ics_file(assignment)
     email.attach('admin_appointment.ics', ics_content, 'text/calendar')
     
     return email.send()
 
 def send_admin_rejection_email(assignment, old_interpreter):
-    """Envoie un email aux admins quand un interprète refuse une mission"""
-    # Récupérer tous les admins
+    """Envoie un email aux admins lorsque l'interprète refuse une mission."""
     admin_users = User.objects.filter(role='ADMIN', is_active=True)
-    
     if not admin_users.exists():
         return False
     
     subject = f'ACTION REQUIRED: Assignment #{assignment.id} Rejected by Interpreter'
     
-    # Contexte pour le template
     context = {
         'assignment_id': assignment.id,
-        'interpreter_name': f"{old_interpreter.user.get_full_name()}",
+        'interpreter_name': old_interpreter.user.get_full_name(),
         'interpreter_email': old_interpreter.user.email,
         'client_name': assignment.client.company_name,
-        'start_time': assignment.start_time.strftime("%B %d, %Y at %I:%M %p"),
-        'end_time': assignment.end_time.strftime("%I:%M %p"),
+        'start_time': timezone.localtime(assignment.start_time, TZ_BOSTON).strftime("%B %d, %Y at %I:%M %p"),
+        'end_time': timezone.localtime(assignment.end_time, TZ_BOSTON).strftime("%I:%M %p"),
         'location': assignment.location,
         'city': assignment.city,
         'state': assignment.state,
@@ -1865,10 +1841,8 @@ def send_admin_rejection_email(assignment, old_interpreter):
         'target_language': assignment.target_language.name,
     }
     
-    # Génération du contenu HTML
     html_message = render_to_string('emails/assignment_rejection_notification.html', context)
     
-    # Création et envoi de l'email
     email = EmailMessage(
         subject=subject,
         body=html_message,
@@ -1876,7 +1850,6 @@ def send_admin_rejection_email(assignment, old_interpreter):
         to=[admin.email for admin in admin_users],
     )
     
-    # Ajout des en-têtes uniques
     email.extra_headers = {
         'Message-ID': make_msgid(domain='jhbridge.com'),
         'X-Entity-Ref-ID': str(uuid.uuid4()),
@@ -1895,35 +1868,33 @@ def accept_assignment(request, pk):
         
     if not assignment.can_be_confirmed():
         return JsonResponse({'error': 'Invalid status'}, status=400)
-
-    # Check for schedule conflicts
+    
     conflicting_assignments = Assignment.objects.filter(
         interpreter=request.user.interpreter_profile,
         status__in=['CONFIRMED', 'IN_PROGRESS'],
         start_time__lt=assignment.end_time,
         end_time__gt=assignment.start_time
     ).exists()
-
+    
     if conflicting_assignments:
         return JsonResponse({
             'error': 'Schedule conflict',
             'message': 'You already have an assignment during this time period'
         }, status=400)
-
+    
     if assignment.confirm():
-        # Send confirmation email to interpreter
         try:
             send_confirmation_email(assignment)
         except Exception as e:
             print(f"Error sending confirmation email: {str(e)}")
             
-        # Send notification email to admin users
         try:
             send_admin_notification_email(assignment)
         except Exception as e:
             print(f"Error sending admin notification email: {str(e)}")
             
         return JsonResponse({'status': 'success'})
+    
     return JsonResponse({'error': 'Could not confirm assignment'}, status=400)
 
 class AssignmentDetailView(LoginRequiredMixin, UserPassesTestMixin, View):
@@ -1961,47 +1932,6 @@ class AssignmentDetailView(LoginRequiredMixin, UserPassesTestMixin, View):
 
 @require_POST
 @login_required
-def accept_assignment(request, pk):
-    assignment = get_object_or_404(Assignment, pk=pk)
-    
-    if assignment.interpreter != request.user.interpreter_profile:
-        return JsonResponse({'error': 'Unauthorized'}, status=403)
-        
-    if not assignment.can_be_confirmed():
-        return JsonResponse({'error': 'Invalid status'}, status=400)
-
-    # Check for schedule conflicts
-    conflicting_assignments = Assignment.objects.filter(
-        interpreter=request.user.interpreter_profile,
-        status__in=['CONFIRMED', 'IN_PROGRESS'],
-        start_time__lt=assignment.end_time,
-        end_time__gt=assignment.start_time
-    ).exists()
-
-    if conflicting_assignments:
-        return JsonResponse({
-            'error': 'Schedule conflict',
-            'message': 'You already have an assignment during this time period'
-        }, status=400)
-
-    if assignment.confirm():
-        # Send confirmation email to interpreter
-        try:
-            send_confirmation_email(assignment)
-        except Exception as e:
-            print(f"Error sending confirmation email: {str(e)}")
-            
-        # Send notification email to superadmin
-        try:
-            send_admin_notification_email(assignment)
-        except Exception as e:
-            print(f"Error sending admin notification email: {str(e)}")
-            
-        return JsonResponse({'status': 'success'})
-    return JsonResponse({'error': 'Could not confirm assignment'}, status=400)
-
-@require_POST
-@login_required
 def reject_assignment(request, pk):
     assignment = get_object_or_404(Assignment, pk=pk)
     
@@ -2014,6 +1944,7 @@ def reject_assignment(request, pk):
     old_interpreter = assignment.cancel()
     if old_interpreter:
         return JsonResponse({'status': 'success'})
+    
     return JsonResponse({'error': 'Could not reject assignment'}, status=400)
 
 @require_POST
@@ -2027,7 +1958,6 @@ def start_assignment(request, pk):
     if not assignment.can_be_started():
         return JsonResponse({'error': 'Invalid status'}, status=400)
 
-    # Vérifier la fenêtre de temps (15 minutes avant)
     if timezone.now() + timedelta(minutes=15) < assignment.start_time:
         return JsonResponse({
             'error': 'Too early',
@@ -2036,6 +1966,7 @@ def start_assignment(request, pk):
 
     if assignment.start():
         return JsonResponse({'status': 'success'})
+    
     return JsonResponse({'error': 'Could not start assignment'}, status=400)
 
 @require_POST
@@ -2050,17 +1981,16 @@ def complete_assignment(request, pk):
         return JsonResponse({'error': 'Invalid status'}, status=400)
         
     if assignment.complete():
-        # Send completion confirmation email
         try:
             send_completion_email(assignment)
         except Exception as e:
-            # Log the error but don't block the completion
             print(f"Error sending completion email: {str(e)}")
             
         return JsonResponse({
             'status': 'success',
             'payment': str(assignment.total_interpreter_payment)
         })
+    
     return JsonResponse({'error': 'Could not complete assignment'}, status=400)
 
 @login_required
@@ -2094,9 +2024,7 @@ def get_unread_assignments_count(request):
     if request.user.role != 'INTERPRETER':
         return JsonResponse({'count': 0})
         
-    count = AssignmentNotification.get_unread_count(
-        request.user.interpreter_profile
-    )
+    count = AssignmentNotification.get_unread_count(request.user.interpreter_profile)
     return JsonResponse({'count': count})
 # views.py
 
