@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 from datetime import timedelta
 import dj_database_url
 from supabase import create_client
+from django.utils.translation import gettext_lazy as _
 
 # Charger les variables d'environnement
 load_dotenv()
@@ -51,6 +52,7 @@ LOGGING = {
         },
     },
 }
+
 # Application definition
 INSTALLED_APPS = [
     # Local apps (mettre en premier)
@@ -81,6 +83,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.middleware.locale.LocaleMiddleware",  # Internationalisation middleware
     "whitenoise.middleware.WhiteNoiseMiddleware", 
     'corsheaders.middleware.CorsMiddleware',
     "django.middleware.common.CommonMiddleware",
@@ -98,7 +101,6 @@ TEMPLATES = [
         "BACKEND": "django.template.backends.django.DjangoTemplates",
         "DIRS": [
             BASE_DIR / 'templates',
-            
         ],
         "APP_DIRS": True,
         "OPTIONS": {
@@ -117,7 +119,6 @@ TEMPLATES = [
 WSGI_APPLICATION = "config.wsgi.application"
 
 # Database
-# Utilisation de dj-database-url pour la configuration
 DATABASES = {
     'default': dj_database_url.config(
         default=os.getenv('MYSQL_URL'),
@@ -141,14 +142,48 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-# Internationalization
-# Internationalization
-LANGUAGE_CODE = "en-us"  # Langue : Anglais (États-Unis)
+# Internationalization settings
+LANGUAGE_CODE = "en-us"
 TIME_ZONE = "America/New_York"  # Fuseau horaire pour le Massachusetts
 
-USE_I18N = True  # Activer l'internationalisation
-USE_L10N = True  # Activer la localisation (affichage des formats locaux)
-USE_TZ = True  # Utiliser les informations de fuseau horaire pour les dates/heures
+# Available languages
+LANGUAGES = [
+    ('en', _('English')),
+]
+
+# Directory where translation files are stored
+LOCALE_PATHS = [
+    BASE_DIR / 'locale',
+]
+
+USE_I18N = True  # Enable internationalization
+USE_L10N = True  # Enable localization
+USE_TZ = True    # Enable timezone support
+
+# Date and Time Formatting
+DATE_FORMAT = 'N j, Y'  # Example: Jan. 1, 2024
+DATETIME_FORMAT = 'N j, Y, P'  # Example: Jan. 1, 2024, 4 p.m.
+SHORT_DATE_FORMAT = 'm/d/Y'  # US format: MM/DD/YYYY
+SHORT_DATETIME_FORMAT = 'm/d/Y P'
+
+# Number Formatting
+USE_THOUSAND_SEPARATOR = True
+THOUSAND_SEPARATOR = ','
+NUMBER_GROUPING = 3
+DECIMAL_SEPARATOR = '.'
+
+# Date Input Formats
+DATE_INPUT_FORMATS = [
+    '%m/%d/%Y',  # US format MM/DD/YYYY
+    '%Y-%m-%d',  # ISO format
+]
+
+# Time Input Formats
+TIME_INPUT_FORMATS = [
+    '%I:%M %p',  # 12-hour format with AM/PM
+    '%H:%M',     # 24-hour format
+]
+
 # Static files (CSS, JavaScript, Images)
 STATIC_URL = "static/"
 STATICFILES_DIRS = [
@@ -156,11 +191,8 @@ STATICFILES_DIRS = [
 ]
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
-
 # Default primary key field type
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
-
-
 
 # REST Framework
 REST_FRAMEWORK = {
@@ -168,6 +200,14 @@ REST_FRAMEWORK = {
         'rest_framework_simplejwt.authentication.JWTAuthentication',
         'rest_framework.authentication.SessionAuthentication',
     ),
+    'DATETIME_FORMAT': '%Y-%m-%dT%H:%M:%S%z',
+    'DATE_FORMAT': '%Y-%m-%d',
+    'TIME_FORMAT': '%H:%M:%S',
+    'DATETIME_INPUT_FORMATS': [
+        '%Y-%m-%dT%H:%M:%S%z',
+        '%Y-%m-%d %H:%M:%S',
+        '%Y-%m-%d %H:%M',
+    ],
 }
 
 # JWT Settings
@@ -204,15 +244,11 @@ CELERY_TIMEZONE = TIME_ZONE
 
 # Social Auth Configuration
 AUTHENTICATION_BACKENDS = (
-    #'mvp.auth_backends.flexible_auth.FlexibleAuthBackend',
     'django.contrib.auth.backends.ModelBackend',
 )
 
 SOCIAL_AUTH_GOOGLE_OAUTH2_KEY = os.getenv('SOCIAL_AUTH_GOOGLE_CLIENT_ID')
 SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET = os.getenv('SOCIAL_AUTH_GOOGLE_CLIENT_SECRET')
-
-# Site ID
-#SITE_ID = 1
 
 # Stripe Configuration
 STRIPE_SECRET_KEY = os.getenv('STRIPE_SECRET_KEY')
@@ -224,14 +260,14 @@ LOGIN_REDIRECT_URL = 'dashboard'
 LOGOUT_URL = 'logout'
 LOGOUT_REDIRECT_URL = 'home'
 
-PHONENUMBER_DEFAULT_REGION = 'US'  # Pour les États-Unis
+# Phone number settings
+PHONENUMBER_DEFAULT_REGION = 'US'
 PHONENUMBER_DB_FORMAT = 'INTERNATIONAL'
 
+# Crispy Forms
 CRISPY_ALLOWED_TEMPLATE_PACKS = ('bootstrap5',)
 CRISPY_TEMPLATE_PACK = 'bootstrap5'
 
-
-    
 # Scheduler Configuration
 SCHEDULER_CONFIG = {
     "apscheduler.jobstores.default": {
@@ -245,7 +281,7 @@ SCHEDULER_CONFIG = {
         "coalesce": False,
         "max_instances": 1,
     },
-    "apscheduler.timezone": TIME_ZONE,  # Assurez-vous que le fuseau horaire est correctement configuré ici aussi
+    "apscheduler.timezone": TIME_ZONE,
 }
 
 # Scheduler Config Variables
@@ -254,8 +290,7 @@ SCHEDULER_REMOVE_EXISTING_JOBS = True
 AUTH_USER_MODEL = 'app.User'
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
-
-#stockage
+# Storage Configuration
 SUPABASE_URL = os.environ.get('SUPABASE_URL')
 SUPABASE_KEY = os.environ.get('SUPABASE_KEY')
 
@@ -272,6 +307,5 @@ STORAGES = {
 }
 
 # Media files
-# Pour la production avec Supabase Storage
 MEDIA_URL = f'{SUPABASE_URL}/storage/v1/object/public/media/'
 MEDIA_ROOT = None  # Pas de stockage local en production

@@ -1839,6 +1839,52 @@ def send_admin_notification_email(assignment):
     
     return email.send()
 
+def send_admin_rejection_email(assignment, old_interpreter):
+    """Envoie un email aux admins quand un interprète refuse une mission"""
+    # Récupérer tous les admins
+    admin_users = User.objects.filter(role='ADMIN', is_active=True)
+    
+    if not admin_users.exists():
+        return False
+    
+    subject = f'ACTION REQUIRED: Assignment #{assignment.id} Rejected by Interpreter'
+    
+    # Contexte pour le template
+    context = {
+        'assignment_id': assignment.id,
+        'interpreter_name': f"{old_interpreter.user.get_full_name()}",
+        'interpreter_email': old_interpreter.user.email,
+        'client_name': assignment.client.company_name,
+        'start_time': assignment.start_time.strftime("%B %d, %Y at %I:%M %p"),
+        'end_time': assignment.end_time.strftime("%I:%M %p"),
+        'location': assignment.location,
+        'city': assignment.city,
+        'state': assignment.state,
+        'service_type': assignment.service_type.name,
+        'source_language': assignment.source_language.name,
+        'target_language': assignment.target_language.name,
+    }
+    
+    # Génération du contenu HTML
+    html_message = render_to_string('emails/assignment_rejection_notification.html', context)
+    
+    # Création et envoi de l'email
+    email = EmailMessage(
+        subject=subject,
+        body=html_message,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        to=[admin.email for admin in admin_users],
+    )
+    
+    # Ajout des en-têtes uniques
+    email.extra_headers = {
+        'Message-ID': make_msgid(domain='jhbridge.com'),
+        'X-Entity-Ref-ID': str(uuid.uuid4()),
+    }
+    
+    email.content_subtype = "html"
+    return email.send()
+
 @require_POST
 @login_required
 def accept_assignment(request, pk):
