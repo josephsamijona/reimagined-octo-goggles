@@ -5,6 +5,7 @@ from django.utils.html import format_html, mark_safe
 from django.urls import reverse
 from django.contrib import messages
 from django.utils import timezone
+from decimal import Decimal
 import pytz
 from django.template.loader import render_to_string
 from django.utils.html import strip_tags
@@ -12,14 +13,16 @@ from django.conf import settings
 from django import forms
 from django.core.mail import send_mail
 from datetime import datetime
-
+from django.utils.html import mark_safe
+from .utils.datetime_handlers import DateTimeHandler
+from .mixins.assignment_mixins import AssignmentAdminMixin
 from . import models
-
+from django.core.exceptions import ValidationError
 # =======================================================
 # 1. UTILITAIRES POUR LE FUSEAU HORAIRE
 # =======================================================
 # On force ici l'heure du Massachusetts (America/New_York)
-TZ_BOSTON = pytz.timezone('America/New_York')
+BOSTON_TZ = pytz.timezone('America/New_York')
 
 def format_boston_datetime(dt):
     """
@@ -29,7 +32,7 @@ def format_boston_datetime(dt):
     """
     if not dt:
         return ""
-    local_dt = timezone.localtime(dt, TZ_BOSTON)
+    local_dt = timezone.localtime(dt, BOSTON_TZ)
     return local_dt.strftime("%m/%d/%Y %I:%M %p %Z")
 
 # =======================================================
@@ -39,10 +42,6 @@ class USDateTimePickerWidget(forms.MultiWidget):
     """
     Widget combinant deux champs de saisie (un pour la date et un pour l'heure)
     avec Flatpickr pour offrir un date picker et un time picker.
-    Les formats utilisés sont au standard US :
-       - Date : MM/DD/YYYY
-       - Heure : 12h avec AM/PM
-    Ce widget permet une saisie intuitive et limite les erreurs humaines.
     """
     def __init__(self, attrs=None):
         widgets = [
@@ -52,8 +51,17 @@ class USDateTimePickerWidget(forms.MultiWidget):
         super().__init__(widgets, attrs)
 
     def decompress(self, value):
+        """
+        Décompose une datetime en date et heure
+        Convertit de UTC vers Boston pour l'affichage dans le formulaire
+        """
         if value:
-            return [value.strftime('%m/%d/%Y'), value.strftime('%I:%M %p')]
+            # Convertir de UTC vers Boston pour l'affichage
+            boston_time = value.astimezone(BOSTON_TZ)
+            return [
+                boston_time.strftime('%m/%d/%Y'),
+                boston_time.strftime('%I:%M %p')
+            ]
         return [None, None]
 
     def render(self, name, value, attrs=None, renderer=None):
@@ -62,7 +70,7 @@ class USDateTimePickerWidget(forms.MultiWidget):
         elif not isinstance(value, list):
             value = self.decompress(value)
         rendered = super().render(name, value, attrs, renderer)
-        # Ajout d'un script inline pour initialiser Flatpickr sur les champs
+        
         js = """
         <script type="text/javascript">
         (function($) {
@@ -94,12 +102,6 @@ class USDateTimePickerWidget(forms.MultiWidget):
 # 2.1. CHAMP PERSONNALISÉ : USDateTimeField
 # =======================================================
 class USDateTimeField(forms.MultiValueField):
-    """
-    Champ personnalisé combinant un DateField et un TimeField.
-    Il utilise le widget USDateTimePickerWidget défini ci-dessus.
-    Le champ compresse la saisie (une liste de [date, time])
-    en un objet datetime aware localisé en heure du Massachusetts.
-    """
     widget = USDateTimePickerWidget
 
     def __init__(self, *args, **kwargs):
@@ -110,24 +112,47 @@ class USDateTimeField(forms.MultiValueField):
         super().__init__(fields, require_all_fields=True, *args, **kwargs)
 
     def compress(self, data_list):
-        if data_list:
-            if not data_list[0] or not data_list[1]:
-                raise forms.ValidationError("Enter a valid date and time.")
-            dt = datetime.combine(data_list[0], data_list[1])
-            return TZ_BOSTON.localize(dt)
-        return None
+        if not data_list:
+            return None
+            
+        if data_list[0] is None or data_list[1] is None:
+            raise ValidationError("Enter a valid date and time.")
 
+        try:
+            # 1. Créer la datetime naïve
+            naive_dt = datetime.combine(data_list[0], data_list[1])
+            
+            # 2. La localiser explicitement dans le fuseau Boston
+            boston_dt = BOSTON_TZ.localize(naive_dt)
+            
+            # 3. La convertir en UTC pour le stockage
+            utc_dt = boston_dt.astimezone(pytz.UTC)
+            
+            return utc_dt
+            
+        except (AttributeError, ValueError) as e:
+            raise ValidationError("Enter a valid date and time.")
 # =======================================================
 # 3. FORMULAIRES PERSONNALISÉS POUR LES CHAMPS DATETIME
 # =======================================================
 class CustomAssignmentForm(forms.ModelForm):
-    # Remplacement des champs start_time et end_time par le champ personnalisé
     start_time = USDateTimeField()
     end_time = USDateTimeField()
 
     class Meta:
         model = models.Assignment
         fields = '__all__'
+
+    def clean(self):
+        cleaned_data = super().clean()
+        start_time = cleaned_data.get('start_time')
+        end_time = cleaned_data.get('end_time')
+
+        if start_time and end_time:
+            if end_time <= start_time:
+                raise ValidationError({'end_time': 'End time must be after start time.'})
+
+        return cleaned_data
 
 class CustomQuoteRequestForm(forms.ModelForm):
     requested_date = USDateTimeField()
@@ -347,151 +372,196 @@ class QuoteAdmin(admin.ModelAdmin):
     get_client.short_description = 'Client'
 
 @admin.register(models.Assignment)
-class AssignmentAdmin(admin.ModelAdmin):
+class AssignmentAdmin(AssignmentAdminMixin, admin.ModelAdmin):
     form = CustomAssignmentForm
-    list_display = ('id', 'get_client', 'get_interpreter', 'formatted_start_time', 'status')
-    list_filter = ('status', 'service_type', 'start_time')
-    search_fields = ('client__company_name', 'interpreter__user__first_name', 'interpreter__user__last_name')
-    raw_id_fields = ('quote', 'interpreter', 'client')
-    readonly_fields = ('created_at', 'updated_at', 'completed_at')
-    fieldsets = (
-        ('Assignment Information', {'fields': (('quote', 'service_type'), ('interpreter', 'client'))}),
-        ('Language Details', {'fields': ('source_language', 'target_language')}),
-        ('Schedule', {'fields': ('start_time', 'end_time')}),
-        ('Location', {'fields': ('location', ('city', 'state', 'zip_code'))}),
-        ('Financial Information', {'fields': ('interpreter_rate', 'minimum_hours', 'total_interpreter_payment'),
-                                     'classes': ('collapse',)}),
-        ('Status and Notes', {'fields': ('status', 'notes', 'special_requirements')}),
-        ('System Information', {'fields': ('created_at', 'updated_at', 'completed_at'),
-                                  'classes': ('collapse',)}),
+    list_display = (
+        'id', 
+        'get_client_display', 
+        'get_interpreter', 
+        'get_languages',
+        'get_service_type',
+        'formatted_start_time',
+        'formatted_end_time',
+        'get_status_display'
     )
-    def get_client(self, obj):
-        return obj.client.company_name
-    get_client.short_description = 'Client'
+    list_filter = (
+        'status', 
+        'service_type',
+        'source_language',
+        'target_language',
+        'start_time'
+    )
+    search_fields = (
+        'client__company_name', 
+        'client_name', 
+        'client_email',
+        'interpreter__user__first_name', 
+        'interpreter__user__last_name'
+    )
+    raw_id_fields = ('quote', 'interpreter', 'client')
+    readonly_fields = (
+        'created_at', 
+        'updated_at', 
+        'completed_at', 
+        'total_interpreter_payment',
+        'formatted_start_time_detail',
+        'formatted_end_time_detail'
+    )
+
+    fieldsets = (
+        ('Assignment Information', {
+            'fields': (
+                ('quote', 'service_type'), 
+                ('interpreter',),
+                ('client',),  # Existing client
+                ('client_name', 'client_email', 'client_phone')  # New client
+            ),
+            'description': 'If the client is not registered in the system, please enter their information manually using the fields below (name, email, phone)'
+        }),
+        ('Language Details', {
+            'fields': ('source_language', 'target_language')
+        }),
+        ('Schedule', {
+            'fields': (
+                ('start_time', 'formatted_start_time_detail'),
+                ('end_time', 'formatted_end_time_detail')
+            ),
+            'description': 'All times are displayed in Boston (EDT/EST) timezone'
+        }),
+        ('Location', {
+            'fields': ('location', ('city', 'state', 'zip_code'))
+        }),
+        ('Financial Information', {
+            'fields': ('interpreter_rate', 'minimum_hours', 'total_interpreter_payment'),
+            'classes': ('collapse',),
+            'description': 'Total amount is automatically calculated based on hourly rate and billable hours'
+        }),
+        ('Status and Notes', {
+            'fields': ('status', 'notes', 'special_requirements'),
+            'description': '''
+                Status Information:
+                • PENDING: When you first assign an interpreter, set status to PENDING (awaiting interpreter confirmation)
+                • CONFIRMED: Interpreter has accepted the assignment
+                • IN_PROGRESS: Assignment is currently being executed
+                • COMPLETED: Assignment has been successfully completed
+                • CANCELLED: Assignment was cancelled or rejected by interpreter
+                • NO_SHOW: Client or interpreter did not show up
+                
+                Note: When creating a new assignment with an interpreter, you must set the status to PENDING.
+            '''
+        }),
+        ('System Information', {
+            'fields': ('created_at', 'updated_at', 'completed_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
+    def get_languages(self, obj):
+        """Display languages"""
+        return f"{obj.source_language.name} → {obj.target_language.name}"
+    get_languages.short_description = "Languages"
+    get_languages.admin_order_field = 'source_language__name'
+
+    def get_service_type(self, obj):
+        """Display service type"""
+        return obj.service_type.name
+    get_service_type.short_description = "Service Type"
+    get_service_type.admin_order_field = 'service_type__name'
+
+    def get_status_display(self, obj):
+        """Display status with color coding"""
+        status_colors = {
+            'PENDING': '#FFA500',      # Orange
+            'CONFIRMED': '#4169E1',    # Royal Blue
+            'IN_PROGRESS': '#32CD32',  # Lime Green
+            'COMPLETED': '#008000',    # Green
+            'CANCELLED': '#FF0000',    # Red
+            'NO_SHOW': '#8B0000',      # Dark Red
+        }
+        
+        status_icons = {
+            'PENDING': '⏳',       # Hourglass
+            'CONFIRMED': '✓',      # Check mark
+            'IN_PROGRESS': '🔄',   # Rotating arrows
+            'COMPLETED': '✅',      # Green check
+            'CANCELLED': '❌',      # Red X
+            'NO_SHOW': '⚠️',       # Warning
+        }
+        
+        color = status_colors.get(obj.status, 'black')
+        icon = status_icons.get(obj.status, '')
+        
+        return format_html(
+            '<span style="color: {}; font-weight: bold;">{} {}</span>',
+            color,
+            icon,
+            obj.get_status_display()
+        )
+    get_status_display.short_description = 'Status'
+
+    def get_client_display(self, obj):
+        """Display client information"""
+        if obj.client:
+            return obj.client.company_name
+        return f"{obj.client_name} (Manual)"
+    get_client_display.short_description = 'Client'
+
     def get_interpreter(self, obj):
+        """Display interpreter information"""
         if obj.interpreter:
             return f"{obj.interpreter.user.first_name} {obj.interpreter.user.last_name}"
         return "-"
     get_interpreter.short_description = 'Interpreter'
-    def formatted_start_time(self, obj):
-        return format_boston_datetime(obj.start_time)
-    formatted_start_time.short_description = "Start Time (Boston)"
-    def save_model(self, request, obj, form, change):
-        print("\n" + "="*50)
-        print("SAVE MODEL PROCESS STARTED")
-        print("="*50)
-        print(f"Operation type: {'Modification' if change else 'New Creation'}")
-        print(f"Form changed fields: {form.changed_data}")
-        print(f"Current Assignment ID: {obj.pk}")
-        print(f"Current Status: {obj.status}")
-       
-        try:
-            print("\nCHECKING INTERPRETER")
-            if obj.interpreter:
-                print(f"Interpreter assigned: {obj.interpreter.user.get_full_name()}")
-                print(f"Interpreter email: {obj.interpreter.user.email}")
-            else:
-                print("No interpreter assigned")
-           
-            should_send = False
-           
-            if not change:  # New creation
-                print("\nNEW APPOINTMENT CREATION")
-                should_send = (obj.status == models.Assignment.Status.PENDING and obj.interpreter is not None)
-                print(f"Should send email (new): {should_send}")
-                if should_send:
-                    print("Reason: New appointment with PENDING status and interpreter assigned")
-                else:
-                    print("Reason for not sending:")
-                    if obj.status != models.Assignment.Status.PENDING:
-                        print(f"- Status is not PENDING (current: {obj.status})")
-                    if not obj.interpreter:
-                        print("- No interpreter assigned")
-           
-            else:  # Modification
-                print("\nAPPOINTMENT MODIFICATION")
-                old_obj = self.model.objects.get(pk=obj.pk)
-                print(f"Old status: {old_obj.status}")
-                print(f"New status: {obj.status}")
-               
-                should_send = (old_obj.status != obj.status and 
-                               obj.status == models.Assignment.Status.PENDING and 
-                               obj.interpreter is not None)
-                print(f"Should send email (modification): {should_send}")
-                if should_send:
-                    print("Reason: Status changed to PENDING with interpreter assigned")
-                else:
-                    print("Reason for not sending:")
-                    if old_obj.status == obj.status:
-                        print("- Status not changed")
-                    if obj.status != models.Assignment.Status.PENDING:
-                        print(f"- New status is not PENDING (current: {obj.status})")
-                    if not obj.interpreter:
-                        print("- No interpreter assigned")
-           
-            if should_send:
-                print("\nPREPARING EMAIL")
-                try:
-                    context = {
-                        'interpreter_name': f"{obj.interpreter.user.first_name} {obj.interpreter.user.last_name}",
-                        'assignment_id': obj.id,
-                        'start_time': format_boston_datetime(obj.start_time),
-                        'end_time': format_boston_datetime(obj.end_time),
-                        'location': obj.location,
-                        'city': obj.city,
-                        'state': obj.state,
-                        'client_name': obj.client.company_name,
-                        'service_type': obj.service_type.name,
-                        'source_language': obj.source_language.name,
-                        'target_language': obj.target_language.name,
-                        'interpreter_rate': obj.interpreter_rate,
-                        'special_requirements': obj.special_requirements or "No special requirements"
-                    }
-                    print("Email context prepared successfully")
-                   
-                    print("\nEMAIL SETTINGS")
-                    print(f"From email: {settings.DEFAULT_FROM_EMAIL}")
-                    print(f"Email backend: {settings.EMAIL_BACKEND}")
-                   
-                    print("\nRENDERING EMAIL TEMPLATE")
-                    html_message = render_to_string(
-                        'emails/new_assignment_notification.html',
-                        context,
-                        request=request
-                    )
-                    print("Template rendered successfully")
-                   
-                    print("\nSENDING EMAIL")
-                    print(f"To: {obj.interpreter.user.email}")
-                    send_mail(
-                        subject=_('New Appointment to Confirm - Action Required'),
-                        message=strip_tags(html_message),
-                        from_email=settings.DEFAULT_FROM_EMAIL,
-                        recipient_list=[obj.interpreter.user.email],
-                        html_message=html_message,
-                        fail_silently=False
-                    )
-                    print("EMAIL SENT SUCCESSFULLY ✓")
-                   
-                except Exception as email_error:
-                    print("\nEMAIL ERROR")
-                    print(f"Error type: {type(email_error)}")
-                    print(f"Error message: {str(email_error)}")
-                    if hasattr(email_error, '__dict__'):
-                        print(f"Error details: {email_error.__dict__}")
-                   
-        except Exception as e:
-            print("\nGENERAL ERROR")
-            print(f"Error type: {type(e)}")
-            print(f"Error message: {str(e)}")
-            if hasattr(e, '__dict__'):
-                print(f"Error details: {e.__dict__}")
-       
-        print("\nSAVING MODEL")
-        super().save_model(request, obj, form, change)
-        print("Model saved successfully")
-        print("="*50 + "\n")
 
+    def formatted_start_time(self, obj):
+        """Pour l'affichage en liste"""
+        if obj.start_time:
+            boston_time = obj.start_time.astimezone(BOSTON_TZ)
+            return boston_time.strftime("%m/%d/%Y %I:%M %p")
+        return "-"
+    formatted_start_time.short_description = "Start Time (Boston)"
+
+    def formatted_end_time(self, obj):
+        """Pour l'affichage en liste"""
+        if obj.end_time:
+            boston_time = obj.end_time.astimezone(BOSTON_TZ)
+            return boston_time.strftime("%m/%d/%Y %I:%M %p")
+        return "-"
+    formatted_end_time.short_description = "End Time (Boston)"
+
+    def formatted_start_time_detail(self, obj):
+        """Pour l'affichage en détail"""
+        if obj.start_time:
+            boston_time = obj.start_time.astimezone(BOSTON_TZ)
+            return format_html(
+                '<span style="color: #666;">{} EDT</span>',
+                boston_time.strftime("%m/%d/%Y %I:%M %p")
+            )
+        return "-"
+    formatted_start_time_detail.short_description = "Start Time (Boston)"
+
+    def formatted_end_time_detail(self, obj):
+        """Pour l'affichage en détail"""
+        if obj.end_time:
+            boston_time = obj.end_time.astimezone(BOSTON_TZ)
+            return format_html(
+                '<span style="color: #666;">{} EDT</span>',
+                boston_time.strftime("%m/%d/%Y %I:%M %p")
+            )
+        return "-"
+    formatted_end_time_detail.short_description = "End Time (Boston)"
+
+    def save_model(self, request, obj, form, change):
+        """
+        Sauvegarde du modèle avec calcul du paiement total
+        """
+        if form.is_valid():
+            if obj.interpreter_rate and obj.start_time and obj.end_time:
+                duration = (obj.end_time - obj.start_time).total_seconds() / 3600
+                billable_hours = max(duration, float(obj.minimum_hours))
+                obj.total_interpreter_payment = obj.interpreter_rate * Decimal(str(billable_hours))
+
+        super().save_model(request, obj, form, change)
 @admin.register(models.Payment)
 class PaymentAdmin(admin.ModelAdmin):
     list_display = ('transaction_id', 'payment_type', 'amount', 'status', 'formatted_payment_date')

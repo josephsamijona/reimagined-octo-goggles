@@ -1,6 +1,7 @@
 from django.urls import path
 from django.contrib.auth import views as auth_views
 from . import views
+from .assignment_views import AssignmentAcceptView, AssignmentDeclineView
 
 app_name = 'dbdint'
 
@@ -133,4 +134,12 @@ urlpatterns = [
     path('interpreter/assignments/notifications/mark-read/',
          views.mark_assignments_as_read,
          name='mark_assignments_read'),
+    
+     path('assignments/accept/<str:assignment_token>/', 
+         AssignmentAcceptView.as_view(), 
+         name='assignment-accept'),
+    path('assignments/decline/<str:assignment_token>/', 
+         AssignmentDeclineView.as_view(), 
+         name='assignment-decline'),
+
 ]

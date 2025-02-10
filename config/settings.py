@@ -158,7 +158,7 @@ LOCALE_PATHS = [
 
 USE_I18N = True  # Enable internationalization
 USE_L10N = True  # Enable localization
-USE_TZ = True    # Enable timezone support
+USE_TZ = True  # Enable timezone support
 
 # Date and Time Formatting
 DATE_FORMAT = 'N j, Y'  # Example: Jan. 1, 2024

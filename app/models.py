@@ -1,6 +1,7 @@
 from django.db import models
 from django.utils import timezone
 from django.contrib.auth.models import AbstractUser
+from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils.translation import gettext_lazy as _
 
@@ -206,8 +207,19 @@ class Assignment(models.Model):
 
     # Relations existantes
     quote = models.OneToOneField(Quote, on_delete=models.PROTECT, null=True, blank=True)
-    interpreter = models.ForeignKey(Interpreter, on_delete=models.PROTECT, null=True, blank=True)  # Modifié pour permettre null
-    client = models.ForeignKey(Client, on_delete=models.PROTECT)
+    interpreter = models.ForeignKey(
+        Interpreter, 
+        on_delete=models.SET_NULL,  # Au lieu de PROTECT
+        null=True, 
+        blank=True
+    )
+    
+    # Modification du champ client pour permettre les deux options
+    client = models.ForeignKey(Client, on_delete=models.PROTECT, null=True, blank=True)  # Client existant
+    client_name = models.CharField(max_length=255, null=True, blank=True)  # Nouveau client (manuel)
+    client_email = models.EmailField(null=True, blank=True)  # Email du nouveau client
+    client_phone = models.CharField(max_length=20, null=True, blank=True)  # Téléphone du nouveau client
+    
     service_type = models.ForeignKey(ServiceType, on_delete=models.PROTECT)
     source_language = models.ForeignKey(Language, on_delete=models.PROTECT, related_name='assignments_source')
     target_language = models.ForeignKey(Language, on_delete=models.PROTECT, related_name='assignments_target')
@@ -241,7 +253,26 @@ class Assignment(models.Model):
         ]
 
     def __str__(self):
-        return f"Assignment {self.id} - {self.client} ({self.status})"
+        if self.client:
+            client_info = str(self.client)
+        else:
+            client_info = self.client_name or "Nouveau client"
+        return f"Assignment {self.id} - {client_info} ({self.status})"
+
+    def clean(self):
+        """Validation personnalisée pour s'assurer qu'il y a soit un client existant, soit les informations d'un nouveau client"""
+        if not self.client and not (self.client_name and self.client_email):
+            raise ValidationError({
+                'client': 'Vous devez soit sélectionner un client existant, soit fournir les informations pour un nouveau client'
+            })
+        if self.client and (self.client_name or self.client_email or self.client_phone):
+            raise ValidationError({
+                'client': 'Vous ne pouvez pas à la fois sélectionner un client existant et fournir des informations pour un nouveau client'
+            })
+
+    def save(self, *args, **kwargs):
+        self.clean()
+        super().save(*args, **kwargs)
 
     def can_be_confirmed(self):
         """Vérifie si l'assignment peut être confirmé"""
@@ -293,6 +324,12 @@ class Assignment(models.Model):
             self.save()
             return old_interpreter  # Retourne l'ancien interprète pour la notification
         return None
+
+    def get_client_display(self):
+        """Retourne les informations du client à afficher"""
+        if self.client:
+            return str(self.client)
+        return f"{self.client_name} (Nouveau client)"
 
 class AssignmentFeedback(models.Model):
     assignment = models.OneToOneField(Assignment, on_delete=models.CASCADE)

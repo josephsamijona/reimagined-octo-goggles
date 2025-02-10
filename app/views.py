@@ -220,7 +220,7 @@ Subject: {contact.subject}
 Message:
 {contact.message}
 
-View in admin panel: {self.request.build_absolute_uri(reverse('admin:app_contactmessage_change', args=[contact.id]))}""",
+View in admin panel: {self.request.build_absolute_uri(reverse('dbdint:app_contactmessage_change', args=[contact.id]))}""",
             from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=[settings.CONTACT_NOTIFICATION_EMAIL],
             fail_silently=False,
