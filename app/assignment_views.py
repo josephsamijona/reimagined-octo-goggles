@@ -102,6 +102,7 @@ class AssignmentResponseBaseMixin:
             'interpreter_name': interpreter.user.get_full_name(),
             'assignment': assignment,
             'client_name': client_name,
+            'client_phone':assignment.client_phone,
             'start_time': assignment.start_time.astimezone(BOSTON_TZ),
             'end_time': assignment.end_time.astimezone(BOSTON_TZ),
             'location': f"{assignment.location}, {assignment.city}, {assignment.state}",
@@ -197,6 +198,7 @@ class AssignmentResponseBaseMixin:
             'interpreter_name': interpreter.user.get_full_name(),
             'assignment': assignment,
             'client_name': client_name,
+            'client_phone':assignment.client_phone,
             'start_time': assignment.start_time.astimezone(BOSTON_TZ),
         }
         

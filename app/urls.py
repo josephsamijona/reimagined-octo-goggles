@@ -141,5 +141,10 @@ urlpatterns = [
     path('assignments/decline/<str:assignment_token>/', 
          AssignmentDeclineView.as_view(), 
          name='assignment-decline'),
+    ##########################update
+    path('int/home/', views.dashboard_view, name='new_interpreter_dashboard'),
+    path('int/schedule/', views.calendar_view, name='new_interpreter_calendar'),
+    path('int/missions/', views.appointments_view, name='new_interpreter_appointments'),
+    
 
 ]

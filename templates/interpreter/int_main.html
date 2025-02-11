@@ -1,0 +1,242 @@
+{% extends 'intbase.html' %}
+
+{% block title %}Dashboard - JH Bridge{% endblock %}
+
+{% block content %}
+    <!-- Stats Section -->
+    <div class="grid stats-grid">
+        <div class="card stat-card">
+            <div class="card-content">
+                <i class="fas fa-dollar-sign mb-2"></i>
+                <div class="stat-value">$2,500</div>
+                <div class="stat-label">Total Earnings</div>
+            </div>
+        </div>
+        <div class="card stat-card">
+            <div class="card-content">
+                <i class="fas fa-clock mb-2"></i>
+                <div class="stat-value">5</div>
+                <div class="stat-label">Pending Missions</div>
+            </div>
+        </div>
+        <div class="card stat-card">
+            <div class="card-content">
+                <i class="fas fa-calendar-check mb-2"></i>
+                <div class="stat-value">3</div>
+                <div class="stat-label">Upcoming Missions</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pending Missions Section -->
+    <div class="card mt-4">
+        <div class="card-header">
+            <h2 class="text-lg font-bold">Pending Missions</h2>
+        </div>
+        <div class="card-content">
+            <!-- Mission Item -->
+            <div class="mission-item">
+                <div class="mission-header">
+                    <div class="mission-time">
+                        <i class="fas fa-clock"></i>
+                        <span>Today, 2:00 PM</span>
+                    </div>
+                    <div class="mission-status pending">
+                        Pending
+                    </div>
+                </div>
+                <div class="mission-details">
+                    <div class="mission-client">
+                        <i class="fas fa-user"></i>
+                        <span>John Smith</span>
+                    </div>
+                    <div class="mission-location">
+                        <i class="fas fa-map-marker-alt"></i>
+                        <span>Central Hospital</span>
+                    </div>
+                    <div class="mission-language">
+                        <i class="fas fa-language"></i>
+                        <span>English - Spanish</span>
+                    </div>
+                    <div class="mission-amount">
+                        <i class="fas fa-dollar-sign"></i>
+                        <span>$120</span>
+                    </div>
+                </div>
+                <div class="mission-actions">
+                    <button class="btn btn-success" onclick="acceptMission(1)">
+                        <i class="fas fa-check"></i>
+                        Accept
+                    </button>
+                    <button class="btn btn-danger" onclick="declineMission(1)">
+                        <i class="fas fa-times"></i>
+                        Decline
+                    </button>
+                </div>
+            </div>
+
+            <!-- Another Mission Item -->
+            <div class="mission-item">
+                <div class="mission-header">
+                    <div class="mission-time">
+                        <i class="fas fa-clock"></i>
+                        <span>Tomorrow, 10:30 AM</span>
+                    </div>
+                    <div class="mission-status pending">
+                        Pending
+                    </div>
+                </div>
+                <div class="mission-details">
+                    <div class="mission-client">
+                        <i class="fas fa-user"></i>
+                        <span>Maria Garcia</span>
+                    </div>
+                    <div class="mission-location">
+                        <i class="fas fa-map-marker-alt"></i>
+                        <span>St. Joseph Medical Center</span>
+                    </div>
+                    <div class="mission-language">
+                        <i class="fas fa-language"></i>
+                        <span>Spanish - English</span>
+                    </div>
+                    <div class="mission-amount">
+                        <i class="fas fa-dollar-sign"></i>
+                        <span>$150</span>
+                    </div>
+                </div>
+                <div class="mission-actions">
+                    <button class="btn btn-success" onclick="acceptMission(2)">
+                        <i class="fas fa-check"></i>
+                        Accept
+                    </button>
+                    <button class="btn btn-danger" onclick="declineMission(2)">
+                        <i class="fas fa-times"></i>
+                        Decline
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .stats-grid {
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 1rem;
+    }
+
+    .stat-card {
+        text-align: center;
+        padding: 1.5rem;
+    }
+
+    .stat-card i {
+        font-size: 1.5rem;
+        color: var(--primary-green);
+    }
+
+    .stat-value {
+        font-size: 1.8rem;
+        font-weight: bold;
+        margin: 0.5rem 0;
+    }
+
+    .stat-label {
+        color: var(--gray-200);
+        font-size: 0.9rem;
+    }
+
+    .mission-item {
+        padding: 1rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .mission-item:last-child {
+        border-bottom: none;
+    }
+
+    .mission-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+
+    .mission-time {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: var(--primary-green);
+    }
+
+    .mission-status {
+        padding: 0.25rem 0.75rem;
+        border-radius: 1rem;
+        font-size: 0.8rem;
+        font-weight: 500;
+    }
+
+    .mission-status.pending {
+        background: var(--warning);
+        color: var(--white);
+    }
+
+    .mission-details {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .mission-details > div {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: var(--gray-200);
+    }
+
+    .mission-actions {
+        display: flex;
+        gap: 1rem;
+    }
+
+    .mission-actions .btn {
+        flex: 1;
+    }
+
+    .btn-success {
+        background: var(--success);
+        color: var(--white);
+    }
+
+    .btn-danger {
+        background: var(--danger);
+        color: var(--white);
+    }
+
+    .mb-2 {
+        margin-bottom: 0.5rem;
+    }
+
+    @media (max-width: 640px) {
+        .mission-details {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    function acceptMission(missionId) {
+        // Add your accept mission logic here
+        console.log('Accepting mission:', missionId);
+    }
+
+    function declineMission(missionId) {
+        // Add your decline mission logic here
+        console.log('Declining mission:', missionId);
+    }
+</script>
+{% endblock %}

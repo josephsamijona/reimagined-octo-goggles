@@ -2154,3 +2154,24 @@ def get_earnings_data(request, year=None):
         chart_data['assignments'].append(data['count'])
 
     return JsonResponse(chart_data)
+
+
+
+####################################################newupdate####################3
+def dashboard_view(request):
+    """
+    Vue pour afficher le dashboard principal
+    """
+    return render(request, 'interpreter/int_main.html')
+
+def calendar_view(request):
+    """
+    Vue pour afficher le calendrier des rendez-vous
+    """
+    return render(request, 'interpreter/int_calend.html')
+
+def appointments_view(request):
+    """
+    Vue pour afficher la liste des rendez-vous
+    """
+    return render(request, 'interpreter/appointment.html')
