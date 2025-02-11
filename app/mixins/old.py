@@ -45,14 +45,11 @@ class AssignmentAdminMixin:
         return custom_urls + urls
 
     def save_model(self, request, obj, form, change):
-        """
-        Override save_model pour gérer les changements de statut d'assignment, 
-        les paiements et les notifications.
-        """
+        """Override save_model to handle assignment status changes and notifications."""
         old_status = None
         old_interpreter = None
         
-        if change:  # Si c'est une modification
+        if change:  # If this is an update
             try:
                 old_obj = self.model.objects.get(pk=obj.pk)
                 old_status = old_obj.status
@@ -60,134 +57,22 @@ class AssignmentAdminMixin:
             except self.model.DoesNotExist:
                 pass
 
-        # Sauvegarde du modèle
+        # Save the model first
         super().save_model(request, obj, form, change)
 
         try:
-            # Gestion des nouveaux assignments ou changements d'interprètes
+            # Handle new assignments or interpreter changes
             if obj.interpreter and (not change or old_interpreter != obj.interpreter):
                 if obj.status == 'PENDING':
                     self.handle_new_assignment_notification(request, obj)
 
-            # Gestion des changements de statut
+            # Handle status changes
             if change and old_status != obj.status:
-                # Gestion des paiements selon le changement de statut
-                self.handle_status_change(request, obj, old_status)
-                # Gestion des notifications email
                 self.handle_status_change_notification(request, obj, old_status)
 
         except Exception as e:
             logger.error(f"Error in save_model: {str(e)}", exc_info=True)
-            messages.error(request, _("Error processing changes. Please check the logs."))
-
-    def handle_status_change(self, request, obj, old_status):
-        """
-        Gère les changements de statut et les actions de paiement associées.
-        Ne crée un nouveau paiement que lors de la confirmation initiale.
-        """
-        try:
-            # Création du paiement uniquement lors de la confirmation initiale
-            if obj.status == 'CONFIRMED' and old_status != 'CONFIRMED':
-                self.create_interpreter_payment(request, obj, 'PENDING')
-
-            # Mise à jour du statut du paiement existant lors de la complétion
-            elif obj.status == 'COMPLETED' and old_status != 'COMPLETED':
-                self.update_interpreter_payment(request, obj, 'PROCESSING')
-                self.create_expense(request, obj)
-
-            # Annulation du paiement existant si assignment annulé
-            elif obj.status == 'CANCELLED' and old_status != 'CANCELLED':
-                self.cancel_interpreter_payment(request, obj)
-
-        except Exception as e:
-            logger.error(f"Error handling status change: {str(e)}", exc_info=True)
-            raise
-
-    def create_interpreter_payment(self, request, assignment, status):
-        """
-        Crée un nouveau paiement interprète avec sa transaction financière associée.
-        Appelé uniquement lors de la confirmation initiale de l'assignment.
-        """
-        from app.models import InterpreterPayment, FinancialTransaction
-        
-        # Création de la transaction financière
-        transaction = FinancialTransaction.objects.create(
-            type='EXPENSE',
-            amount=assignment.total_interpreter_payment,
-            description=f"Interpreter payment for assignment #{assignment.id}",
-            created_by=request.user
-        )
-
-        # Date d'échéance = date actuelle + 14 jours
-        due_date = timezone.now() + timezone.timedelta(days=14)
-        
-        # Création du paiement interprète
-        InterpreterPayment.objects.create(
-            transaction=transaction,
-            interpreter=assignment.interpreter,
-            assignment=assignment,
-            amount=assignment.total_interpreter_payment,
-            payment_method='ACH',  # Méthode par défaut
-            status=status,
-            scheduled_date=due_date,
-            reference_number=f"INT-{assignment.id}-{uuid.uuid4().hex[:6].upper()}"
-        )
-
-    def update_interpreter_payment(self, request, assignment, new_status):
-        """
-        Met à jour uniquement le statut d'un paiement interprète existant.
-        Ne crée jamais de nouveau paiement.
-        """
-        try:
-            interpreter_payment = assignment.interpreterpayment_set.latest('created_at')
-            interpreter_payment.status = new_status
-            interpreter_payment.save()
-        except assignment.interpreterpayment_set.model.DoesNotExist:
-            logger.error(f"No interpreter payment found for assignment {assignment.id}")
-            raise  # Erreur car un paiement devrait exister
-
-    def create_expense(self, request, assignment):
-        """
-        Crée une dépense associée au paiement interprète existant.
-        Appelé lors de la completion de l'assignment.
-        """
-        from app.models import Expense
-        
-        try:
-            interpreter_payment = assignment.interpreterpayment_set.latest('created_at')
-            
-            Expense.objects.create(
-                transaction=interpreter_payment.transaction,
-                expense_type='SALARY',
-                amount=assignment.total_interpreter_payment,
-                description=f"Interpreter payment expense for assignment #{assignment.id}",
-                status='PENDING',
-                date_incurred=timezone.now()
-            )
-        except assignment.interpreterpayment_set.model.DoesNotExist:
-            logger.error(f"No interpreter payment found for assignment {assignment.id}")
-            raise
-
-    def cancel_interpreter_payment(self, request, assignment):
-        """
-        Annule le paiement interprète et la dépense associée si l'assignment est annulé.
-        Ne fait rien si le paiement est déjà complété ou a échoué.
-        """
-        try:
-            interpreter_payment = assignment.interpreterpayment_set.latest('created_at')
-            if interpreter_payment.status not in ['COMPLETED', 'FAILED']:
-                interpreter_payment.status = 'CANCELLED'
-                interpreter_payment.save()
-
-                # Annulation de la dépense associée si elle existe et n'est pas payée
-                from app.models import Expense
-                expense = Expense.objects.filter(transaction=interpreter_payment.transaction).first()
-                if expense and expense.status != 'PAID':
-                    expense.status = 'REJECTED'
-                    expense.save()
-
-        except assignment.interpreterpayment_set.model.DoesNotExist:
-            pass  # Pas d'erreur si aucun paiement n'existe
+            messages.error(request, _("Error sending notifications. Please check the logs."))
 
     def handle_new_assignment_notification(self, request, obj):
         """Handle notifications for new assignments."""
@@ -270,6 +155,9 @@ class AssignmentAdminMixin:
 
             # Génération d'un message-id unique
             unique_msg_id = make_msgid(domain="jhbridge.com")
+
+            # Optionnel : pour renforcer la « casse » du fil, on peut aussi varier le sujet
+            # subject = f"{subject} - {uuid.uuid4().hex[:8]}"
 
             # Supprimer toute référence aux en-têtes de conversation
             headers = {

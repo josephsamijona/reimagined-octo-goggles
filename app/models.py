@@ -1,3 +1,4 @@
+import uuid
 from django.db import models
 from django.utils import timezone
 from django.contrib.auth.models import AbstractUser
@@ -531,3 +532,187 @@ class AssignmentNotification(models.Model):
         """
         self.is_read = True
         self.save()
+
+class FinancialTransaction(models.Model):
+    """Table principale pour tracer toutes les transactions financières"""
+    class TransactionType(models.TextChoices):
+        INCOME = 'INCOME', _('Income')
+        EXPENSE = 'EXPENSE', _('Expense')
+        INTERNAL = 'INTERNAL', _('Internal Transfer')
+
+    transaction_id = models.UUIDField(default=uuid.uuid4, unique=True)
+    type = models.CharField(max_length=20, choices=TransactionType.choices)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    description = models.TextField()
+    date = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(User, on_delete=models.PROTECT)
+    notes = models.TextField(blank=True, null=True)
+
+class ClientPayment(models.Model):
+    """Gestion des paiements reçus des clients"""
+    class Status(models.TextChoices):
+        PENDING = 'PENDING', _('Pending')
+        PROCESSING = 'PROCESSING', _('Processing')
+        COMPLETED = 'COMPLETED', _('Completed')
+        FAILED = 'FAILED', _('Failed')
+        REFUNDED = 'REFUNDED', _('Refunded')
+        CANCELLED = 'CANCELLED', _('Cancelled')
+        DISPUTED = 'DISPUTED', _('Disputed')
+
+    class PaymentMethod(models.TextChoices):
+    # Méthodes bancaires traditionnelles
+        CREDIT_CARD = 'CREDIT_CARD', _('Credit Card')
+        DEBIT_CARD = 'DEBIT_CARD', _('Debit Card')
+        BANK_TRANSFER = 'BANK_TRANSFER', _('Bank Transfer')
+        ACH = 'ACH', _('ACH')
+        CHECK = 'CHECK', _('Check')
+        CASH = 'CASH', _('Cash')
+        
+        # Services de paiement numérique US
+        ZELLE = 'ZELLE', _('Zelle')
+        VENMO = 'VENMO', _('Venmo')
+        CASH_APP = 'CASH_APP', _('Cash App')
+        PAYPAL = 'PAYPAL', _('PayPal')
+        
+        # Portefeuilles mobiles
+        APPLE_PAY = 'APPLE_PAY', _('Apple Pay')
+        GOOGLE_PAY = 'GOOGLE_PAY', _('Google Pay')
+        SAMSUNG_PAY = 'SAMSUNG_PAY', _('Samsung Pay')
+        
+        # Services de transfert internationaux
+        WESTERN_UNION = 'WESTERN_UNION', _('Western Union')
+        MONEY_GRAM = 'MONEY_GRAM', _('MoneyGram')
+        TAPTP_SEND = 'TAPTP_SEND', _('Tap Tap Send')
+        REMITLY = 'REMITLY', _('Remitly')
+        WORLDREMIT = 'WORLDREMIT', _('WorldRemit')
+        XOOM = 'XOOM', _('Xoom')
+        WISE = 'WISE', _('Wise (TransferWise)')
+        
+        # Plateformes de paiement
+        STRIPE = 'STRIPE', _('Stripe')
+        SQUARE = 'SQUARE', _('Square')
+        
+        # Crypto-monnaies
+        CRYPTO_BTC = 'CRYPTO_BTC', _('Bitcoin')
+        CRYPTO_ETH = 'CRYPTO_ETH', _('Ethereum')
+        CRYPTO_USDT = 'CRYPTO_USDT', _('USDT')
+        
+        # Autres
+        OTHER = 'OTHER', _('Other')
+
+    transaction = models.OneToOneField(FinancialTransaction, on_delete=models.PROTECT)
+    client = models.ForeignKey(Client, on_delete=models.PROTECT)
+    assignment = models.ForeignKey(Assignment, on_delete=models.PROTECT, null=True, blank=True)
+    quote = models.ForeignKey(Quote, on_delete=models.PROTECT, null=True, blank=True)
+    
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    tax_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    total_amount = models.DecimalField(max_digits=10, decimal_places=2)
+    
+    payment_method = models.CharField(max_length=50, choices=PaymentMethod.choices)
+    status = models.CharField(max_length=20, choices=Status.choices)
+    
+    payment_date = models.DateTimeField(auto_now_add=True)
+    due_date = models.DateTimeField(null=True, blank=True)
+    completed_date = models.DateTimeField(null=True, blank=True)
+    
+    invoice_number = models.CharField(max_length=50, unique=True)
+    payment_proof = models.FileField(upload_to='payment_proofs/', null=True, blank=True)
+    external_reference = models.CharField(max_length=100, blank=True, null=True)
+    
+    notes = models.TextField(blank=True, null=True)
+
+class InterpreterPayment(models.Model):
+    """Gestion des paiements aux interprètes"""
+    class Status(models.TextChoices):
+        PENDING = 'PENDING', _('Pending')
+        PROCESSING = 'PROCESSING', _('Processing')
+        COMPLETED = 'COMPLETED', _('Completed')
+        FAILED = 'FAILED', _('Failed')
+        CANCELLED = 'CANCELLED', _('Cancelled')
+
+    class PaymentMethod(models.TextChoices):
+    # Méthodes bancaires traditionnelles
+        CREDIT_CARD = 'CREDIT_CARD', _('Credit Card')
+        DEBIT_CARD = 'DEBIT_CARD', _('Debit Card')
+        BANK_TRANSFER = 'BANK_TRANSFER', _('Bank Transfer')
+        ACH = 'ACH', _('ACH')
+        CHECK = 'CHECK', _('Check')
+        CASH = 'CASH', _('Cash')
+        
+        # Services de paiement numérique US
+        ZELLE = 'ZELLE', _('Zelle')
+        VENMO = 'VENMO', _('Venmo')
+        CASH_APP = 'CASH_APP', _('Cash App')
+        PAYPAL = 'PAYPAL', _('PayPal')
+        
+        # Portefeuilles mobiles
+        APPLE_PAY = 'APPLE_PAY', _('Apple Pay')
+        GOOGLE_PAY = 'GOOGLE_PAY', _('Google Pay')
+        SAMSUNG_PAY = 'SAMSUNG_PAY', _('Samsung Pay')
+        
+        # Services de transfert internationaux
+        WESTERN_UNION = 'WESTERN_UNION', _('Western Union')
+        MONEY_GRAM = 'MONEY_GRAM', _('MoneyGram')
+        TAPTP_SEND = 'TAPTP_SEND', _('Tap Tap Send')
+        REMITLY = 'REMITLY', _('Remitly')
+        WORLDREMIT = 'WORLDREMIT', _('WorldRemit')
+        XOOM = 'XOOM', _('Xoom')
+        WISE = 'WISE', _('Wise (TransferWise)')
+        
+        # Plateformes de paiement
+        STRIPE = 'STRIPE', _('Stripe')
+        SQUARE = 'SQUARE', _('Square')
+        
+        # Crypto-monnaies
+        CRYPTO_BTC = 'CRYPTO_BTC', _('Bitcoin')
+        CRYPTO_ETH = 'CRYPTO_ETH', _('Ethereum')
+        CRYPTO_USDT = 'CRYPTO_USDT', _('USDT')
+        
+        # Autres
+        OTHER = 'OTHER', _('Other')
+
+    transaction = models.OneToOneField(FinancialTransaction, on_delete=models.PROTECT)
+    interpreter = models.ForeignKey(Interpreter, on_delete=models.PROTECT)
+    assignment = models.ForeignKey(Assignment, on_delete=models.PROTECT, null=True, blank=True)
+    
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    payment_method = models.CharField(max_length=50, choices=PaymentMethod.choices)
+    status = models.CharField(max_length=20, choices=Status.choices)
+    
+    scheduled_date = models.DateTimeField()
+    processed_date = models.DateTimeField(null=True, blank=True)
+    
+    reference_number = models.CharField(max_length=50, unique=True)
+    payment_proof = models.FileField(upload_to='interpreter_payment_proofs/', null=True, blank=True)
+    
+    notes = models.TextField(blank=True, null=True)
+
+class Expense(models.Model):
+    """Gestion des dépenses de l'entreprise"""
+    class ExpenseType(models.TextChoices):
+        OPERATIONAL = 'OPERATIONAL', _('Operational')
+        ADMINISTRATIVE = 'ADMINISTRATIVE', _('Administrative')
+        MARKETING = 'MARKETING', _('Marketing')
+        SALARY = 'SALARY', _('Salary')
+        TAX = 'TAX', _('Tax')
+        OTHER = 'OTHER', _('Other')
+
+    class Status(models.TextChoices):
+        PENDING = 'PENDING', _('Pending')
+        APPROVED = 'APPROVED', _('Approved')
+        PAID = 'PAID', _('Paid')
+        REJECTED = 'REJECTED', _('Rejected')
+
+    transaction = models.OneToOneField(FinancialTransaction, on_delete=models.PROTECT)
+    expense_type = models.CharField(max_length=20, choices=ExpenseType.choices)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    description = models.TextField()
+    
+    status = models.CharField(max_length=20, choices=Status.choices)
+    date_incurred = models.DateTimeField()
+    date_paid = models.DateTimeField(null=True, blank=True)
+    
+    receipt = models.FileField(upload_to='expense_receipts/', null=True, blank=True)
+    approved_by = models.ForeignKey(User, on_delete=models.PROTECT, null=True, blank=True)
+    notes = models.TextField(blank=True, null=True)
