@@ -576,52 +576,71 @@
 
     // Nouvelle fonction pour marquer une mission comme complétée
     async function markAsComplete(missionId) {
-        const button = document.getElementById(`complete-btn-${missionId}`);
-        const missionEl = document.getElementById(`mission-${missionId}`);
-        
-        // Désactiver le bouton et afficher le spinner
-        button.disabled = true;
-        button.classList.add('loading');
-        
-        try {
-            const response = await fetch(`/assignments/${missionId}/complete/`, {
-                method: 'POST',
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'X-CSRFToken': getCookie('csrftoken')
-                },
-                credentials: 'same-origin'
-            });
+    const button = document.getElementById(`complete-btn-${missionId}`);
+    const missionEl = document.getElementById(`mission-${missionId}`);
+    
+    // Désactiver le bouton et afficher le spinner
+    button.disabled = true;
+    button.classList.add('loading');
+    
+    try {
+        const response = await fetch(`/assignments/${missionId}/complete/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify({
+                status: 'COMPLETED'
+            }),
+            credentials: 'same-origin'
+        });
 
-            const data = await response.json();
+        const data = await response.json();
 
-            if (response.ok) {
-                missionEl.classList.add('fade-out');
-                
-                setTimeout(() => {
-                    missionEl.remove();
-                    
-                    // Mettre à jour le compteur des missions confirmées
-                    const confirmedCount = document.querySelector('.stat-card:nth-child(3) .stat-value');
-                    if (confirmedCount) {
-                        confirmedCount.textContent = parseInt(confirmedCount.textContent) - 1;
-                    }
-                    
-                    showNotification('Mission marked as completed successfully!', 'success');
-                }, 500);
-            } else {
-                throw new Error(data.message || 'Failed to complete mission');
-            }
-        } catch (error) {
-            console.error('Error:', error);
-            showNotification(error.message, 'error');
+        if (response.ok) {
+            missionEl.classList.add('fade-out');
             
-            // Réactiver le bouton en cas d'erreur
-            button.disabled = false;
-            button.classList.remove('loading');
+            setTimeout(() => {
+                missionEl.remove();
+                
+                // Mettre à jour les compteurs des statistiques
+                const upcomingMissionsCard = document.querySelector('.stat-card:nth-child(3) .stat-value');
+                const totalEarningsCard = document.querySelector('.stat-card:nth-child(1) .stat-value');
+                
+                // Mettre à jour le compteur des missions à venir
+                if (upcomingMissionsCard) {
+                    const currentValue = parseInt(upcomingMissionsCard.textContent);
+                    upcomingMissionsCard.textContent = Math.max(0, currentValue - 1);
+                }
+                
+                // Mettre à jour le total des gains si disponible dans la mission
+                const missionAmount = missionEl.querySelector('.mission-amount span')?.textContent;
+                if (totalEarningsCard && missionAmount) {
+                    const rate = parseFloat(missionAmount.replace('$', '').split('/')[0]);
+                    const duration = parseFloat(missionEl.querySelector('.mission-details')?.dataset?.duration || "0");
+                    if (!isNaN(rate) && !isNaN(duration)) {
+                        const currentEarnings = parseFloat(totalEarningsCard.textContent.replace('$', ''));
+                        const newEarnings = currentEarnings + (rate * duration);
+                        totalEarningsCard.textContent = `$${newEarnings.toFixed(2)}`;
+                    }
+                }
+                
+                showNotification('Mission marked as completed successfully!', 'success');
+            }, 500);
+        } else {
+            throw new Error(data.message || 'Failed to complete mission');
         }
+    } catch (error) {
+        console.error('Error:', error);
+        showNotification(error.message || 'An error occurred while completing the mission', 'error');
+        
+        // Réactiver le bouton en cas d'erreur
+        button.disabled = false;
+        button.classList.remove('loading');
     }
-
+}
     // Initialisation des boutons "Show More" au chargement de la page
     document.addEventListener('DOMContentLoaded', function() {
         document.querySelectorAll('.btn-show-more').forEach(btn => {

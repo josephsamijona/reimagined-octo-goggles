@@ -2804,39 +2804,60 @@ def prepare_assignments_data(request, assignments, status_type):
 def mark_assignment_complete(request, assignment_id):
     """
     Vue pour marquer une mission comme complétée.
-    Empêche l'action si la date de début n'est pas encore atteinte.
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"=== TENTATIVE DE COMPLETION - ASSIGNMENT {assignment_id} ===")
+    
     try:
+        # Récupération de l'assignment
         assignment = get_object_or_404(
             Assignment,
             id=assignment_id,
             interpreter=request.user.interpreter_profile
         )
+        logger.info(f"Assignment trouvé - Status: {assignment.status}")
 
-        # Vérifier que la date de début est atteinte (on compare uniquement les dates)
-        if timezone.now().date() < assignment.start_time.date():
-            return JsonResponse({
-                'success': False,
-                'message': 'This assignment cannot be marked as completed before its start date.'
-            }, status=400)
-
+        # Vérification de la possibilité de completion
         if not assignment.can_be_completed():
+            logger.error("[ÉCHEC] Conditions de completion non remplies")
+            logger.error(f"- Status actuel: {assignment.status}")
             return JsonResponse({
                 'success': False,
-                'message': 'This assignment cannot be marked as completed.'
+                'message': 'Assignment cannot be completed.'
             }, status=400)
 
+        # Initialisation du mixin
         mixin = AssignmentAdminMixin()
         old_status = assignment.status
 
-        # Mettre à jour le statut et enregistrer la date de complétion
+        # Mise à jour du statut
         assignment.status = Assignment.Status.COMPLETED
         assignment.completed_at = timezone.now()
         assignment.save()
+        logger.info(f"Assignment {assignment_id} marqué comme complété")
 
-        # Gérer les notifications et autres actions liées au changement de statut
-        mixin.handle_status_change(request, assignment, old_status)
-        mixin.handle_status_change_notification(request, assignment, old_status)
+        # Gestion des notifications et changements de statut via le mixin
+        try:
+            # Gestion des changements liés au statut (paiements, etc.)
+            mixin.handle_status_change(request, assignment, old_status)
+            logger.info("Status change handled successfully")
+
+            # Envoi de l'email de completion
+            email_sent = mixin.send_assignment_email(request, assignment, 'completed')
+            if email_sent:
+                logger.info("Email de completion envoyé avec succès")
+            else:
+                logger.warning("L'email de completion n'a pas pu être envoyé")
+                
+            # Gestion des notifications de changement de statut
+            mixin.handle_status_change_notification(request, assignment, old_status)
+            logger.info("Notifications de changement de statut envoyées")
+
+        except Exception as e:
+            logger.error(f"Erreur lors de la gestion des notifications: {str(e)}")
+            # On continue malgré l'erreur de notification car l'assignment est déjà complété
 
         return JsonResponse({
             'success': True,
@@ -2844,6 +2865,7 @@ def mark_assignment_complete(request, assignment_id):
         })
 
     except Exception as e:
+        logger.error(f"Erreur: {str(e)}")
         return JsonResponse({
             'success': False,
             'message': str(e)

@@ -284,8 +284,8 @@ class Assignment(models.Model):
         return self.status == self.Status.CONFIRMED
 
     def can_be_completed(self):
-        """Vérifie si l'assignment peut être marqué comme terminé"""
-        return self.status == self.Status.IN_PROGRESS
+       """Vérifie si l'assignment peut être marqué comme terminé"""
+       return self.status in [self.Status.IN_PROGRESS, self.Status.CONFIRMED]
 
     def can_be_cancelled(self):
         """Vérifie si l'assignment peut être annulé"""
