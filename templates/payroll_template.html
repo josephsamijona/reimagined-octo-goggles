@@ -356,7 +356,6 @@
                     <thead>
                         <tr>
                             <th>Date</th>
-                            <th>Client</th>
                             <th>Languages</th>
                             <th>Duration</th>
                             <th>Rate</th>
@@ -367,11 +366,10 @@
                         {% for service in services %}
                         <tr>
                             <td>{{ service.date|date:"M d, Y" }}</td>
-                            <td>{{ service.client }}</td>
                             <td>{{ service.source_language }} > {{ service.target_language }}</td>
                             <td>{{ service.duration|default:"0" }} hrs</td>
                             <td>${{ service.rate|default:"0" }}</td>
-                            <td>${{ service.amount|default:"0" }}</td>
+                            <td>${% if service.amount|floatformat:"2" == service.amount|floatformat:"0" %}{{ service.amount|floatformat:"0" }}{% else %}{{ service.amount|floatformat:"2" }}{% endif %}</td>
                         </tr>
                         {% endfor %}
                     </tbody>
