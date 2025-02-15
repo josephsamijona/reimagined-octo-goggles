@@ -1,5 +1,7 @@
 # views.py
 
+
+
 # Django core imports
 from django.contrib.auth.decorators import login_required
 from django.conf import settings
@@ -86,7 +88,41 @@ import pytz
 import os
 import uuid
 from email.utils import make_msgid
+from .mixins.assignment_mixins import AssignmentAdminMixin
+from .assignment_views import AssignmentAcceptView, AssignmentDeclineView  # Import des vues spécifiques
+import io
+from django.shortcuts import render, redirect
+from django.http import HttpResponse
+from django.template.loader import render_to_string
+from .models import PayrollDocument, Service
+from .forms import PayrollDocumentForm, ServiceFormSet
+from datetime import datetime
+import random
+import string
 
+from PIL import Image
+from io import BytesIO
+from docx import Document
+from docx.shared import Inches
+from django.shortcuts import render, redirect
+from django.views.generic import CreateView, DetailView
+from django.urls import reverse_lazy
+from django.http import HttpResponse, FileResponse
+from django.template.loader import render_to_string, get_template
+from datetime import datetime
+import random
+import string
+from .models import PayrollDocument, Service
+from .forms import PayrollDocumentForm, ServiceFormSet
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
+from reportlab.lib import colors
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from io import BytesIO
+from PIL import Image
+import os
+BOSTON_TZ = pytz.timezone('America/New_York')
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +131,446 @@ logger = logging.getLogger(__name__)
 #######################################################################
 #######################################################################
 #######################################################################
+import logging
+import json
+import io
+import base64
+import tempfile
+from PIL import Image
+from django.http import HttpResponse, JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import A4
+import os
+
+logger = logging.getLogger(__name__)
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def generate_pdf(request):
+    """
+    Vue pour générer un PDF à partir d'une capture d'écran.
+    """
+    try:
+        # Récupérer et valider les données JSON
+        try:
+            data = json.loads(request.body)
+            if 'imageData' not in data:
+                return JsonResponse({
+                    'error': 'Données d\'image manquantes'
+                }, status=400)
+            
+            image_data = data['imageData'].split(',')[1]
+        except json.JSONDecodeError:
+            return JsonResponse({
+                'error': 'Données JSON invalides'
+            }, status=400)
+        
+        # Créer des fichiers temporaires pour l'image et le PDF
+        temp_img_path = None
+        temp_pdf_path = None
+        
+        try:
+            # Créer un fichier temporaire pour l'image
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as temp_img:
+                temp_img_path = temp_img.name
+                # Décoder et sauvegarder l'image
+                image_bytes = base64.b64decode(image_data)
+                image = Image.open(io.BytesIO(image_bytes))
+                image.save(temp_img_path, 'PNG')
+            
+            # Créer un fichier temporaire pour le PDF
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_pdf:
+                temp_pdf_path = temp_pdf.name
+            
+            # Créer le PDF
+            pdf = canvas.Canvas(temp_pdf_path, pagesize=A4)
+            pdf_width, pdf_height = A4
+            
+            # Calculer les dimensions
+            aspect = image.width / image.height
+            margin = 50
+            
+            usable_width = pdf_width - (2 * margin)
+            usable_height = pdf_height - (2 * margin)
+            
+            if aspect > 1:
+                width = usable_width
+                height = width / aspect
+            else:
+                height = usable_height
+                width = height * aspect
+            
+            # Centrer l'image
+            x = (pdf_width - width) / 2
+            y = (pdf_height - height) / 2
+            
+            # Ajouter l'image au PDF
+            pdf.drawImage(temp_img_path, x, y, width, height)
+            pdf.save()
+            
+            # Lire le PDF généré
+            with open(temp_pdf_path, 'rb') as pdf_file:
+                pdf_content = pdf_file.read()
+            
+            # Créer la réponse
+            response = HttpResponse(pdf_content, content_type='application/pdf')
+            response['Content-Disposition'] = 'attachment; filename="payment-statement.pdf"'
+            
+            return response
+            
+        except Exception as e:
+            logger.error(f"Erreur lors de la création du PDF: {str(e)}")
+            return JsonResponse({
+                'error': 'Erreur lors de la génération du PDF'
+            }, status=500)
+            
+        finally:
+            # Nettoyer les fichiers temporaires
+            if temp_img_path and os.path.exists(temp_img_path):
+                os.unlink(temp_img_path)
+            if temp_pdf_path and os.path.exists(temp_pdf_path):
+                os.unlink(temp_pdf_path)
+        
+    except Exception as e:
+        logger.error(f"Erreur inattendue: {str(e)}")
+        return JsonResponse({
+            'error': 'Une erreur inattendue est survenue'
+        }, status=500)
+        
+def format_decimal(value):
+    """Format decimal numbers to remove trailing zeros if no cents"""
+    if value is None:
+        return "0"
+    # Convert to Decimal if not already
+    if not isinstance(value, Decimal):
+        value = Decimal(str(value))
+    # Format with 2 decimals
+    formatted = f"{value:.2f}"
+    # Remove .00 if no cents
+    if formatted.endswith('.00'):
+        return formatted[:-3]
+    return formatted
+
+def generate_document_number():
+    """Generate a unique document number based on timestamp and random string"""
+    timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
+    random_str = ''.join(random.choices(string.ascii_uppercase + string.digits, k=4))
+    return f"JHB-{timestamp}-{random_str}"
+
+class PayrollCreateView(CreateView):
+    model = PayrollDocument
+    form_class = PayrollDocumentForm
+    template_name = 'payroll_form.html'
+    success_url = reverse_lazy('dbdint:payroll_list')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        if self.request.POST:
+            context['service_formset'] = ServiceFormSet(self.request.POST)
+        else:
+            context['service_formset'] = ServiceFormSet(queryset=Service.objects.none())
+        return context
+
+    def form_valid(self, form):
+        context = self.get_context_data()
+        service_formset = context['service_formset']
+
+        if service_formset.is_valid():
+            self.object = form.save(commit=False)
+            self.object.document_number = generate_document_number()
+            self.object.document_date = datetime.now().date()
+            self.object.save()
+
+            services = service_formset.save(commit=False)
+            for service in services:
+                service.payroll = self.object
+                service.save()
+
+            if self.request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return JsonResponse({
+                    'status': 'success',
+                    'id': self.object.pk,
+                    'message': 'Document saved successfully'
+                })
+            
+            return super().form_valid(form)
+        else:
+            if self.request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return JsonResponse({
+                    'status': 'error',
+                    'errors': service_formset.errors
+                }, status=400)
+            return self.form_invalid(form)
+
+
+class PayrollDetailView(DetailView):
+    model = PayrollDocument
+    template_name = 'payroll_template.html'
+    context_object_name = 'payroll'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        services = self.object.services.all()
+        
+        total_duration = Decimal('0')
+        total_amount = Decimal('0')
+        
+        # Ne pas modifier les services directement
+        for service in services:
+            total_duration += service.duration or Decimal('0')
+            total_amount += service.amount
+        
+        context.update({
+            'services': services,
+            'total_duration': format_decimal(total_duration),
+            'total_amount': format_decimal(total_amount),
+            'generation_date': datetime.now().date()
+        })
+        return context
+
+    def get(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        context = self.get_context_data(object=self.object)
+
+        # Check if export is requested
+        export_format = request.GET.get('export')
+        if export_format == 'pdf':
+            return export_document(request, self.object.pk)
+
+        return super().get(request, *args, **kwargs)
+
+class PayrollPreviewView(DetailView):
+    template_name = 'payroll_template.html'
+    context_object_name = 'payroll'
+
+    def post(self, request, *args, **kwargs):
+        form = PayrollDocumentForm(request.POST, request.FILES)
+        service_formset = ServiceFormSet(request.POST)
+        
+        if form.is_valid() and service_formset.is_valid():
+            payroll = form.save(commit=False)
+            payroll.document_number = generate_document_number()
+            payroll.document_date = datetime.now().date()
+            
+            services = service_formset.save(commit=False)
+            
+            # Format services data without modifying the amount property
+            formatted_services = []
+            total_duration = Decimal('0')
+            total_amount = Decimal('0')
+            
+            for service in services:
+                service.duration = service.duration if service.duration else Decimal('0')
+                service.rate = service.rate if service.rate else Decimal('0')
+                
+                total_duration += service.duration
+                total_amount += service.duration * service.rate
+                
+                formatted_services.append(service)
+            
+            context = {
+                'payroll': payroll,
+                'services': formatted_services,
+                'total_duration': format_decimal(total_duration),
+                'total_amount': format_decimal(total_amount),
+                'generation_date': datetime.now().date(),
+                'is_preview': True
+            }
+            
+            return render(request, 'payroll_template.html', context)
+        else:
+            return JsonResponse({
+                'status': 'error',
+                'errors': {**form.errors, **service_formset.errors}
+            }, status=400)
+
+# Dans views.py
+
+from django.http import HttpResponse, JsonResponse
+from django.shortcuts import get_object_or_404
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from io import BytesIO
+from decimal import Decimal
+from datetime import datetime
+
+def format_decimal(value):
+    """Format decimal numbers to remove trailing zeros if no cents"""
+    if value is None:
+        return "0"
+    if not isinstance(value, Decimal):
+        value = Decimal(str(value))
+    formatted = f"{value:.2f}"
+    if formatted.endswith('.00'):
+        return formatted[:-3]
+    return formatted
+
+def export_document(request, pk):
+    try:
+        payroll = get_object_or_404(PayrollDocument, pk=pk)
+        services = payroll.services.all()
+
+        # Création du PDF
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(
+            buffer,
+            pagesize=letter,
+            rightMargin=72,
+            leftMargin=72,
+            topMargin=72,
+            bottomMargin=72
+        )
+
+        # Liste des éléments du PDF
+        elements = []
+
+        # Styles
+        styles = getSampleStyleSheet()
+        title_style = ParagraphStyle(
+            'CustomTitle',
+            parent=styles['Heading1'],
+            fontSize=24,
+            spaceAfter=30,
+            textColor=colors.HexColor('#003B71'),
+            alignment=1  # Centre
+        )
+
+        # En-tête
+        elements.append(Paragraph("JHBRIDGE TRANSLATION SERVICES", title_style))
+        elements.append(Paragraph("Payment Statement", styles['Heading1']))
+        elements.append(Spacer(1, 20))
+
+        # Informations du document
+        elements.append(Paragraph(f"Document No: {payroll.document_number}", styles['Normal']))
+        elements.append(Paragraph(f"Date: {payroll.document_date.strftime('%B %d, %Y')}", styles['Normal']))
+        elements.append(Spacer(1, 20))
+
+        # Informations de l'entreprise
+        elements.append(Paragraph("From:", styles['Heading2']))
+        elements.append(Paragraph(payroll.company_address or "500 GROSSMAN DR, BRAINTREE, MA, 02184", styles['Normal']))
+        elements.append(Paragraph(payroll.company_phone or "+1 (774) 223 8771", styles['Normal']))
+        elements.append(Paragraph(payroll.company_email or "jhbridgetranslation@gmail.com", styles['Normal']))
+        elements.append(Spacer(1, 20))
+
+        # Informations de l'interprète
+        elements.append(Paragraph("To:", styles['Heading2']))
+        elements.append(Paragraph(payroll.interpreter_name, styles['Normal']))
+        elements.append(Paragraph(payroll.interpreter_address, styles['Normal']))
+        elements.append(Paragraph(payroll.interpreter_phone, styles['Normal']))
+        elements.append(Paragraph(payroll.interpreter_email, styles['Normal']))
+        elements.append(Spacer(1, 20))
+
+        # Tableau des services
+        table_data = [['Date', 'Client', 'Languages', 'Duration', 'Rate', 'Amount']]
+        
+        total_duration = Decimal('0')
+        total_amount = Decimal('0')
+
+        for service in services:
+            duration = service.duration or Decimal('0')
+            rate = service.rate or Decimal('0')
+            amount = service.amount
+
+            total_duration += duration
+            total_amount += amount
+
+            table_data.append([
+                service.date.strftime('%b %d, %Y'),
+                service.client,
+                f"{service.source_language} > {service.target_language}",
+                f"{format_decimal(duration)} hrs",
+                f"${format_decimal(rate)}",
+                f"${format_decimal(amount)}"
+            ])
+
+        # Style du tableau
+        table = Table(table_data, repeatRows=1)
+        table.setStyle(TableStyle([
+            # En-tête
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#003B71')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 12),
+            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            # Corps du tableau
+            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 1), (-1, -1), 10),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.lightgrey])
+        ]))
+
+        elements.append(table)
+        elements.append(Spacer(1, 20))
+
+        # Totaux
+        elements.append(Paragraph(f"Total Duration: {format_decimal(total_duration)} hrs", styles['Normal']))
+        elements.append(Paragraph(f"Total Amount: ${format_decimal(total_amount)}", styles['Heading2']))
+
+        # Pied de page
+        elements.append(Spacer(1, 30))
+        elements.append(Paragraph(f"Generated on {datetime.now().strftime('%B %d, %Y')}", styles['Normal']))
+        elements.append(Paragraph(f"© {datetime.now().year} JH BRIDGE Translation. All rights reserved.", styles['Normal']))
+
+        # Génération du PDF
+        doc.build(elements)
+        buffer.seek(0)
+
+        # Retourne le PDF
+        response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="statement_{payroll.document_number}.pdf"'
+
+        return response
+
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+
+
+
+
+class PayrollDetailView(DetailView):
+    model = PayrollDocument
+    template_name = 'payroll_template.html'
+    context_object_name = 'payroll'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        services = self.object.services.all()
+        
+        total_duration = Decimal('0')
+        total_amount = Decimal('0')
+        
+        for service in services:
+            total_duration += service.duration or Decimal('0')
+            total_amount += service.amount
+        
+        context.update({
+            'services': services,
+            'total_duration': format_decimal(total_duration),
+            'total_amount': format_decimal(total_amount),
+            'generation_date': datetime.now().date()
+        })
+        return context
+
+    def get(self, request, *args, **kwargs):
+        if request.GET.get('export') == 'pdf':
+            return export_document(request, self.get_object().pk)
+        return super().get(request, *args, **kwargs)
+
+
+
+
+
+
+
+
 class ChooseRegistrationTypeView(TemplateView):
     template_name = 'choose_registration.html'
 
@@ -253,7 +729,7 @@ class CustomLoginView(LoginView):
                 return reverse_lazy('dbdint:client_dashboard')
             
             logger.debug(f"User {user.id} identified as INTERPRETER, redirecting to interpreter dashboard")
-            return reverse_lazy('dbdint:interpreter_dashboard')
+            return reverse_lazy('dbdint:new_interpreter_dashboard')
             
         except Exception as e:
             logger.error(f"Error in get_success_url for user {user.id}: {str(e)}", exc_info=True)
@@ -489,7 +965,7 @@ class ClientDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateView)
                 
         if user.role == User.Roles.INTERPRETER:
             messages.warning(self.request, "This area is for clients only. Redirecting to interpreter dashboard.")
-            return redirect('dbdint:interpreter_dashboard')
+            return redirect('dbdint:new_interpreter_dashboard')
         elif user.role == User.Roles.ADMIN:
             return redirect('dbdint:admin_dashboard')
             
@@ -1153,7 +1629,7 @@ class InterpreterRegistrationStep2View(FormView):
 class InterpreterRegistrationStep3View(FormView):
    template_name = 'trad/auth/step3.html'
    form_class = InterpreterRegistrationForm3 
-   success_url = reverse_lazy('dbdint:interpreter_dashboard')
+   success_url = reverse_lazy('dbdint:new_interpreter_dashboard')
 
    def get_context_data(self, **kwargs):
        logger.info("Getting context data for InterpreterRegistrationStep3View")
@@ -2158,11 +2634,220 @@ def get_earnings_data(request, year=None):
 
 
 ####################################################newupdate####################3
+@login_required
 def dashboard_view(request):
     """
-    Vue pour afficher le dashboard principal
+    Vue principale du dashboard.
+    Vérifie que l'utilisateur possède un profil d'interprète,
+    calcule les statistiques et prépare les données des missions.
     """
-    return render(request, 'interpreter/int_main.html')
+    if not hasattr(request.user, 'interpreter_profile'):
+        return render(request, 'error.html', {
+            'message': 'Access denied. Interpreter profile required.'
+        })
+
+    interpreter = request.user.interpreter_profile
+
+    try:
+        # Calcul des statistiques
+        stats = get_interpreter_stats(interpreter)
+
+        # Récupération des missions en attente et confirmées
+        pending_assignments = get_pending_assignments(interpreter)
+        confirmed_assignments = get_confirmed_assignments(interpreter)
+
+        # Préparation des données pour l'affichage
+        pending_data = prepare_assignments_data(request, pending_assignments, 'PENDING')
+        confirmed_data = prepare_assignments_data(request, confirmed_assignments, 'CONFIRMED')
+
+        context = {
+            'stats': stats,
+            'pending_assignments': pending_data,
+            'confirmed_assignments': confirmed_data
+        }
+
+        return render(request, 'interpreter/int_main.html', context)
+
+    except Exception as e:
+        return render(request, 'error.html', {
+            'message': f'An error occurred: {str(e)}'
+        })
+
+
+def get_interpreter_stats(interpreter):
+    """
+    Calcule les statistiques de l'interprète.
+    - Total des gains (missions complétées)
+    - Nombre de missions en attente
+    - Nombre de missions confirmées et futures
+    """
+    total_earnings = Assignment.objects.filter(
+        interpreter=interpreter,
+        status='COMPLETED'
+    ).aggregate(total=Sum('total_interpreter_payment'))['total'] or 0
+
+    pending_count = Assignment.objects.filter(
+        interpreter=interpreter,
+        status='PENDING'
+    ).count()
+
+    upcoming_count = Assignment.objects.filter(
+        interpreter=interpreter,
+        status='CONFIRMED',
+        start_time__gt=timezone.now()
+    ).count()
+
+    return {
+        'total_earnings': round(total_earnings, 2),
+        'pending_missions': pending_count,
+        'upcoming_missions': upcoming_count
+    }
+
+
+def get_pending_assignments(interpreter):
+    """
+    Récupère les missions en attente avec les relations nécessaires.
+    """
+    return Assignment.objects.filter(
+        interpreter=interpreter,
+        status='PENDING'
+    ).select_related(
+        'service_type',
+        'source_language',
+        'target_language'
+    ).order_by('start_time')
+
+
+def get_confirmed_assignments(interpreter):
+    """
+    Récupère les missions confirmées avec les relations nécessaires.
+    """
+    return Assignment.objects.filter(
+        interpreter=interpreter,
+        status='CONFIRMED'
+    ).select_related(
+        'service_type',
+        'source_language',
+        'target_language'
+    ).order_by('start_time')
+
+
+def prepare_assignments_data(request, assignments, status_type):
+    """
+    Prépare les données des missions pour l'affichage.
+    Ajoute les URLs d'action, et fournit les informations de date complète.
+    """
+    mixin = AssignmentAdminMixin()
+    assignments_data = []
+
+    for assignment in assignments:
+        # Génération des tokens ou URLs d'action selon le type de statut
+        action_urls = {}
+        if status_type == 'PENDING':
+            accept_token = mixin.generate_assignment_token(assignment.id, 'accept')
+            decline_token = mixin.generate_assignment_token(assignment.id, 'decline')
+            action_urls = {
+                'accept': f"/assignments/accept/{accept_token}/",
+                'decline': f"/assignments/decline/{decline_token}/"
+            }
+        elif status_type == 'CONFIRMED':
+            action_urls = {
+                'complete': f"/assignments/{assignment.id}/complete/"
+            }
+
+        # Conversion des heures en fuseau horaire de Boston
+        start_time = assignment.start_time.astimezone(BOSTON_TZ)
+        end_time = assignment.end_time.astimezone(BOSTON_TZ)
+
+        assignment_data = {
+            # Informations principales
+            'main_info': {
+                'id': assignment.id,
+                'client_name': assignment.client.company_name if assignment.client else assignment.client_name,
+                'address': f"{assignment.location}, {assignment.city}",
+                'languages': f"{assignment.source_language.name} → {assignment.target_language.name}",
+                'status': status_type,
+                'interpreter_rate': assignment.interpreter_rate,
+                # Pour l'affichage de l'heure seule
+                'start_time': start_time,
+                'end_time': end_time,
+                # Pour l'affichage complet (date + heure)
+                'start_datetime': start_time,
+                'end_datetime': end_time,
+                'duration': f"{(end_time - start_time).total_seconds() / 3600:.1f} hours"
+            },
+            # Informations détaillées
+            'detailed_info': {
+                'special_requirements': assignment.special_requirements or "None",
+                'client_phone': assignment.client_phone or "Not provided",
+                'client_email': assignment.client_email or "Not provided",
+                'total_amount': assignment.total_interpreter_payment,
+                'service_type': assignment.service_type.name,
+                'full_address': {
+                    'location': assignment.location,
+                    'city': assignment.city,
+                    'state': assignment.state,
+                    'zip_code': assignment.zip_code
+                }
+            },
+            # URLs d'action
+            'action_urls': action_urls
+        }
+
+        assignments_data.append(assignment_data)
+
+    return assignments_data
+
+
+@login_required
+@require_POST
+def mark_assignment_complete(request, assignment_id):
+    """
+    Vue pour marquer une mission comme complétée.
+    Empêche l'action si la date de début n'est pas encore atteinte.
+    """
+    try:
+        assignment = get_object_or_404(
+            Assignment,
+            id=assignment_id,
+            interpreter=request.user.interpreter_profile
+        )
+
+        # Vérifier que la date de début est atteinte (on compare uniquement les dates)
+        if timezone.now().date() < assignment.start_time.date():
+            return JsonResponse({
+                'success': False,
+                'message': 'This assignment cannot be marked as completed before its start date.'
+            }, status=400)
+
+        if not assignment.can_be_completed():
+            return JsonResponse({
+                'success': False,
+                'message': 'This assignment cannot be marked as completed.'
+            }, status=400)
+
+        mixin = AssignmentAdminMixin()
+        old_status = assignment.status
+
+        # Mettre à jour le statut et enregistrer la date de complétion
+        assignment.status = Assignment.Status.COMPLETED
+        assignment.completed_at = timezone.now()
+        assignment.save()
+
+        # Gérer les notifications et autres actions liées au changement de statut
+        mixin.handle_status_change(request, assignment, old_status)
+        mixin.handle_status_change_notification(request, assignment, old_status)
+
+        return JsonResponse({
+            'success': True,
+            'message': 'Assignment marked as completed successfully.'
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': str(e)
+        }, status=500)
 
 def calendar_view(request):
     """
@@ -2175,3 +2860,9 @@ def appointments_view(request):
     Vue pour afficher la liste des rendez-vous
     """
     return render(request, 'interpreter/appointment.html')
+
+def stats_view(request):
+    """
+    Vue pour afficher la liste des rendez-vous
+    """
+    return render(request, 'interpreter/stats.html')

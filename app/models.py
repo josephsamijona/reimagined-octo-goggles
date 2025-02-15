@@ -5,7 +5,7 @@ from django.contrib.auth.models import AbstractUser
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils.translation import gettext_lazy as _
-
+from decimal import Decimal
 class Language(models.Model):
     name = models.CharField(max_length=100, unique=True)
     code = models.CharField(max_length=10, unique=True)  # ISO code
@@ -716,3 +716,51 @@ class Expense(models.Model):
     receipt = models.FileField(upload_to='expense_receipts/', null=True, blank=True)
     approved_by = models.ForeignKey(User, on_delete=models.PROTECT, null=True, blank=True)
     notes = models.TextField(blank=True, null=True)
+    
+    
+ 
+   
+class PayrollDocument(models.Model):
+    # Company Information
+    company_logo = models.ImageField(upload_to='company_logos/', blank=True)
+    company_address = models.CharField(max_length=255, blank=True)
+    company_phone = models.CharField(max_length=20, blank=True)
+    company_email = models.EmailField(blank=True)
+
+    # Interpreter Information
+    interpreter_name = models.CharField(max_length=100, blank=True)
+    interpreter_address = models.CharField(max_length=255, blank=True)
+    interpreter_phone = models.CharField(max_length=20, blank=True)
+    interpreter_email = models.EmailField(blank=True)
+
+    # Document Information
+    document_number = models.CharField(max_length=50, unique=True)
+    document_date = models.DateField()
+
+    # Payment Information (Optional)
+    bank_name = models.CharField(max_length=100, blank=True, null=True)
+    account_number = models.CharField(max_length=50, blank=True, null=True)
+    routing_number = models.CharField(max_length=50, blank=True, null=True)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        return f"Payroll {self.document_number} - {self.interpreter_name}"
+
+class Service(models.Model):
+    payroll = models.ForeignKey(PayrollDocument, on_delete=models.CASCADE, related_name='services')
+    date = models.DateField(blank=True, null=True)
+    client = models.CharField(max_length=100, blank=True)
+    source_language = models.CharField(max_length=50, blank=True)
+    target_language = models.CharField(max_length=50, blank=True)
+    duration = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
+    rate = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
+    
+    @property
+    def amount(self):
+        try:
+            if self.duration is None or self.rate is None:
+                return Decimal('0')
+            return Decimal(str(self.duration)) * Decimal(str(self.rate))
+        except (TypeError, ValueError, decimal.InvalidOperation):
+            return Decimal('0')

@@ -54,3 +54,10 @@ icalendar
 django-storages
 supabase
 
+pdfkit 
+reportlab
+python-docx 
+html2image 
+pillow
+pycom
+xhtml2pdf

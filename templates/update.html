@@ -116,7 +116,7 @@
             backdrop-filter: blur(10px);
             -webkit-backdrop-filter: blur(10px);
             display: flex;
-            justify-content: center;
+            justify-content: space-around;
             align-items: center;
             border-top: 1px solid rgba(255, 255, 255, 0.1);
             z-index: 1000;
@@ -181,10 +181,12 @@
     {% block extra_css %}{% endblock %}
 </head>
 <body class="app-container">
+    <!-- Rest of the template remains the same -->
     <!-- Header -->
     <header class="header">
         <a href="{% url 'dbdint:new_interpreter_dashboard' %}" class="logo">
             <img src="{% static 'img/two.png' %}" alt="JH Bridge" width="40" height="40" onerror="this.src='/api/placeholder/40/40'">
+            
         </a>
         <div class="profile-menu">
             <div class="profile-icon" id="profileButton">
@@ -209,16 +211,31 @@
         </div>
     </main>
 
-    <!-- Bottom Navigation (uniquement Home) -->
+    <!-- Bottom Navigation -->
     <nav class="bottom-nav">
         <a href="{% url 'dbdint:new_interpreter_dashboard' %}" 
            class="nav-item {% if request.resolver_match.url_name == 'new_interpreter_dashboard' %}active{% endif %}">
             <i class="fas fa-home"></i>
             <span>Home</span>
         </a>
+        <a href="#" 
+           class="nav-item {% if request.resolver_match.url_name == 'new_interpreter_calendar' %}active{% endif %}">
+            <i class="fas fa-calendar"></i>
+            <span>Schedule</span>
+        </a>
+        <a href="#" 
+           class="nav-item {% if request.resolver_match.url_name == 'new_interpreter_appointments' %}active{% endif %}">
+            <i class="fas fa-list"></i>
+            <span>Missions</span>
+        </a>
+        <a href="#" 
+           class="nav-item {% if request.resolver_match.url_name == 'new_interpreter_stats' %}active{% endif %}">
+            <i class="fas fa-chart-line"></i>
+            <span>Stats</span>
+        </a>
     </nav>
 
-    <!-- Scripts -->
+    <!-- Scripts section remains the same -->
     <script>
         const profileButton = document.getElementById('profileButton');
         const profileDropdown = document.getElementById('profileDropdown');

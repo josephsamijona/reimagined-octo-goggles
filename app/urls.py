@@ -7,6 +7,7 @@ app_name = 'dbdint'
 
 urlpatterns = [
     # Public Pages
+    
     path('home', views.PublicQuoteRequestView.as_view(), name='home'),
     path('request-quote/success/', views.QuoteRequestSuccessView.as_view(), name='quote_request_success'),
     path('contact/', views.ContactView.as_view(), name='contact'),
@@ -145,6 +146,19 @@ urlpatterns = [
     path('int/home/', views.dashboard_view, name='new_interpreter_dashboard'),
     path('int/schedule/', views.calendar_view, name='new_interpreter_calendar'),
     path('int/missions/', views.appointments_view, name='new_interpreter_appointments'),
+    path('int/stats/', views.stats_view, name='new_interpreter_stats'),
+    path('assignments/<int:assignment_id>/complete/', 
+     views.mark_assignment_complete, 
+     name='mark-assignment-complete'),
+    path('payroll/create/', views.PayrollCreateView.as_view(), name='payroll_create'),
+    path('payroll/<int:pk>/', views.PayrollDetailView.as_view(), name='payroll_detail'),
+    path('payroll/preview/', views.PayrollPreviewView.as_view(), name='payroll_preview'),
+    path('payroll/export/<int:pk>/<str:format>/', views.export_document, name='export_document'),
+    path('generate-pdf/', views.generate_pdf, name='generate-pdf'),
+    ## Vue de création et saisie du payroll
+
+    
+    
     
 
 ]

@@ -10,7 +10,10 @@ from django.core.exceptions import ValidationError
 from django.contrib.auth.password_validation import validate_password
 from django.contrib.auth.forms import PasswordChangeForm
 from .models import NotificationPreference
-
+from .models import PayrollDocument, Service
+from django.forms import modelformset_factory
+import requests
+from django.core.files.base import ContentFile
 from django.contrib.auth import authenticate
 from .models import User, Interpreter, Language
 from .models import (
@@ -24,7 +27,8 @@ from .models import (
     PublicQuoteRequest,
     ContactMessage
 )
-
+from .models import PayrollDocument, Service
+from django.forms import modelformset_factory
 class PublicQuoteRequestForm(forms.ModelForm):
     class Meta:
         model = PublicQuoteRequest
@@ -811,4 +815,107 @@ class CustomPasswordtradChangeForm(PasswordChangeForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         for field in self.fields.values():
-            field.widget.attrs.update({'class': 'form-control'})
+            field.widget.attrs.update({'class': 'form-control'})                                          
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+#########################payroll  
+class PayrollDocumentForm(forms.ModelForm):
+    class Meta:
+        model = PayrollDocument
+        fields = [
+            'company_address', 
+            'company_phone', 
+            'company_email',
+            'interpreter_name', 
+            'interpreter_address', 
+            'interpreter_phone', 
+            'interpreter_email'
+        ]
+        widgets = {
+            'company_address': forms.TextInput(attrs={
+                'class': 'form-input', 
+                'placeholder': '500 GROSSMAN DR, BRAINTREE, MA, 02184'
+            }),
+            'company_phone': forms.TextInput(attrs={
+                'class': 'form-input', 
+                'placeholder': '+1 (774) 223 8771'
+            }),
+            'company_email': forms.EmailInput(attrs={
+                'class': 'form-input', 
+                'placeholder': 'jhbridgetranslation@gmail.com'
+            }),
+            'interpreter_name': forms.TextInput(attrs={
+                'class': 'form-input', 
+                'placeholder': "Interpreter's name"
+            }),
+            'interpreter_address': forms.TextInput(attrs={
+                'class': 'form-input', 
+                'placeholder': "Interpreter's address"
+            }),
+            'interpreter_phone': forms.TextInput(attrs={
+                'class': 'form-input', 
+                'placeholder': "Interpreter's phone"
+            }),
+            'interpreter_email': forms.EmailInput(attrs={
+                'class': 'form-input', 
+                'placeholder': "Interpreter's email"
+            }),
+        }
+
+    def clean(self):
+        cleaned_data = super().clean()
+        # Set default company information if not provided
+        if not cleaned_data.get('company_address'):
+            cleaned_data['company_address'] = '500 GROSSMAN DR, BRAINTREE, MA, 02184'
+        if not cleaned_data.get('company_phone'):
+            cleaned_data['company_phone'] = '+1 (774) 223 8771'
+        if not cleaned_data.get('company_email'):
+            cleaned_data['company_email'] = 'jhbridgetranslation@gmail.com'
+        return cleaned_data
+
+class ServiceForm(forms.ModelForm):
+    class Meta:
+        model = Service
+        fields = ['date', 'client', 'source_language', 'target_language', 'duration', 'rate']
+        widgets = {
+            'date': forms.DateInput(attrs={
+                'type': 'date', 
+                'class': 'form-input'
+            }),
+            'client': forms.TextInput(attrs={
+                'class': 'form-input',
+                'placeholder': 'Client name'
+            }),
+            'source_language': forms.TextInput(attrs={
+                'class': 'form-input',
+                'placeholder': 'Source language'
+            }),
+            'target_language': forms.TextInput(attrs={
+                'class': 'form-input',
+                'placeholder': 'Target language'
+            }),
+            'duration': forms.NumberInput(attrs={
+                'class': 'form-input',
+                'step': '0.5',
+                'placeholder': 'Duration in hours'
+            }),
+            'rate': forms.NumberInput(attrs={
+                'class': 'form-input',
+                'placeholder': 'Hourly rate'
+            }),
+        }
+
+ServiceFormSet = modelformset_factory(
+    Service,
+    form=ServiceForm,
+    extra=1,
+    can_delete=True
+)
