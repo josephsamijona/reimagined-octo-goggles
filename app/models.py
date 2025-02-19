@@ -216,10 +216,10 @@ class Assignment(models.Model):
     )
     
     # Modification du champ client pour permettre les deux options
-    client = models.ForeignKey(Client, on_delete=models.PROTECT, null=True, blank=True)  # Client existant
-    client_name = models.CharField(max_length=255, null=True, blank=True)  # Nouveau client (manuel)
-    client_email = models.EmailField(null=True, blank=True)  # Email du nouveau client
-    client_phone = models.CharField(max_length=20, null=True, blank=True)  # Téléphone du nouveau client
+    client = models.ForeignKey(Client, on_delete=models.PROTECT, null=True, blank=True)  
+    client_name = models.CharField(max_length=255, null=True, blank=True)  
+    client_email = models.EmailField(null=True, blank=True)  
+    client_phone = models.CharField(max_length=20, null=True, blank=True)  
     
     service_type = models.ForeignKey(ServiceType, on_delete=models.PROTECT)
     source_language = models.ForeignKey(Language, on_delete=models.PROTECT, related_name='assignments_source')
@@ -330,7 +330,7 @@ class Assignment(models.Model):
         """Retourne les informations du client à afficher"""
         if self.client:
             return str(self.client)
-        return f"{self.client_name} (Nouveau client)"
+        return self.client_name
 
 class AssignmentFeedback(models.Model):
     assignment = models.OneToOneField(Assignment, on_delete=models.CASCADE)

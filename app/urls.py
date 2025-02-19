@@ -145,6 +145,13 @@ urlpatterns = [
     ##########################update
     path('int/home/', views.dashboard_view, name='new_interpreter_dashboard'),
     path('int/schedule/', views.calendar_view, name='new_interpreter_calendar'),
+        path('schedule/', views.calendar_view, name='interpreter_calendar'),
+    path('api/interpreter/calendar-data/<int:year>/<int:month>/', 
+         views.calendar_data_api, 
+         name='calendar_data_api'),
+    path('api/interpreter/missions/<str:date_str>/', 
+         views.daily_missions_api, 
+         name='daily_missions_api'),
     path('int/missions/', views.appointments_view, name='new_interpreter_appointments'),
     path('int/stats/', views.stats_view, name='new_interpreter_stats'),
     path('assignments/<int:assignment_id>/complete/', 
