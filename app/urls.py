@@ -154,6 +154,7 @@ urlpatterns = [
          name='daily_missions_api'),
     path('int/missions/', views.appointments_view, name='new_interpreter_appointments'),
     path('int/stats/', views.stats_view, name='new_interpreter_stats'),
+    path('api/earnings/<str:period>/', views.earnings_data_api, name='earnings_data'),
     path('assignments/<int:assignment_id>/complete/', 
      views.mark_assignment_complete, 
      name='mark-assignment-complete'),

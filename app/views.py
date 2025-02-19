@@ -1,35 +1,53 @@
-# views.py
-from django.http import JsonResponse
-from django.views.decorators.http import require_http_methods
-from datetime import datetime, date
+# Standard Library Imports
+import io
+import json
+import logging
+import os
+import pytz
+import string
+import tempfile
+import uuid
+from datetime import datetime, date, timedelta
+from decimal import Decimal
+from email.utils import make_msgid
+import base64
+import random
+from django.db import models
+import traceback
+from django.db.models.functions import ExtractDay, ExtractMonth, ExtractYear
+# Third-Party Imports
+from docx import Document
+from docx.shared import Inches
+from icalendar import Calendar, Event, Alarm, vCalAddress, vText
+from PIL import Image
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import letter, A4
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.pdfgen import canvas
 
-
-# Django core imports
-from django.contrib.auth.decorators import login_required
+# Django Core Imports
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import login
+from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.contrib.auth.views import LoginView, LogoutView, PasswordChangeView
-from django.core.mail import send_mail
+from django.core.mail import send_mail, EmailMessage
 from django.core.paginator import Paginator
 from django.db import IntegrityError
 from django.db.models import Avg, Count, Q, Sum
-from django.db.models.functions import TruncMonth, TruncYear
-from django.http import JsonResponse
+from django.db.models.functions import ExtractDay, TruncMonth, TruncYear
+from django.http import HttpResponse, JsonResponse, FileResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from django.template.loader import render_to_string
+from django.template.loader import render_to_string, get_template
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.decorators.cache import never_cache
-from django.views.decorators.http import require_GET, require_POST
-from django.contrib import messages
-from django.shortcuts import redirect
-from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
-from django.views.generic import TemplateView
-from .models import NotificationPreference, Interpreter,Language
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_GET, require_POST, require_http_methods
 from django.views.generic import (
     CreateView,
     DetailView,
@@ -39,11 +57,7 @@ from django.views.generic import (
     UpdateView,
 )
 
-# Python standard library
-from datetime import timedelta
-from decimal import Decimal
-
-# Local imports
+# Local Imports
 from .forms import (
     AssignmentFeedbackForm,
     ClientProfileForm,
@@ -61,91 +75,40 @@ from .forms import (
     LoginForm,
     NotificationPreferenceForm,
     NotificationPreferencesForm,
+    PayrollDocumentForm,
     PublicQuoteRequestForm,
     QuoteFilterForm,
     QuoteRequestForm,
+    ServiceFormSet,
     UserCreationForm,
     UserProfileForm,
 )
-
 from .models import (
-    User,
     Assignment,
+    AssignmentNotification,
     Client,
     ContactMessage,
+    Interpreter,
+    Language,
     Notification,
     NotificationPreference,
     Payment,
+    PayrollDocument,
     PublicQuoteRequest,
     Quote,
     QuoteRequest,
-    User,ServiceType,AssignmentNotification
+    Service,
+    ServiceType,
+    User,
 )
-import logging
-from django.core.mail import EmailMessage
-from django.template.loader import render_to_string
-from icalendar import Calendar, Event, Alarm, vCalAddress, vText
-from datetime import datetime, timedelta
-import pytz
-import os
-import uuid
-from email.utils import make_msgid
 from .mixins.assignment_mixins import AssignmentAdminMixin
-from .assignment_views import AssignmentAcceptView, AssignmentDeclineView  # Import des vues spécifiques
-import io
-from django.shortcuts import render, redirect
-from django.http import HttpResponse
-from django.template.loader import render_to_string
-from .models import PayrollDocument, Service
-from .forms import PayrollDocumentForm, ServiceFormSet
-from datetime import datetime
-import random
-import string
+from .assignment_views import AssignmentAcceptView, AssignmentDeclineView
 
-from PIL import Image
-from io import BytesIO
-from docx import Document
-from docx.shared import Inches
-from django.shortcuts import render, redirect
-from django.views.generic import CreateView, DetailView
-from django.urls import reverse_lazy
-from django.http import HttpResponse, FileResponse
-from django.template.loader import render_to_string, get_template
-from datetime import datetime
-import random
-import string
-from .models import PayrollDocument, Service
-from .forms import PayrollDocumentForm, ServiceFormSet
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import letter
-from reportlab.lib import colors
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from io import BytesIO
-from PIL import Image
-import os
+# Constants
 BOSTON_TZ = pytz.timezone('America/New_York')
 
+# Logger configuration
 logger = logging.getLogger(__name__)
-
-###########################MAIN########################################
-#######################################################################
-#######################################################################
-#######################################################################
-#######################################################################
-import logging
-import json
-import io
-import base64
-import tempfile
-from PIL import Image
-from django.http import HttpResponse, JsonResponse
-from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_http_methods
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import A4
-import os
-
 
 
 @csrf_exempt
@@ -3126,8 +3089,292 @@ def appointments_view(request):
     """
     return render(request, 'interpreter/appointment.html')
 
+@login_required
 def stats_view(request):
     """
-    Vue pour afficher la liste des rendez-vous
+    Vue pour afficher les statistiques du dashboard de l'interprète
     """
-    return render(request, 'interpreter/stats.html')
+    logger.info(f"Accessing stats view for user: {request.user.username}")
+
+    # Vérifier si l'utilisateur a un profil d'interprète
+    if not hasattr(request.user, 'interpreter_profile'):
+        logger.error(f"User {request.user.username} does not have interpreter profile")
+        return render(request, 'error.html', {
+            'message': 'Access denied. Interpreter profile required.'
+        })
+
+    # Récupérer l'interprète connecté
+    interpreter = request.user.interpreter_profile
+    logger.info(f"Retrieved interpreter profile for user: {interpreter}")
+    
+    try:
+        # Définir la période (par défaut le mois en cours)
+        today = timezone.now()
+        start_of_month = today.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        last_month_start = (start_of_month - timedelta(days=1)).replace(day=1)
+        
+        logger.info(f"Calculating stats for period: {start_of_month} to {today}")
+        
+        # Requêtes pour le mois en cours
+        current_month_assignments = Assignment.objects.filter(
+            interpreter=interpreter,
+            start_time__gte=start_of_month,
+            start_time__lte=today
+        )
+        
+        # Requêtes pour le mois précédent
+        last_month_assignments = Assignment.objects.filter(
+            interpreter=interpreter,
+            start_time__gte=last_month_start,
+            start_time__lt=start_of_month
+        )
+        
+        # Calcul des statistiques du mois en cours
+        current_earnings = current_month_assignments.filter(
+            status='COMPLETED'
+        ).aggregate(
+            total=Sum('total_interpreter_payment')
+        )['total'] or Decimal('0')
+        
+        # Calcul des heures totales actuelles
+        completed_assignments = current_month_assignments.filter(status='COMPLETED')
+        total_hours = sum(
+            (assignment.end_time - assignment.start_time).total_seconds() / 3600
+            for assignment in completed_assignments
+        )
+        
+        # Calcul des heures du mois précédent
+        last_month_completed = last_month_assignments.filter(status='COMPLETED')
+        last_month_hours = sum(
+            (assignment.end_time - assignment.start_time).total_seconds() / 3600
+            for assignment in last_month_completed
+        )
+        
+        # Statistiques du mois précédent
+        last_month_earnings = last_month_assignments.filter(
+            status='COMPLETED'
+        ).aggregate(
+            total=Sum('total_interpreter_payment')
+        )['total'] or Decimal('0')
+        
+        last_month_stats = last_month_assignments.aggregate(
+            completed=Count('id', filter=Q(status='COMPLETED')),
+            cancelled=Count('id', filter=Q(status='CANCELLED')),
+            no_show=Count('id', filter=Q(status='NO_SHOW'))
+        )
+        
+        # Calcul des données pour les graphiques
+        earnings_by_period = current_month_assignments.filter(
+            status='COMPLETED'
+        ).annotate(
+            month=ExtractMonth('start_time'),
+            year=ExtractYear('start_time')
+        ).values('month', 'year').annotate(
+            amount=Sum('total_interpreter_payment')
+        ).order_by('year', 'month')
+
+        # Préparation des données pour les graphiques
+        earnings_data = [
+            {
+                'month': f"{item['year']}-{item['month']}",
+                'amount': float(item['amount'])
+            }
+            for item in earnings_by_period
+        ]
+        
+        # Statistiques des missions actuelles
+        mission_stats = current_month_assignments.aggregate(
+            completed=Count('id', filter=Q(status='COMPLETED')),
+            cancelled=Count('id', filter=Q(status='CANCELLED')),
+            no_show=Count('id', filter=Q(status='NO_SHOW'))
+        )
+        
+        # Distribution des langues
+        languages_distribution = current_month_assignments.filter(
+            status='COMPLETED'
+        ).values(
+            'target_language__name'
+        ).annotate(
+            value=Count('id')
+        ).order_by('-value')
+        
+        # Répartition des heures par jour avec gestion des erreurs
+        hours_by_day = []
+        days_of_week = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+        
+        for assignment in completed_assignments:
+            day_index = assignment.start_time.weekday()
+            duration = (assignment.end_time - assignment.start_time).total_seconds() / 3600
+            
+            # Chercher si le jour existe déjà dans hours_by_day
+            day_entry = next(
+                (item for item in hours_by_day if item['day'] == days_of_week[day_index]), 
+                None
+            )
+            
+            if day_entry:
+                day_entry['hours'] += duration
+            else:
+                hours_by_day.append({
+                    'day': days_of_week[day_index],
+                    'hours': duration
+                })
+        
+        # Trier les jours dans l'ordre
+        hours_by_day.sort(key=lambda x: days_of_week.index(x['day']))
+
+        # Remplir les jours manquants avec 0 heures
+        existing_days = [entry['day'] for entry in hours_by_day]
+        for day in days_of_week:
+            if day not in existing_days:
+                hours_by_day.append({'day': day, 'hours': 0})
+        
+        hours_by_day.sort(key=lambda x: days_of_week.index(x['day']))
+
+        # Calcul des tendances
+        earnings_trend = calculate_trend(current_earnings, last_month_earnings)
+        hours_trend = calculate_trend(total_hours, last_month_hours)
+        mission_trend = calculate_trend(
+            mission_stats['completed'],
+            last_month_stats.get('completed', 0)
+        )
+
+        context = {
+            'total_earnings': current_earnings,
+            'total_hours': round(total_hours, 1),
+            'completed_missions': mission_stats['completed'],
+            'earnings_trend': earnings_trend,
+            'earnings_trend_abs': abs(earnings_trend),
+            'hours_trend': hours_trend,
+            'hours_trend_abs': abs(hours_trend),
+            'mission_trend': mission_trend,
+            'mission_trend_abs': abs(mission_trend),
+            'mission_stats': {
+                'completed_rate': calculate_percentage(mission_stats['completed'], sum(mission_stats.values())),
+                'cancelled_rate': calculate_percentage(mission_stats['cancelled'], sum(mission_stats.values())),
+                'no_show_rate': calculate_percentage(mission_stats['no_show'], sum(mission_stats.values())),
+            },
+            'earnings_data': json.dumps(earnings_data),
+            'languages_data': json.dumps(list(languages_distribution)),
+            'hours_data': json.dumps(hours_by_day),
+        }
+        
+        logger.info("Successfully prepared context for template")
+        return render(request, 'interpreter/stats.html', context)
+        
+    except Exception as e:
+        logger.error(f"Error in stats_view: {str(e)}")
+        logger.error(f"Full traceback: {traceback.format_exc()}")
+        return render(request, 'error.html', {
+            'message': f'An error occurred while loading statistics: {str(e)}'
+        })
+
+def calculate_trend(current, previous):
+    """
+    Calcule le pourcentage d'évolution entre deux valeurs
+    """
+    if not previous:
+        return 0
+    try:
+        return round(((current - previous) / previous) * 100, 1)
+    except (TypeError, ZeroDivisionError):
+        return 0
+
+def calculate_percentage(part, total):
+    """
+    Calcule le pourcentage d'une partie par rapport au total
+    """
+    if not total:
+        return 0
+    try:
+        return round((part / total) * 100, 1)
+    except (TypeError, ZeroDivisionError):
+        return 0
+    
+    
+def earnings_data_api(request, period):
+    """
+    API pour récupérer les données de gains selon la période
+    """
+    if not hasattr(request.user, 'interpreter_profile'):
+        return JsonResponse({'error': 'Interpreter profile required'}, status=403)
+
+    interpreter = request.user.interpreter_profile
+    today = timezone.now()
+
+    try:
+        if period == 'week':
+            start_date = today - timedelta(days=7)
+            assignments = Assignment.objects.filter(
+                interpreter=interpreter,
+                start_time__gte=start_date,
+                status='COMPLETED'
+            ).annotate(
+                day=ExtractDay('start_time')
+            ).values('day').annotate(
+                amount=Sum('total_interpreter_payment')
+            ).order_by('day')
+
+            data = [
+                {
+                    'day': (start_date + timedelta(days=i)).strftime('%a'),
+                    'amount': 0
+                } for i in range(7)
+            ]
+
+            for entry in assignments:
+                day_index = (entry['day'] - start_date.day) % 7
+                if 0 <= day_index < 7:
+                    data[day_index]['amount'] = float(entry['amount'])
+
+        elif period == 'month':
+            start_date = today.replace(day=1)
+            assignments = Assignment.objects.filter(
+                interpreter=interpreter,
+                start_time__year=today.year,
+                start_time__month=today.month,
+                status='COMPLETED'
+            ).annotate(
+                day=ExtractDay('start_time')
+            ).values('day').annotate(
+                amount=Sum('total_interpreter_payment')
+            ).order_by('day')
+
+            data = [
+                {
+                    'day': str(i),
+                    'amount': 0
+                } for i in range(1, 32)
+            ]
+
+            for entry in assignments:
+                if 1 <= entry['day'] <= 31:
+                    data[entry['day']-1]['amount'] = float(entry['amount'])
+
+        else:  # year
+            assignments = Assignment.objects.filter(
+                interpreter=interpreter,
+                start_time__year=today.year,
+                status='COMPLETED'
+            ).annotate(
+                month=ExtractMonth('start_time')
+            ).values('month').annotate(
+                amount=Sum('total_interpreter_payment')
+            ).order_by('month')
+
+            data = [
+                {
+                    'month': (today.replace(month=i, day=1)).strftime('%b'),
+                    'amount': 0
+                } for i in range(1, 13)
+            ]
+
+            for entry in assignments:
+                if 1 <= entry['month'] <= 12:
+                    data[entry['month']-1]['amount'] = float(entry['amount'])
+
+        return JsonResponse(data, safe=False)
+
+    except Exception as e:
+        logger.error(f"Error in earnings_data_api: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)
