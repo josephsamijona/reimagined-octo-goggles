@@ -135,16 +135,42 @@ class AssignmentAdminMixin:
 
     def update_interpreter_payment(self, request, assignment, new_status):
         """
-        Met à jour uniquement le statut d'un paiement interprète existant.
-        Ne crée jamais de nouveau paiement.
+        Met à jour ou crée un paiement interprète selon le besoin.
         """
         try:
+            # Essayer de récupérer le paiement existant
             interpreter_payment = assignment.interpreterpayment_set.latest('created_at')
             interpreter_payment.status = new_status
             interpreter_payment.save()
+            logger.info(f"Updated payment for assignment {assignment.id} to status {new_status}")
+            return interpreter_payment
+
         except assignment.interpreterpayment_set.model.DoesNotExist:
-            logger.error(f"No interpreter payment found for assignment {assignment.id}")
-            raise  # Erreur car un paiement devrait exister
+            logger.info(f"No payment found for assignment {assignment.id}, creating new one")
+            # Si pas de paiement, en créer un nouveau
+            from app.models import InterpreterPayment, FinancialTransaction
+            
+            # Créer la transaction financière
+            transaction = FinancialTransaction.objects.create(
+                type='EXPENSE',
+                amount=assignment.total_interpreter_payment,
+                description=f"Interpreter payment for assignment #{assignment.id}",
+                created_by=request.user if request else None
+            )
+
+            # Créer le paiement
+            interpreter_payment = InterpreterPayment.objects.create(
+                transaction=transaction,
+                interpreter=assignment.interpreter,
+                assignment=assignment,
+                amount=assignment.total_interpreter_payment,
+                payment_method='ACH',
+                status=new_status,
+                scheduled_date=timezone.now() + timezone.timedelta(days=14),
+                reference_number=f"INT-{assignment.id}-{uuid.uuid4().hex[:6].upper()}"
+            )
+            logger.info(f"Created new payment for assignment {assignment.id}")
+            return interpreter_payment
 
     def create_expense(self, request, assignment):
         """

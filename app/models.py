@@ -233,6 +233,8 @@ class Assignment(models.Model):
     state = models.CharField(max_length=50)
     zip_code = models.CharField(max_length=20)
     status = models.CharField(max_length=20, choices=Status.choices)
+    # Ajouter ce champ après les champs financiers existants:
+    is_paid = models.BooleanField(null=True, blank=True, help_text="Indicates if the assignment has been paid")
     
     # Informations financières
     interpreter_rate = models.DecimalField(max_digits=10, decimal_places=2, help_text="Taux horaire de l'interprète")
@@ -632,7 +634,7 @@ class InterpreterPayment(models.Model):
         CANCELLED = 'CANCELLED', _('Cancelled')
 
     class PaymentMethod(models.TextChoices):
-    # Méthodes bancaires traditionnelles
+        # Méthodes bancaires traditionnelles
         CREDIT_CARD = 'CREDIT_CARD', _('Credit Card')
         DEBIT_CARD = 'DEBIT_CARD', _('Debit Card')
         BANK_TRANSFER = 'BANK_TRANSFER', _('Bank Transfer')
@@ -672,22 +674,84 @@ class InterpreterPayment(models.Model):
         # Autres
         OTHER = 'OTHER', _('Other')
 
-    transaction = models.OneToOneField(FinancialTransaction, on_delete=models.PROTECT)
-    interpreter = models.ForeignKey(Interpreter, on_delete=models.PROTECT)
-    assignment = models.ForeignKey(Assignment, on_delete=models.PROTECT, null=True, blank=True)
+    # Relations
+    transaction = models.OneToOneField('FinancialTransaction', on_delete=models.PROTECT)
+    interpreter = models.ForeignKey('Interpreter', on_delete=models.PROTECT)
+    assignment = models.ForeignKey('Assignment', on_delete=models.PROTECT, null=True, blank=True)
     
+    # Informations de paiement
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     payment_method = models.CharField(max_length=50, choices=PaymentMethod.choices)
-    status = models.CharField(max_length=20, choices=Status.choices)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
     
+    # Dates
     scheduled_date = models.DateTimeField()
     processed_date = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(default=timezone.now, editable=False)
+    updated_at = models.DateTimeField(default=timezone.now)
     
+    # Informations supplémentaires
     reference_number = models.CharField(max_length=50, unique=True)
     payment_proof = models.FileField(upload_to='interpreter_payment_proofs/', null=True, blank=True)
-    
     notes = models.TextField(blank=True, null=True)
 
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Interpreter Payment'
+        verbose_name_plural = 'Interpreter Payments'
+        indexes = [
+            models.Index(fields=['status', 'scheduled_date']),
+            models.Index(fields=['interpreter', 'status']),
+            models.Index(fields=['created_at']),
+        ]
+
+    def __str__(self):
+        return f"Payment {self.reference_number} - {self.interpreter}"
+
+    def clean(self):
+        """Validation personnalisée"""
+        if self.status == self.Status.COMPLETED and not self.processed_date:
+            raise ValidationError({
+                'processed_date': 'Processed date is required when status is completed'
+            })
+
+    def save(self, *args, **kwargs):
+        """Surcharge de la méthode save pour validation"""
+        self.clean()
+        super().save(*args, **kwargs)
+
+    def can_be_processed(self):
+        """Vérifie si le paiement peut être traité"""
+        return self.status == self.Status.PENDING
+
+    def can_be_completed(self):
+        """Vérifie si le paiement peut être marqué comme complété"""
+        return self.status == self.Status.PROCESSING
+
+    def mark_as_processing(self):
+        """Marque le paiement comme en cours de traitement"""
+        if self.can_be_processed():
+            self.status = self.Status.PROCESSING
+            self.save()
+            return True
+        return False
+
+    def mark_as_completed(self):
+        """Marque le paiement comme complété"""
+        if self.can_be_completed():
+            self.status = self.Status.COMPLETED
+            self.processed_date = timezone.now()
+            self.save()
+            return True
+        return False
+
+    def mark_as_failed(self):
+        """Marque le paiement comme échoué"""
+        if self.status in [self.Status.PENDING, self.Status.PROCESSING]:
+            self.status = self.Status.FAILED
+            self.save()
+            return True
+        return False
 class Expense(models.Model):
     """Gestion des dépenses de l'entreprise"""
     class ExpenseType(models.TextChoices):

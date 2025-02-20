@@ -2641,15 +2641,23 @@ def dashboard_view(request):
 
 def get_interpreter_stats(interpreter):
     """
-    Calcule les statistiques de l'interprète.
-    - Total des gains (missions complétées)
+    Calcule les statistiques de l'interprète pour la semaine en cours.
+    - Gains de la semaine (missions complétées)
     - Nombre de missions en attente
     - Nombre de missions confirmées et futures
     """
-    total_earnings = Assignment.objects.filter(
+    # Obtenir le début et la fin de la semaine courante
+    today = timezone.now()
+    start_of_week = today - timedelta(days=today.weekday())
+    start_of_week = start_of_week.replace(hour=0, minute=0, second=0, microsecond=0)
+    end_of_week = start_of_week + timedelta(days=7)
+
+    # Calculer les gains de la semaine
+    weekly_earnings = Assignment.objects.filter(
         interpreter=interpreter,
-        status='COMPLETED'
-    ).aggregate(total=Sum('total_interpreter_payment'))['total'] or 0
+        status='COMPLETED',
+        completed_at__range=(start_of_week, end_of_week)
+    ).aggregate(total=Sum('total_interpreter_payment'))['total']
 
     pending_count = Assignment.objects.filter(
         interpreter=interpreter,
@@ -2663,7 +2671,8 @@ def get_interpreter_stats(interpreter):
     ).count()
 
     return {
-        'total_earnings': round(total_earnings, 2),
+        'weekly_earnings': '-' if weekly_earnings is None else round(weekly_earnings, 2),
+        'earnings_info': 'Click on Payments for more details',  # Message d'information
         'pending_missions': pending_count,
         'upcoming_missions': upcoming_count
     }
@@ -3378,3 +3387,94 @@ def earnings_data_api(request, period):
     except Exception as e:
         logger.error(f"Error in earnings_data_api: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
+    
+    
+    
+class PaymentListView(ListView):
+    model = Assignment
+    template_name = 'interpreter/payment_list.html'
+    context_object_name = 'assignments'
+    
+    def dispatch(self, request, *args, **kwargs):
+        """Check if user has interpreter profile before proceeding"""
+        if not request.user.is_authenticated:
+            return redirect('login')
+            
+        if not hasattr(request.user, 'interpreter_profile'):
+            return render(request, 'error.html', {
+                'message': 'Access denied. Interpreter profile required.'
+            })
+            
+        return super().dispatch(request, *args, **kwargs)
+    
+    def get_queryset(self):
+        """Return assignments completed by the current interpreter"""
+        # Get interpreter profile
+        interpreter = self.request.user.interpreter_profile
+        
+        return Assignment.objects.filter(
+            interpreter=interpreter,
+            # Only show completed assignments
+            status=Assignment.Status.COMPLETED
+        ).order_by('-start_time')
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        
+        # Get interpreter profile
+        interpreter = self.request.user.interpreter_profile
+            
+        # Get all completed assignments for the interpreter
+        completed_assignments = Assignment.objects.filter(
+            interpreter=interpreter,
+            status=Assignment.Status.COMPLETED
+        )
+        
+        # Calculate date ranges
+        now = timezone.now()
+        week_start = now - timedelta(days=now.weekday())
+        week_start = week_start.replace(hour=0, minute=0, second=0, microsecond=0)
+        week_end = week_start + timedelta(days=6)
+        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        
+        # Format date strings
+        current_month_name = now.strftime('%B %Y')
+        week_start_str = week_start.strftime('%b %d')
+        week_end_str = week_end.strftime('%b %d, %Y')
+        week_date_range = f"{week_start_str} - {week_end_str}"
+        
+        # This week's revenue
+        weekly_revenue = completed_assignments.filter(
+            start_time__gte=week_start
+        ).aggregate(
+            sum=Sum('total_interpreter_payment')
+        )['sum'] or 0
+        
+        # This month's revenue
+        monthly_revenue = completed_assignments.filter(
+            start_time__gte=month_start
+        ).aggregate(
+            sum=Sum('total_interpreter_payment')
+        )['sum'] or 0
+        
+        # Total revenue
+        total_revenue = completed_assignments.aggregate(
+            sum=Sum('total_interpreter_payment')
+        )['sum'] or 0
+        
+        # Add revenue data to context
+        context['weekly_revenue'] = weekly_revenue
+        context['monthly_revenue'] = monthly_revenue
+        context['total_revenue'] = total_revenue
+        
+        # Add date information
+        context['current_month'] = current_month_name
+        context['week_date_range'] = week_date_range
+        
+        # Payment statistics
+        context['paid_count'] = completed_assignments.filter(is_paid=True).count()
+        context['unpaid_count'] = completed_assignments.filter(
+            Q(is_paid=False) | Q(is_paid=None)
+        ).count()
+        
+        return context

@@ -6,10 +6,25 @@
     <!-- Stats Section -->
     <div class="grid stats-grid">
         <div class="card stat-card">
-            <div class="card-content">
+            <div class="card-content relative">
                 <i class="fas fa-dollar-sign mb-2 text-2xl text-primary-green"></i>
-                <div class="stat-value text-3xl font-bold">${{ stats.total_earnings }}</div>
-                <div class="stat-label">Total Earnings</div>
+                <div class="stat-value text-3xl font-bold">
+                    {% if stats.weekly_earnings != '-' %}
+                        ${{ stats.weekly_earnings }}
+                    {% else %}
+                        -
+                    {% endif %}
+                </div>
+                <div class="stat-label">This Week's Income</div>
+                <div class="absolute top-2 right-2">
+                    <!-- Icône info déclenchant l'affichage lors du clic -->
+                    <i class="fas fa-info-circle text-gray-400 hover:text-gray-600 cursor-pointer" 
+                         id="info-icon" 
+                         onclick="toggleInfoMessage()"></i>
+                    <div id="info-message" class="info-message" style="position: absolute; z-index: 20; right: 0; top: 2.5rem; min-width: 16rem; padding: 0.5rem; background: black; color: white; font-size: 0.75rem; border-radius: 0.25rem;">
+                        Click on Payment on the menu for more details info
+                    </div>
+                </div>
             </div>
         </div>
         <div class="card stat-card">
@@ -30,7 +45,7 @@
             </div>
         </div>
     </div>
-
+    
     <!-- Notification Toast -->
     <div id="notification-toast" class="notification-toast">
         <div class="notification-content">
@@ -178,7 +193,6 @@
                         <span class="detail-label">Service Type:</span>
                         <span>{{ assignment.detailed_info.service_type }}</span>
                     </div>
-                    <!-- Nouvelles lignes pour afficher la date complète -->
                     <div class="detail-row">
                         <span class="detail-label">Start Date:</span>
                         <span>{{ assignment.main_info.start_datetime|date:"M d, Y g:i A" }}</span>
@@ -259,6 +273,7 @@
     .refresh-btn:hover i {
         transform: rotate(180deg);
     }
+    
     /* Mission Card Improvements */
     .mission-item {
         background: rgba(255, 255, 255, 0.05);
@@ -270,6 +285,7 @@
     .mission-item:hover {
         background: rgba(255, 255, 255, 0.08);
     }
+    
     /* Additional Details Animation */
     .mission-additional-details {
         max-height: 0;
@@ -285,6 +301,7 @@
         background: rgba(255, 255, 255, 0.05);
         border-radius: 0.5rem;
     }
+    
     /* Show More/Less Button Style */
     .btn-show-more {
         width: 100%;
@@ -322,6 +339,7 @@
     .btn-show-more:active {
         transform: translateY(1px);
     }
+    
     /* Button Improvements */
     .btn {
         position: relative;
@@ -379,6 +397,7 @@
         background: var(--danger);
         border: 2px solid rgba(255, 255, 255, 0.1);
     }
+    
     /* Toast Improvements */
     .notification-toast {
         position: fixed;
@@ -425,7 +444,6 @@
         font-size: 0.8rem;
         font-weight: 500;
     }
-
     .fade-out {
         opacity: 0;
         transform: translateY(-10px);
@@ -444,6 +462,19 @@
     }
     .complete-btn.loading {
         background: var(--primary-green-dark);
+    }
+    
+    /* Styles simplifiés pour le message d'info */
+    #info-message {
+        opacity: 0;
+        visibility: hidden;
+        transform: translateY(-10px);
+        transition: all 0.3s ease;
+    }
+    #info-message.active {
+        opacity: 1;
+        visibility: visible;
+        transform: translateY(0);
     }
 </style>
 {% endblock %}
@@ -465,15 +496,27 @@
         return cookieValue;
     }
 
+    // Fonction simplifiée pour basculer l'affichage du message d'info
+    function toggleInfoMessage() {
+        const infoMessage = document.getElementById('info-message');
+        if (!infoMessage.classList.contains('active')) {
+            infoMessage.classList.add('active');
+            // Masquer le message après 5 secondes
+            setTimeout(() => {
+                infoMessage.classList.remove('active');
+            }, 5000);
+        } else {
+            infoMessage.classList.remove('active');
+        }
+    }
+
     function showNotification(message, type = 'success') {
         const toast = document.getElementById('notification-toast');
         const content = toast.querySelector('.notification-content');
         const messageEl = document.getElementById('notification-message');
-        
         content.className = `notification-content ${type}`;
         messageEl.textContent = message;
         toast.classList.add('show');
-        
         setTimeout(() => {
             toast.classList.remove('show');
         }, 3000);
@@ -482,16 +525,11 @@
     function toggleDetails(missionId) {
         const detailsEl = document.getElementById(`details-${missionId}`);
         const button = event.target.closest('.btn-show-more');
-        
-        // Si le bouton n'est pas trouvé, utiliser l'élément cliqué
         const targetButton = button || event.target;
-        
         if (!detailsEl.classList.contains('expanded')) {
             detailsEl.classList.add('expanded');
             targetButton.classList.add('expanded');
             targetButton.innerHTML = '<i class="fas fa-chevron-up"></i><span>Show Less</span>';
-            
-            // Animation d'ouverture
             detailsEl.style.maxHeight = detailsEl.scrollHeight + 'px';
             setTimeout(() => {
                 detailsEl.style.opacity = '1';
@@ -500,8 +538,6 @@
             detailsEl.classList.remove('expanded');
             targetButton.classList.remove('expanded');
             targetButton.innerHTML = '<i class="fas fa-chevron-down"></i><span>Show More Details</span>';
-            
-            // Animation de fermeture
             detailsEl.style.opacity = '0';
             setTimeout(() => {
                 detailsEl.style.maxHeight = '0';
@@ -509,28 +545,15 @@
         }
     }
 
-    // Initialize all show more buttons on page load
-    document.addEventListener('DOMContentLoaded', function() {
-        const buttons = document.querySelectorAll('.btn-show-more');
-        buttons.forEach(button => {
-            button.innerHTML = '<i class="fas fa-chevron-down"></i><span>Show More Details</span>';
-        });
-    });
-
     async function handleMissionResponse(url, missionId, action) {
         const btnId = `${action}-btn-${missionId}`;
         const button = document.getElementById(btnId);
         const missionEl = document.getElementById(`mission-${missionId}`);
-        
-        // Désactiver les boutons pendant l'action
         const acceptBtn = document.getElementById(`accept-btn-${missionId}`);
         const declineBtn = document.getElementById(`decline-btn-${missionId}`);
         acceptBtn.disabled = true;
         declineBtn.disabled = true;
-        
-        // Afficher l'état de chargement
         button.classList.add('loading');
-
         try {
             const response = await fetch(url, {
                 method: 'GET',
@@ -540,17 +563,12 @@
                 },
                 credentials: 'same-origin'
             });
-
             if (response.ok) {
                 missionEl.classList.add('fade-out');
-                
                 setTimeout(() => {
                     missionEl.remove();
-                    
-                    // Mise à jour des compteurs
                     const pendingCount = document.querySelector('.stat-card:nth-child(2) .stat-value');
                     const upcomingCount = document.querySelector('.stat-card:nth-child(3) .stat-value');
-                    
                     if (action === 'accept') {
                         pendingCount.textContent = parseInt(pendingCount.textContent) - 1;
                         upcomingCount.textContent = parseInt(upcomingCount.textContent) + 1;
@@ -566,86 +584,64 @@
         } catch (error) {
             console.error('Error:', error);
             showNotification('An error occurred. Please try again.', 'error');
-            
-            // Réactiver les boutons en cas d'erreur
             acceptBtn.disabled = false;
             declineBtn.disabled = false;
             button.classList.remove('loading');
         }
     }
 
-    // Nouvelle fonction pour marquer une mission comme complétée
     async function markAsComplete(missionId) {
-    const button = document.getElementById(`complete-btn-${missionId}`);
-    const missionEl = document.getElementById(`mission-${missionId}`);
-    
-    // Désactiver le bouton et afficher le spinner
-    button.disabled = true;
-    button.classList.add('loading');
-    
-    try {
-        const response = await fetch(`/assignments/${missionId}/complete/`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
-                'X-CSRFToken': getCookie('csrftoken')
-            },
-            body: JSON.stringify({
-                status: 'COMPLETED'
-            }),
-            credentials: 'same-origin'
-        });
-
-        const data = await response.json();
-
-        if (response.ok) {
-            missionEl.classList.add('fade-out');
-            
-            setTimeout(() => {
-                missionEl.remove();
-                
-                // Mettre à jour les compteurs des statistiques
-                const upcomingMissionsCard = document.querySelector('.stat-card:nth-child(3) .stat-value');
-                const totalEarningsCard = document.querySelector('.stat-card:nth-child(1) .stat-value');
-                
-                // Mettre à jour le compteur des missions à venir
-                if (upcomingMissionsCard) {
-                    const currentValue = parseInt(upcomingMissionsCard.textContent);
-                    upcomingMissionsCard.textContent = Math.max(0, currentValue - 1);
-                }
-                
-                // Mettre à jour le total des gains si disponible dans la mission
-                const missionAmount = missionEl.querySelector('.mission-amount span')?.textContent;
-                if (totalEarningsCard && missionAmount) {
-                    const rate = parseFloat(missionAmount.replace('$', '').split('/')[0]);
-                    const duration = parseFloat(missionEl.querySelector('.mission-details')?.dataset?.duration || "0");
-                    if (!isNaN(rate) && !isNaN(duration)) {
-                        const currentEarnings = parseFloat(totalEarningsCard.textContent.replace('$', ''));
-                        const newEarnings = currentEarnings + (rate * duration);
-                        totalEarningsCard.textContent = `$${newEarnings.toFixed(2)}`;
+        const button = document.getElementById(`complete-btn-${missionId}`);
+        const missionEl = document.getElementById(`mission-${missionId}`);
+        button.disabled = true;
+        button.classList.add('loading');
+        try {
+            const response = await fetch(`/assignments/${missionId}/complete/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify({ status: 'COMPLETED' }),
+                credentials: 'same-origin'
+            });
+            const data = await response.json();
+            if (response.ok) {
+                missionEl.classList.add('fade-out');
+                setTimeout(() => {
+                    missionEl.remove();
+                    const upcomingMissionsCard = document.querySelector('.stat-card:nth-child(3) .stat-value');
+                    const weeklyEarningsCard = document.querySelector('.stat-card:nth-child(1) .stat-value');
+                    if (upcomingMissionsCard) {
+                        const currentValue = parseInt(upcomingMissionsCard.textContent);
+                        upcomingMissionsCard.textContent = Math.max(0, currentValue - 1);
                     }
-                }
-                
-                showNotification('Mission marked as completed successfully!', 'success');
-            }, 500);
-        } else {
-            throw new Error(data.message || 'Failed to complete mission');
+                    const missionAmount = missionEl.querySelector('.mission-amount span')?.textContent;
+                    if (weeklyEarningsCard && missionAmount) {
+                        const rate = parseFloat(missionAmount.replace('$', '').split('/')[0]);
+                        const duration = parseFloat(missionEl.querySelector('.mission-details')?.dataset?.duration || "0");
+                        if (!isNaN(rate) && !isNaN(duration)) {
+                            if (weeklyEarningsCard.textContent === "-") {
+                                weeklyEarningsCard.textContent = `$${(rate * duration).toFixed(2)}`;
+                            } else {
+                                const currentEarnings = parseFloat(weeklyEarningsCard.textContent.replace('$', ''));
+                                const newEarnings = currentEarnings + (rate * duration);
+                                weeklyEarningsCard.textContent = `$${newEarnings.toFixed(2)}`;
+                            }
+                        }
+                    }
+                    showNotification('Mission marked as completed successfully!', 'success');
+                }, 500);
+            } else {
+                throw new Error(data.message || 'Failed to complete mission');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            showNotification(error.message || 'An error occurred while completing the mission', 'error');
+            button.disabled = false;
+            button.classList.remove('loading');
         }
-    } catch (error) {
-        console.error('Error:', error);
-        showNotification(error.message || 'An error occurred while completing the mission', 'error');
-        
-        // Réactiver le bouton en cas d'erreur
-        button.disabled = false;
-        button.classList.remove('loading');
     }
-}
-    // Initialisation des boutons "Show More" au chargement de la page
-    document.addEventListener('DOMContentLoaded', function() {
-        document.querySelectorAll('.btn-show-more').forEach(btn => {
-            btn.innerHTML = 'Show More Details <i class="fas fa-chevron-down ml-2"></i>';
-        });
-    });
 </script>
 {% endblock %}

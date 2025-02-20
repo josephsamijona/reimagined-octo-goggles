@@ -382,14 +382,16 @@ class AssignmentAdmin(AssignmentAdminMixin, admin.ModelAdmin):
         'get_service_type',
         'formatted_start_time',
         'formatted_end_time',
-        'get_status_display'
+        'get_status_display',
+        'get_payment_status'
     )
     list_filter = (
         'status', 
         'service_type',
         'source_language',
         'target_language',
-        'start_time'
+        'start_time',
+        'is_paid'
     )
     search_fields = (
         'client__company_name', 
@@ -416,7 +418,7 @@ class AssignmentAdmin(AssignmentAdminMixin, admin.ModelAdmin):
                 ('client',),  # Existing client
                 ('client_name', 'client_email', 'client_phone')  # New client
             ),
-            'description': 'If the client is not registered in the system, please enter their information manually using the fields below (name, email, phone)'
+            'description': 'If the client is not registered in the system, you can enter their information manually using the fields below (name, email, phone). These fields are optional.'
         }),
         ('Language Details', {
             'fields': ('source_language', 'target_language')
@@ -432,7 +434,7 @@ class AssignmentAdmin(AssignmentAdminMixin, admin.ModelAdmin):
             'fields': ('location', ('city', 'state', 'zip_code'))
         }),
         ('Financial Information', {
-            'fields': ('interpreter_rate', 'minimum_hours', 'total_interpreter_payment'),
+            'fields': ('interpreter_rate', 'minimum_hours', 'total_interpreter_payment', 'is_paid'),
             'classes': ('collapse',),
             'description': 'Total amount is automatically calculated based on hourly rate and billable hours'
         }),
@@ -499,11 +501,26 @@ class AssignmentAdmin(AssignmentAdminMixin, admin.ModelAdmin):
         )
     get_status_display.short_description = 'Status'
 
+    def get_payment_status(self, obj):
+        """Display payment status with icon and color"""
+        if obj.is_paid:
+            return format_html(
+                '<span style="color: green; font-weight: bold;">✓ Paid</span>'
+            )
+        elif obj.is_paid is False:
+            return format_html(
+                '<span style="color: red; font-weight: bold;">✗ Unpaid</span>'
+            )
+        return format_html(
+            '<span style="color: gray;">- Pending</span>'
+        )
+    get_payment_status.short_description = 'Payment Status'
+
     def get_client_display(self, obj):
         """Display client information"""
         if obj.client:
             return obj.client.company_name
-        return f"{obj.client_name} (Manual)"
+        return f"{obj.client_name or 'Anonymous Client'}"
     get_client_display.short_description = 'Client'
 
     def get_interpreter(self, obj):
@@ -553,13 +570,24 @@ class AssignmentAdmin(AssignmentAdminMixin, admin.ModelAdmin):
 
     def save_model(self, request, obj, form, change):
         """
-        Sauvegarde du modèle avec calcul du paiement total
+        Sauvegarde du modèle avec calcul du paiement total et validation assouplie du client
         """
         if form.is_valid():
+            # Calcul du paiement total
             if obj.interpreter_rate and obj.start_time and obj.end_time:
                 duration = (obj.end_time - obj.start_time).total_seconds() / 3600
                 billable_hours = max(duration, float(obj.minimum_hours))
                 obj.total_interpreter_payment = obj.interpreter_rate * Decimal(str(billable_hours))
+            
+            # Si un client est sélectionné, on ignore les champs manuels
+            if obj.client:
+                obj.client_name = None
+                obj.client_email = None
+                obj.client_phone = None
+            
+            # Si pas de client sélectionné et pas de nom, utiliser "Anonymous Client"
+            if not obj.client and not obj.client_name:
+                obj.client_name = "Anonymous Client"
 
         super().save_model(request, obj, form, change)
 @admin.register(models.Payment)
