@@ -143,7 +143,7 @@ urlpatterns = [
          AssignmentDeclineView.as_view(), 
          name='assignment-decline'),
     ##########################update
-    path('payments/', views.PaymentListView.as_view(), name='interpreter_payments'),
+    path('earnings/', views.PaymentListView.as_view(), name='interpreter_payments'),
     path('int/home/', views.dashboard_view, name='new_interpreter_dashboard'),
     path('int/schedule/', views.calendar_view, name='new_interpreter_calendar'),
         path('schedule/', views.calendar_view, name='interpreter_calendar'),

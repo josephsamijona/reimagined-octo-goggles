@@ -79,6 +79,8 @@ class Client(models.Model):
     city = models.CharField(max_length=100)
     state = models.CharField(max_length=50)
     zip_code = models.CharField(max_length=20)
+    phone = models.CharField(max_length=20, blank=True, null=True)  # Nouveau champ ajouté
+    email = models.EmailField(blank=True, null=True)  # Nouveau champ ajouté
     billing_address = models.TextField(blank=True, null=True)
     billing_city = models.CharField(max_length=100, blank=True, null=True)
     billing_state = models.CharField(max_length=50, blank=True, null=True)
