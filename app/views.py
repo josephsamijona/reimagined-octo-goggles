@@ -66,6 +66,7 @@ from .forms import (
     ClientRegistrationForm2,
     ContactForm,
     CustomPasswordChangeForm,
+    DeductionFormSet,ReimbursementFormSet,
     CustomPasswordResetForm,
     CustomPasswordtradChangeForm,
     InterpreterProfileForm,
@@ -99,7 +100,7 @@ from .models import (
     QuoteRequest,
     Service,
     ServiceType,
-    User,
+    User,Reimbursement,Deduction
 )
 from .mixins.assignment_mixins import AssignmentAdminMixin
 from .assignment_views import AssignmentAcceptView, AssignmentDeclineView
@@ -233,42 +234,110 @@ class PayrollCreateView(CreateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         if self.request.POST:
-            context['service_formset'] = ServiceFormSet(self.request.POST)
+            context['service_formset'] = ServiceFormSet(self.request.POST, self.request.FILES, prefix='services')
+            context['reimbursement_formset'] = ReimbursementFormSet(self.request.POST, self.request.FILES, prefix='reimbursements', queryset=Reimbursement.objects.none())
+            context['deduction_formset'] = DeductionFormSet(self.request.POST, self.request.FILES, prefix='deductions', queryset=Deduction.objects.none())
         else:
-            context['service_formset'] = ServiceFormSet(queryset=Service.objects.none())
+            context['service_formset'] = ServiceFormSet(queryset=Service.objects.none(), prefix='services')
+            context['reimbursement_formset'] = ReimbursementFormSet(queryset=Reimbursement.objects.none(), prefix='reimbursements')
+            context['deduction_formset'] = DeductionFormSet(queryset=Deduction.objects.none(), prefix='deductions')
         return context
 
     def form_valid(self, form):
         context = self.get_context_data()
         service_formset = context['service_formset']
+        reimbursement_formset = context['reimbursement_formset']
+        deduction_formset = context['deduction_formset']
 
-        if service_formset.is_valid():
-            self.object = form.save(commit=False)
-            self.object.document_number = generate_document_number()
-            self.object.document_date = datetime.now().date()
-            self.object.save()
-
-            services = service_formset.save(commit=False)
-            for service in services:
-                service.payroll = self.object
-                service.save()
-
-            if self.request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                return JsonResponse({
-                    'status': 'success',
-                    'id': self.object.pk,
-                    'message': 'Document saved successfully'
-                })
-            
-            return super().form_valid(form)
-        else:
-            if self.request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                return JsonResponse({
-                    'status': 'error',
-                    'errors': service_formset.errors
-                }, status=400)
+        # Vérifier si les formsets sont valides
+        if not service_formset.is_valid():
+            return self.form_invalid(form)
+        
+        # Vérifier les formsets de remboursement et déduction seulement s'ils contiennent des données
+        has_reimbursement_data = False
+        for reimbursement_form in reimbursement_formset:
+            if reimbursement_form.has_changed():
+                has_reimbursement_data = True
+                break
+                    
+        has_deduction_data = False
+        for deduction_form in deduction_formset:
+            if deduction_form.has_changed():
+                has_deduction_data = True
+                break
+        
+        # Valider les formsets seulement s'ils contiennent des données
+        if has_reimbursement_data and not reimbursement_formset.is_valid():
+            return self.form_invalid(form)
+                
+        if has_deduction_data and not deduction_formset.is_valid():
             return self.form_invalid(form)
 
+        # Sauvegarder le document principal
+        self.object = form.save(commit=False)
+        self.object.document_number = generate_document_number()
+        self.object.document_date = datetime.now().date()
+        self.object.save()
+
+        # Sauvegarder les services
+        services = service_formset.save(commit=False)
+        for service in services:
+            service.payroll = self.object
+            service.save()
+        
+        # Gérer les suppressions des services
+        for obj in service_formset.deleted_objects:
+            obj.delete()
+
+        # Sauvegarder les remboursements (seulement s'ils existent)
+        if has_reimbursement_data:
+            reimbursements = reimbursement_formset.save(commit=False)
+            for reimbursement in reimbursements:
+                # Vérifier si le formulaire est marqué pour suppression après validation
+                if not hasattr(reimbursement_form, 'cleaned_data') or not reimbursement_form.cleaned_data.get('DELETE', False):
+                    reimbursement.payroll = self.object
+                    reimbursement.save()
+            
+            # Gérer les suppressions des remboursements
+            for obj in reimbursement_formset.deleted_objects:
+                obj.delete()
+
+        # Sauvegarder les déductions (seulement s'ils existent)
+        if has_deduction_data:
+            deductions = deduction_formset.save(commit=False)
+            for deduction in deductions:
+                # Vérifier si le formulaire est marqué pour suppression après validation
+                if not hasattr(deduction_form, 'cleaned_data') or not deduction_form.cleaned_data.get('DELETE', False):
+                    deduction.payroll = self.object
+                    deduction.save()
+            
+            # Gérer les suppressions des déductions
+            for obj in deduction_formset.deleted_objects:
+                obj.delete()
+
+        # Gérer les réponses AJAX
+        if self.request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({
+                'status': 'success',
+                'id': self.object.pk,
+                'message': 'Document saved successfully'
+            })
+        
+        return super().form_valid(form)
+
+    def form_invalid(self, form):
+        if self.request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            context = self.get_context_data()
+            return JsonResponse({
+                'status': 'error',
+                'errors': {
+                    'form': form.errors,
+                    'service_formset': context['service_formset'].errors,
+                    'reimbursement_formset': context['reimbursement_formset'].errors,
+                    'deduction_formset': context['deduction_formset'].errors
+                }
+            }, status=400)
+        return super().form_invalid(form)
 
 class PayrollDetailView(DetailView):
     model = PayrollDocument
@@ -277,22 +346,47 @@ class PayrollDetailView(DetailView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        
+        # Récupérer les données
         services = self.object.services.all()
+        reimbursements = self.object.reimbursements.all()
+        deductions = self.object.deductions.all()
         
+        # Initialiser les totaux
         total_duration = Decimal('0')
-        total_amount = Decimal('0')
+        total_service_amount = Decimal('0')
+        total_reimbursement_amount = Decimal('0')
+        total_deduction_amount = Decimal('0')
         
-        # Ne pas modifier les services directement
+        # Calculer les totaux pour les services
         for service in services:
             total_duration += service.duration or Decimal('0')
-            total_amount += service.amount
+            total_service_amount += service.amount
         
+        # Calculer le total des remboursements
+        for reimbursement in reimbursements:
+            total_reimbursement_amount += reimbursement.amount
+        
+        # Calculer le total des déductions
+        for deduction in deductions:
+            total_deduction_amount += deduction.amount
+        
+        # Calculer le montant final (services + remboursements - déductions)
+        final_amount = total_service_amount + total_reimbursement_amount - total_deduction_amount
+        
+        # Mettre à jour le contexte avec toutes les données calculées
         context.update({
             'services': services,
+            'reimbursements': reimbursements,
+            'deductions': deductions,
             'total_duration': format_decimal(total_duration),
-            'total_amount': format_decimal(total_amount),
+            'total_service_amount': format_decimal(total_service_amount),
+            'total_reimbursement_amount': format_decimal(total_reimbursement_amount),
+            'total_deduction_amount': format_decimal(total_deduction_amount),
+            'final_amount': format_decimal(final_amount),
             'generation_date': datetime.now().date()
         })
+        
         return context
 
     def get(self, request, *args, **kwargs):
@@ -312,34 +406,97 @@ class PayrollPreviewView(DetailView):
 
     def post(self, request, *args, **kwargs):
         form = PayrollDocumentForm(request.POST, request.FILES)
-        service_formset = ServiceFormSet(request.POST)
+        service_formset = ServiceFormSet(request.POST, prefix='services')
+        reimbursement_formset = ReimbursementFormSet(request.POST, request.FILES, prefix='reimbursements')
+        deduction_formset = DeductionFormSet(request.POST, prefix='deductions')
         
         if form.is_valid() and service_formset.is_valid():
+            # Vérifier les formsets de remboursement et déduction seulement s'ils contiennent des données
+            has_reimbursement_data = False
+            valid_reimbursements = True
+            for reimbursement_form in reimbursement_formset:
+                if reimbursement_form.has_changed() and not reimbursement_form.cleaned_data.get('DELETE', False):
+                    has_reimbursement_data = True
+                    if not reimbursement_form.is_valid():
+                        valid_reimbursements = False
+                    break
+                    
+            has_deduction_data = False
+            valid_deductions = True
+            for deduction_form in deduction_formset:
+                if deduction_form.has_changed() and not deduction_form.cleaned_data.get('DELETE', False):
+                    has_deduction_data = True
+                    if not deduction_form.is_valid():
+                        valid_deductions = False
+                    break
+            
+            if ((has_reimbursement_data and not valid_reimbursements) or 
+                (has_deduction_data and not valid_deductions)):
+                return JsonResponse({
+                    'status': 'error',
+                    'errors': {
+                        'form': form.errors,
+                        'service_formset': service_formset.errors,
+                        'reimbursement_formset': reimbursement_formset.errors if has_reimbursement_data else {},
+                        'deduction_formset': deduction_formset.errors if has_deduction_data else {}
+                    }
+                }, status=400)
+            
             payroll = form.save(commit=False)
             payroll.document_number = generate_document_number()
             payroll.document_date = datetime.now().date()
             
+            # Préparer les services pour l'affichage
             services = service_formset.save(commit=False)
             
-            # Format services data without modifying the amount property
-            formatted_services = []
-            total_duration = Decimal('0')
-            total_amount = Decimal('0')
+            # Préparer les remboursements pour l'affichage
+            reimbursements = []
+            if has_reimbursement_data:
+                reimbursements = [form.save(commit=False) for form in reimbursement_formset 
+                                 if form.has_changed() and not form.cleaned_data.get('DELETE', False)]
             
+            # Préparer les déductions pour l'affichage
+            deductions = []
+            if has_deduction_data:
+                deductions = [form.save(commit=False) for form in deduction_formset 
+                             if form.has_changed() and not form.cleaned_data.get('DELETE', False)]
+            
+            # Calculer les totaux
+            total_duration = Decimal('0')
+            total_service_amount = Decimal('0')
+            total_reimbursement_amount = Decimal('0')
+            total_deduction_amount = Decimal('0')
+            
+            # Services
             for service in services:
                 service.duration = service.duration if service.duration else Decimal('0')
                 service.rate = service.rate if service.rate else Decimal('0')
                 
                 total_duration += service.duration
-                total_amount += service.duration * service.rate
-                
-                formatted_services.append(service)
+                total_service_amount += service.duration * service.rate
             
+            # Remboursements
+            for reimbursement in reimbursements:
+                total_reimbursement_amount += reimbursement.amount
+            
+            # Déductions
+            for deduction in deductions:
+                total_deduction_amount += deduction.amount
+            
+            # Montant final
+            final_amount = total_service_amount + total_reimbursement_amount - total_deduction_amount
+            
+            # Préparer le contexte pour la prévisualisation
             context = {
                 'payroll': payroll,
-                'services': formatted_services,
+                'services': services,
+                'reimbursements': reimbursements,
+                'deductions': deductions,
                 'total_duration': format_decimal(total_duration),
-                'total_amount': format_decimal(total_amount),
+                'total_service_amount': format_decimal(total_service_amount),
+                'total_reimbursement_amount': format_decimal(total_reimbursement_amount),
+                'total_deduction_amount': format_decimal(total_deduction_amount),
+                'final_amount': format_decimal(final_amount),
                 'generation_date': datetime.now().date(),
                 'is_preview': True
             }
@@ -348,7 +505,10 @@ class PayrollPreviewView(DetailView):
         else:
             return JsonResponse({
                 'status': 'error',
-                'errors': {**form.errors, **service_formset.errors}
+                'errors': {
+                    'form': form.errors,
+                    'service_formset': service_formset.errors
+                }
             }, status=400)
 
 # Dans views.py
@@ -500,34 +660,6 @@ def export_document(request, pk):
 
 
 
-class PayrollDetailView(DetailView):
-    model = PayrollDocument
-    template_name = 'payroll_template.html'
-    context_object_name = 'payroll'
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        services = self.object.services.all()
-        
-        total_duration = Decimal('0')
-        total_amount = Decimal('0')
-        
-        for service in services:
-            total_duration += service.duration or Decimal('0')
-            total_amount += service.amount
-        
-        context.update({
-            'services': services,
-            'total_duration': format_decimal(total_duration),
-            'total_amount': format_decimal(total_amount),
-            'generation_date': datetime.now().date()
-        })
-        return context
-
-    def get(self, request, *args, **kwargs):
-        if request.GET.get('export') == 'pdf':
-            return export_document(request, self.get_object().pk)
-        return super().get(request, *args, **kwargs)
 
 
 

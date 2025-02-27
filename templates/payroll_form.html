@@ -328,7 +328,7 @@
                     </div>
                 </div>
 
-                <!-- Step 3: Services -->
+                <!-- Step 3: Services, Reimbursements, and Deductions -->
                 <div class="step-container" data-step="3">
                     <h2>Services</h2>
                     {{ service_formset.management_form }}
@@ -356,6 +356,58 @@
                             <line x1="5" y1="12" x2="19" y2="12"></line>
                         </svg>
                         Add Service
+                    </button>
+
+                    <!-- Reimbursements Section -->
+                    <h2 class="mt-4">Reimbursements</h2>
+                    {{ reimbursement_formset.management_form }}
+                    <div id="reimbursements-container">
+                        {% for reimbursement_form in reimbursement_formset %}
+                            <div class="reimbursement-entry service-entry">
+                                <div class="service-grid">
+                                    {% for field in reimbursement_form %}
+                                        <div class="form-group">
+                                            <label class="form-label">{{ field.label }}</label>
+                                            {{ field }}
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                    
+                    <button type="button" id="add-reimbursement" class="add-service-btn">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                        Add Reimbursement
+                    </button>
+
+                    <!-- Deductions Section -->
+                    <h2 class="mt-4">Deductions</h2>
+                    {{ deduction_formset.management_form }}
+                    <div id="deductions-container">
+                        {% for deduction_form in deduction_formset %}
+                            <div class="deduction-entry service-entry">
+                                <div class="service-grid">
+                                    {% for field in deduction_form %}
+                                        <div class="form-group">
+                                            <label class="form-label">{{ field.label }}</label>
+                                            {{ field }}
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                    
+                    <button type="button" id="add-deduction" class="add-service-btn">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                        Add Deduction
                     </button>
                 </div>
 
@@ -464,11 +516,59 @@
                     : amountDisplay;
             }
             
-            // Update formset management form
+            // Update all formset management forms
             function updateFormsetManagement() {
-                const totalForms = document.getElementById('services-container').children.length;
-                document.querySelector('[name="form-TOTAL_FORMS"]').value = totalForms;
+                const servicesTotal = document.getElementById('services-container').children.length;
+                document.querySelector('[name="services-TOTAL_FORMS"]').value = servicesTotal;
+                
+                const reimbursementsTotal = document.getElementById('reimbursements-container').children.length;
+                document.querySelector('[name="reimbursements-TOTAL_FORMS"]').value = reimbursementsTotal;
+                
+                const deductionsTotal = document.getElementById('deductions-container').children.length;
+                document.querySelector('[name="deductions-TOTAL_FORMS"]').value = deductionsTotal;
             }
+            
+            // Add reimbursement button handler
+            document.getElementById('add-reimbursement').addEventListener('click', function() {
+                const container = document.getElementById('reimbursements-container');
+                const newReimbursement = container.querySelector('.reimbursement-entry').cloneNode(true);
+                
+                // Reset input values
+                newReimbursement.querySelectorAll('input, select').forEach(input => {
+                    input.value = '';
+                    // Update form prefix
+                    const oldName = input.getAttribute('name');
+                    if (oldName) {
+                        const newIndex = container.children.length;
+                        input.name = oldName.replace(/\d+/, newIndex);
+                        input.id = input.id.replace(/\d+/, newIndex);
+                    }
+                });
+                
+                container.appendChild(newReimbursement);
+                updateFormsetManagement();
+            });
+            
+            // Add deduction button handler
+            document.getElementById('add-deduction').addEventListener('click', function() {
+                const container = document.getElementById('deductions-container');
+                const newDeduction = container.querySelector('.deduction-entry').cloneNode(true);
+                
+                // Reset input values
+                newDeduction.querySelectorAll('input, select').forEach(input => {
+                    input.value = '';
+                    // Update form prefix
+                    const oldName = input.getAttribute('name');
+                    if (oldName) {
+                        const newIndex = container.children.length;
+                        input.name = oldName.replace(/\d+/, newIndex);
+                        input.id = input.id.replace(/\d+/, newIndex);
+                    }
+                });
+                
+                container.appendChild(newDeduction);
+                updateFormsetManagement();
+            });
             
             // Add service button handler
             document.getElementById('add-service').addEventListener('click', function() {

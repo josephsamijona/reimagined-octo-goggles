@@ -830,3 +830,51 @@ class Service(models.Model):
             return Decimal(str(self.duration)) * Decimal(str(self.rate))
         except (TypeError, ValueError, decimal.InvalidOperation):
             return Decimal('0')
+        
+        
+class Reimbursement(models.Model):
+    REIMBURSEMENT_TYPES = [
+        ('TRANSPORT', 'Transportation'),
+        ('PARKING', 'Parking fees'),
+        ('TOLL', 'Toll fees'),
+        ('MEAL', 'Meals'),
+        ('ACCOMMODATION', 'Accommodation'),
+        ('EQUIPMENT', 'Interpretation equipment'),
+        ('TRAINING', 'Professional training'),
+        ('COMMUNICATION', 'Communication fees'),
+        ('PRINTING', 'Document printing'),
+        ('OTHER', 'Other reimbursable expense'),
+    ]
+    
+    payroll = models.ForeignKey(PayrollDocument, on_delete=models.CASCADE, related_name='reimbursements')
+    date = models.DateField(blank=True, null=True)
+    description = models.CharField(max_length=255)
+    reimbursement_type = models.CharField(max_length=50, choices=REIMBURSEMENT_TYPES, default='OTHER')
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    receipt = models.FileField(upload_to='receipts/', blank=True, null=True)
+    
+    def __str__(self):
+        return f"{self.get_reimbursement_type_display()}: {self.description} - ${self.amount}"
+    
+    
+class Deduction(models.Model):
+    DEDUCTION_TYPES = [
+        ('ADVANCE', 'Payment advance'),
+        ('EQUIPMENT', 'Provided equipment'),
+        ('CANCELLATION', 'Cancellation penalty'),
+        ('LATE', 'Late penalty'),
+        ('TAX', 'Tax withholding'),
+        ('CONTRIBUTION', 'Social contributions'),
+        ('ADMIN_FEE', 'Administrative fees'),
+        ('ADJUSTMENT', 'Invoice adjustment'),
+        ('OTHER', 'Other deduction'),
+    ]
+    
+    payroll = models.ForeignKey(PayrollDocument, on_delete=models.CASCADE, related_name='deductions')
+    date = models.DateField(blank=True, null=True)
+    description = models.CharField(max_length=255)
+    deduction_type = models.CharField(max_length=50, choices=DEDUCTION_TYPES, default='OTHER')
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    
+    def __str__(self):
+        return f"{self.get_deduction_type_display()}: {self.description} - ${self.amount}"

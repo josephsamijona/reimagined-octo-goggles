@@ -25,7 +25,7 @@ from .models import (
     AssignmentFeedback,
     ServiceType,
     PublicQuoteRequest,
-    ContactMessage
+    ContactMessage,Reimbursement,Deduction
 )
 from .models import PayrollDocument, Service
 from django.forms import modelformset_factory
@@ -916,6 +916,70 @@ class ServiceForm(forms.ModelForm):
 ServiceFormSet = modelformset_factory(
     Service,
     form=ServiceForm,
+    extra=1,
+    can_delete=True
+)
+
+class ReimbursementForm(forms.ModelForm):
+    class Meta:
+        model = Reimbursement
+        fields = ['date', 'reimbursement_type', 'description', 'amount', 'receipt']
+        widgets = {
+            'date': forms.DateInput(attrs={
+                'type': 'date', 
+                'class': 'form-input'
+            }),
+            'reimbursement_type': forms.Select(attrs={
+                'class': 'form-input',
+            }),
+            'description': forms.TextInput(attrs={
+                'class': 'form-input',
+                'placeholder': 'Description'
+            }),
+            'amount': forms.NumberInput(attrs={
+                'class': 'form-input',
+                'step': '0.01',
+                'placeholder': 'Amount'
+            }),
+            'receipt': forms.ClearableFileInput(attrs={
+                'class': 'form-input'
+            }),
+        }
+
+class DeductionForm(forms.ModelForm):
+    class Meta:
+        model = Deduction
+        fields = ['date', 'deduction_type', 'description', 'amount']
+        widgets = {
+            'date': forms.DateInput(attrs={
+                'type': 'date', 
+                'class': 'form-input'
+            }),
+            'deduction_type': forms.Select(attrs={
+                'class': 'form-input',
+            }),
+            'description': forms.TextInput(attrs={
+                'class': 'form-input',
+                'placeholder': 'Description'
+            }),
+            'amount': forms.NumberInput(attrs={
+                'class': 'form-input',
+                'step': '0.01',
+                'placeholder': 'Amount'
+            }),
+        }
+
+# Créer des formsets pour les remboursements et déductions
+ReimbursementFormSet = modelformset_factory(
+    Reimbursement,
+    form=ReimbursementForm,
+    extra=1,
+    can_delete=True
+)
+
+DeductionFormSet = modelformset_factory(
+    Deduction,
+    form=DeductionForm,
     extra=1,
     can_delete=True
 )
