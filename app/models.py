@@ -217,7 +217,7 @@ class Assignment(models.Model):
         blank=True
     )
     
-    # Modification du champ client pour permettre les deux options
+    # Client fields - all optional now
     client = models.ForeignKey(Client, on_delete=models.PROTECT, null=True, blank=True)  
     client_name = models.CharField(max_length=255, null=True, blank=True)  
     client_email = models.EmailField(null=True, blank=True)  
@@ -260,23 +260,34 @@ class Assignment(models.Model):
     def __str__(self):
         if self.client:
             client_info = str(self.client)
+        elif self.client_name:
+            client_info = self.client_name
         else:
-            client_info = self.client_name or "Nouveau client"
+            client_info = "Unspecified Client"
         return f"Assignment {self.id} - {client_info} ({self.status})"
 
-    def clean(self):
-        """Validation personnalisée pour s'assurer qu'il y a soit un client existant, soit les informations d'un nouveau client"""
-        if not self.client and not (self.client_name and self.client_email):
-            raise ValidationError({
-                'client': 'Vous devez soit sélectionner un client existant, soit fournir les informations pour un nouveau client'
-            })
-        if self.client and (self.client_name or self.client_email or self.client_phone):
-            raise ValidationError({
-                'client': 'Vous ne pouvez pas à la fois sélectionner un client existant et fournir des informations pour un nouveau client'
-            })
+    # Remove the restrictive clean method or replace it with a more flexible one
+    # def clean(self):
+    #    """Validation personnalisée pour s'assurer qu'il y a soit un client existant, soit les informations d'un nouveau client"""
+    #    if not self.client and not (self.client_name and self.client_email):
+    #        raise ValidationError({
+    #            'client': 'Vous devez soit sélectionner un client existant, soit fournir les informations pour un nouveau client'
+    #        })
+    #    if self.client and (self.client_name or self.client_email or self.client_phone):
+    #        raise ValidationError({
+    #            'client': 'Vous ne pouvez pas à la fois sélectionner un client existant et fournir des informations pour un nouveau client'
+    #        })
 
+    # Modify save to no longer call clean()
     def save(self, *args, **kwargs):
-        self.clean()
+        # self.clean()  # Remove this line
+        
+        # Clear manual fields if a client is selected
+        if self.client:
+            self.client_name = None
+            self.client_email = None
+            self.client_phone = None
+            
         super().save(*args, **kwargs)
 
     def can_be_confirmed(self):
@@ -334,7 +345,9 @@ class Assignment(models.Model):
         """Retourne les informations du client à afficher"""
         if self.client:
             return str(self.client)
-        return self.client_name
+        elif self.client_name:
+            return self.client_name
+        return "Unspecified Client"
 
 class AssignmentFeedback(models.Model):
     assignment = models.OneToOneField(Assignment, on_delete=models.CASCADE)

@@ -1,3 +1,4 @@
+import re
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.utils.translation import gettext_lazy as _
@@ -142,15 +143,41 @@ class CustomAssignmentForm(forms.ModelForm):
     class Meta:
         model = models.Assignment
         fields = '__all__'
+        # Spécifier explicitement ces champs comme non requis
+        # (en supposant que d'autres champs obligatoires sont correctement configurés)
+        required = {
+            'client': False,
+            'client_name': False,
+            'client_email': False,
+            'client_phone': False,
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # S'assurer que les champs client ne sont pas obligatoires
+        self.fields['client'].required = False
+        self.fields['client_name'].required = False
+        self.fields['client_email'].required = False
+        self.fields['client_phone'].required = False
 
     def clean(self):
         cleaned_data = super().clean()
         start_time = cleaned_data.get('start_time')
         end_time = cleaned_data.get('end_time')
+        client_email = cleaned_data.get('client_email')
+        client_phone = cleaned_data.get('client_phone')
 
+        # Time validation
         if start_time and end_time:
             if end_time <= start_time:
                 raise ValidationError({'end_time': 'End time must be after start time.'})
+        
+        # Only validate format of email and phone if they are provided
+        if client_email and not re.match(r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$', client_email):
+            self.add_error('client_email', 'Please enter a valid email address.')
+        
+        if client_phone and not re.match(r'^\+?[0-9\s\-\(\)]+$', client_phone):
+            self.add_error('client_phone', 'Please enter a valid phone number.')
 
         return cleaned_data
 
@@ -425,7 +452,7 @@ class AssignmentAdmin(AssignmentAdminMixin, admin.ModelAdmin):
                 ('client',),  # Existing client
                 ('client_name', 'client_email', 'client_phone')  # New client
             ),
-            'description': 'If the client is not registered in the system, you can enter their information manually using the fields below (name, email, phone). These fields are optional.'
+            'description': 'You can either select an existing client or manually enter client information. All client fields are optional.'
         }),
         ('Language Details', {
             'fields': ('source_language', 'target_language')
@@ -527,7 +554,9 @@ class AssignmentAdmin(AssignmentAdminMixin, admin.ModelAdmin):
         """Display client information"""
         if obj.client:
             return obj.client.company_name
-        return f"{obj.client_name or 'Anonymous Client'}"
+        if obj.client_name:
+            return obj.client_name
+        return "Unspecified Client"
     get_client_display.short_description = 'Client'
 
     def get_interpreter(self, obj):
@@ -577,24 +606,23 @@ class AssignmentAdmin(AssignmentAdminMixin, admin.ModelAdmin):
 
     def save_model(self, request, obj, form, change):
         """
-        Sauvegarde du modèle avec calcul du paiement total et validation assouplie du client
+        Save model with total payment calculation and flexible client handling
         """
         if form.is_valid():
-            # Calcul du paiement total
+            # Calculate total payment
             if obj.interpreter_rate and obj.start_time and obj.end_time:
                 duration = (obj.end_time - obj.start_time).total_seconds() / 3600
                 billable_hours = max(duration, float(obj.minimum_hours))
                 obj.total_interpreter_payment = obj.interpreter_rate * Decimal(str(billable_hours))
             
-            # Si un client est sélectionné, on ignore les champs manuels
+            # If an existing client is selected, clear the manual fields
             if obj.client:
                 obj.client_name = None
                 obj.client_email = None
                 obj.client_phone = None
             
-            # Si pas de client sélectionné et pas de nom, utiliser "Anonymous Client"
-            if not obj.client and not obj.client_name:
-                obj.client_name = "Anonymous Client"
+            # No need to set "Anonymous Client" or any default value
+            # All client fields can remain empty
 
         super().save_model(request, obj, form, change)
 @admin.register(models.Payment)
