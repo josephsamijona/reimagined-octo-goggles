@@ -273,8 +273,8 @@ class AssignmentAdminMixin:
         Envoie un email lié à l'Assignment.
         
         - Utilise un seul email multi-part (HTML + ICS si nécessaire).
-        - Génère un Message-ID unique et des en-têtes anti-threading.
-        - Utilise un sujet unique pour chaque email.
+        - Génère un Message-ID unique et supprime complètement les en-têtes
+          In-Reply-To / References pour casser le fil.
         - Convertit les dates en America/New_York pour cohérence.
         """
         if not assignment.interpreter or not assignment.interpreter.user.email:
@@ -283,7 +283,7 @@ class AssignmentAdminMixin:
         try:
             # 1) Contexte et config du template
             context = self.get_email_context(request, assignment, email_type)
-            template_config = self.get_email_template_config(email_type, assignment.id)
+            template_config = self.get_email_template_config(email_type)
 
             # 2) Rendu du HTML
             html_message = render_to_string(template_config['template'], context)
@@ -296,15 +296,11 @@ class AssignmentAdminMixin:
 
             # Génération d'un message-id unique
             unique_msg_id = make_msgid(domain="jhbridge.com")
-            unique_ref = f"assignment-{assignment.id}-{uuid.uuid4().hex}"
-            
-            # En-têtes anti-threading pour différents clients email
+
+            # Supprimer toute référence aux en-têtes de conversation
             headers = {
                 'Message-ID': unique_msg_id,
-                'X-Entity-Ref-ID': unique_ref,
-                'Thread-Topic': f"Assignment {assignment.id} {email_type} {uuid.uuid4().hex[:6]}",
-                'Thread-Index': uuid.uuid4().hex,
-                'X-No-Threading': 'true'
+                # On ne met pas 'In-Reply-To' ni 'References' afin d'éviter tout regroupement
             }
 
             email = EmailMultiAlternatives(
@@ -380,48 +376,40 @@ class AssignmentAdminMixin:
 
         return context
 
-    def get_email_template_config(self, email_type, assignment_id=None):
+    def get_email_template_config(self, email_type):
         """
         Renvoie la config du template selon le type d'email.
         include_calendar=True => on joint l'ICS dans le même email.
-        Ajoute un ID unique à chaque sujet pour éviter le regroupement des emails.
         """
-        # Génération d'un identifiant unique pour ce message spécifique
-        unique_id = f"ID-{uuid.uuid4().hex[:8].upper()}"
-        
-        # Identifiant de mission s'il est disponible
-        assignment_ref = f"#{assignment_id}" if assignment_id else ""
-        
         email_configs = {
             'new': {
-                'subject': _('New Assignment Available {0} - Action Required [{1}]').format(assignment_ref, unique_id),
+                'subject': _('New Assignment Available - Action Required'),
                 'template': 'notifmail/assignment_new.html',
                 'include_calendar': False
             },
             'confirmed': {
-                'subject': _('Assignment Confirmation {0} [{1}]').format(assignment_ref, unique_id),
+                'subject': _('Assignment Confirmation'),
                 'template': 'notifmail/assignment_confirmed.html',
                 'include_calendar': True
             },
             'cancelled': {
-                'subject': _('Assignment Cancelled {0} [{1}]').format(assignment_ref, unique_id),
+                'subject': _('Assignment Cancelled'),
                 'template': 'notifmail/assignment_cancelled.html',
                 'include_calendar': False
             },
             'completed': {
-                'subject': _('Assignment Completed {0} [{1}]').format(assignment_ref, unique_id),
+                'subject': _('Assignment Completed'),
                 'template': 'notifmail/assignment_completed.html',
                 'include_calendar': False
             },
             'no_show': {
-                'subject': _('Assignment No-Show {0} [{1}]').format(assignment_ref, unique_id),
+                'subject': _('Assignment No-Show Recorded'),
                 'template': 'notifmail/assignment_no_show.html',
                 'include_calendar': False
             }
         }
-        
         return email_configs.get(email_type, {
-            'subject': _('Assignment Update {0} [{1}]').format(assignment_ref, unique_id),
+            'subject': _('Assignment Update'),
             'template': 'notifmail/assignment_generic.html',
             'include_calendar': False
         })
