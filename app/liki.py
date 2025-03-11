@@ -7,13 +7,12 @@ from django.utils.translation import gettext as _
 from django.utils import timezone
 from django.core.signing import Signer, BadSignature
 from django.template.loader import render_to_string
-from django.core.mail import EmailMultiAlternatives
+from django.core.mail import EmailMultiAlternatives, send_mail
 from django.conf import settings
 from django.utils.html import strip_tags
 from datetime import datetime, timedelta
 import pytz
 import icalendar
-import uuid
 
 # Pour manipuler la pièce jointe ICS
 import smtplib
@@ -163,24 +162,9 @@ class AssignmentResponseBaseMixin:
         cal.add_component(event)
         ics_data = cal.to_ical()
 
-        # Identifiant unique pour le sujet de l'email
-        unique_id = f"ID-{uuid.uuid4().hex[:8].upper()}"
-        
-        # Sujet avec identifiant unique
-        subject = f'Assignment Confirmation #{assignment.id} - Calendar Invitation [{unique_id}]'
-        
-        # Identifiants uniques pour les en-têtes anti-threading
+        # Sujet + Message-ID pour éviter le regroupement en fil
+        subject = f'Assignment Confirmation #{assignment.id} - Calendar Invitation'
         unique_message_id = make_msgid(domain="jhbridge.com")
-        unique_ref = f"assignment-{assignment.id}-{uuid.uuid4().hex}"
-
-        # En-têtes anti-threading
-        headers = {
-            'Message-ID': unique_message_id,
-            'X-Entity-Ref-ID': unique_ref,
-            'Thread-Topic': f"Assignment {assignment.id} confirmation {uuid.uuid4().hex[:6]}",
-            'Thread-Index': uuid.uuid4().hex,
-            'X-No-Threading': 'true'
-        }
 
         # Construction de l'email multi-part
         email = EmailMultiAlternatives(
@@ -188,7 +172,7 @@ class AssignmentResponseBaseMixin:
             body=text_message,
             from_email=organizer_email,
             to=[interpreter.user.email],
-            headers=headers,
+            headers={'Message-ID': unique_message_id},
         )
         # Partie HTML
         email.attach_alternative(html_message, "text/html")
@@ -214,7 +198,7 @@ class AssignmentResponseBaseMixin:
             'interpreter_name': interpreter.user.get_full_name(),
             'assignment': assignment,
             'client_name': client_name,
-            'client_phone': assignment.client_phone,
+            'client_phone':assignment.client_phone,
             'start_time': assignment.start_time.astimezone(BOSTON_TZ),
         }
         
@@ -222,37 +206,15 @@ class AssignmentResponseBaseMixin:
             'notifmail/interprter_assignment_decline_confirmation.html',
             context
         )
-        text_message = strip_tags(html_message)
         
-        # Identifiant unique pour le sujet
-        unique_id = f"ID-{uuid.uuid4().hex[:8].upper()}"
-        
-        # Sujet avec identifiant unique
-        subject = f'Assignment Declined - Confirmation #{assignment.id} [{unique_id}]'
-        
-        # Identifiants uniques pour les en-têtes
-        unique_message_id = make_msgid(domain="jhbridge.com")
-        unique_ref = f"assignment-{assignment.id}-{uuid.uuid4().hex}"
-        
-        # En-têtes anti-threading
-        headers = {
-            'Message-ID': unique_message_id,
-            'X-Entity-Ref-ID': unique_ref,
-            'Thread-Topic': f"Assignment {assignment.id} decline {uuid.uuid4().hex[:6]}",
-            'Thread-Index': uuid.uuid4().hex,
-            'X-No-Threading': 'true'
-        }
-        
-        # Construction et envoi de l'email
-        email = EmailMultiAlternatives(
-            subject=subject,
-            body=text_message,
+        send_mail(
+            subject=_('Assignment Declined - Confirmation'),
+            message=strip_tags(html_message),
             from_email=settings.DEFAULT_FROM_EMAIL,
-            to=[interpreter.user.email],
-            headers=headers,
+            recipient_list=[interpreter.user.email],
+            html_message=html_message,
+            fail_silently=False
         )
-        email.attach_alternative(html_message, "text/html")
-        email.send(fail_silently=False)
 
     def notify_admin(self, assignment, action, interpreter):
         """
@@ -271,7 +233,6 @@ class AssignmentResponseBaseMixin:
         
         template = 'notifmail/admin_assignment_response.html'
         html_message = render_to_string(template, context)
-        text_message = strip_tags(html_message)
         
         # Récupère tous les utilisateurs avec role=ADMIN
         admin_users = User.objects.filter(role=User.Roles.ADMIN, is_active=True)
@@ -280,35 +241,14 @@ class AssignmentResponseBaseMixin:
         if not admin_emails:
             return  # Aucun admin, on quitte silencieusement ou on log
 
-        # Identifiant unique pour le sujet
-        unique_id = f"ID-{uuid.uuid4().hex[:8].upper()}"
-        
-        # Sujet avec identifiant unique
-        subject = f'Assignment #{assignment.id} {action} by {interpreter.user.get_full_name()} [{unique_id}]'
-        
-        # Identifiants uniques pour les en-têtes
-        unique_message_id = make_msgid(domain="jhbridge.com")
-        unique_ref = f"assignment-{assignment.id}-{uuid.uuid4().hex}"
-        
-        # En-têtes anti-threading
-        headers = {
-            'Message-ID': unique_message_id,
-            'X-Entity-Ref-ID': unique_ref,
-            'Thread-Topic': f"Assignment {assignment.id} admin {uuid.uuid4().hex[:6]}",
-            'Thread-Index': uuid.uuid4().hex,
-            'X-No-Threading': 'true'
-        }
-        
-        # Construction de l'email multi-part (pour pouvoir ajouter des en-têtes)
-        email = EmailMultiAlternatives(
-            subject=subject,
-            body=text_message,
+        send_mail(
+            subject=f'Assignment {action} by {interpreter.user.get_full_name()}',
+            message=strip_tags(html_message),
             from_email=settings.DEFAULT_FROM_EMAIL,
-            to=admin_emails,
-            headers=headers,
+            recipient_list=admin_emails,
+            html_message=html_message,
+            fail_silently=False
         )
-        email.attach_alternative(html_message, "text/html")
-        email.send(fail_silently=False)
 
 
 class AssignmentAcceptView(AssignmentResponseBaseMixin, TemplateView):
