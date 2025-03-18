@@ -425,11 +425,10 @@ class AssignmentAdminMixin:
             'template': 'notifmail/assignment_generic.html',
             'include_calendar': False
         })
-
     def generate_ics_calendar(self, assignment):
         """
-        Génère et retourne les données ICS.
-        L'heure est déjà en fuseau Boston.
+        Génère et retourne les données ICS avec le fuseau horaire correct.
+        Convertit explicitement les dates au fuseau horaire de Boston.
         """
         cal = icalendar.Calendar()
         cal.add('prodid', '-//JHBRIDGE Assignment System//EN')
@@ -439,11 +438,17 @@ class AssignmentAdminMixin:
         event = icalendar.Event()
         event.add('summary', f"Interpretation Assignment - {assignment.service_type.name}")
         
-        # Les heures sont déjà dans le bon fuseau horaire
-        event.add('dtstart', assignment.start_time)
-        event.add('dtend', assignment.end_time)
-        event.add('dtstamp', timezone.now())
-        event.add('created', timezone.now())
+        # Convertir explicitement les dates au fuseau horaire de Boston
+        start_time = assignment.start_time.astimezone(BOSTON_TZ)
+        end_time = assignment.end_time.astimezone(BOSTON_TZ)
+        
+        # Ajouter les dates avec leur fuseau horaire spécifié
+        event.add('dtstart', start_time)
+        event.add('dtend', end_time)
+        
+        # Convertir les dates d'horodatage en UTC (bonne pratique iCalendar)
+        event.add('dtstamp', timezone.now().astimezone(pytz.UTC))
+        event.add('created', timezone.now().astimezone(pytz.UTC))
         
         event.add('location', f"{assignment.location}, {assignment.city}, {assignment.state}")
 
