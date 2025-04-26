@@ -11,6 +11,7 @@ from datetime import timedelta
 import dj_database_url
 from supabase import create_client
 from django.utils.translation import gettext_lazy as _
+from django.core.management.utils import get_random_secret_key
 
 # Charger les variables d'environnement
 load_dotenv()
@@ -20,10 +21,24 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Quick-start development settings - unsuitable for production
 SECRET_KEY = os.getenv('SECRET_KEY')
-
+ENCRYPTION_KEY=os.getenv('ENCRYPTION_KEY')
 DEBUG = os.getenv('DEBUG', 'True') == 'True'
 
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '').split(',') if os.getenv('ALLOWED_HOSTS') else []
+
+# Configuration pour l'authentification par clé API
+API_KEY_HEADER = os.environ.get('API_KEY_HEADER', 'X-API-Key')
+API_KEY_QUERY_PARAM = os.environ.get('API_KEY_QUERY_PARAM', 'api_key')
+API_KEY_AUTH_HEADER_PREFIX = os.environ.get('API_KEY_AUTH_HEADER_PREFIX', 'Api-Key')
+
+# URLs exemptées d'authentification par clé API
+API_KEY_EXEMPT_URLS = os.environ.get('API_KEY_EXEMPT_URLS', '/admin/,/api/docs/,/api/auth/,^/api/public/')
+if isinstance(API_KEY_EXEMPT_URLS, str):
+    API_KEY_EXEMPT_URLS = [url.strip() for url in API_KEY_EXEMPT_URLS.split(',') if url.strip()]
+
+# Mode strict
+API_KEY_STRICT_MODE = os.environ.get('API_KEY_STRICT_MODE', 'False').lower() in ('true', '1', 't')
+
 
 LOGGING = {
     'version': 1,
@@ -65,7 +80,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    
+    'widget_tweaks',
     # Third party apps
     'phonenumber_field',
     'django_countries',
@@ -85,6 +100,7 @@ MIDDLEWARE = [
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.locale.LocaleMiddleware",  # Internationalisation middleware
     "whitenoise.middleware.WhiteNoiseMiddleware", 
+    "app.api_auth.middleware.APIKeyMiddleware",
     'corsheaders.middleware.CorsMiddleware',
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -199,6 +215,7 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
         'rest_framework.authentication.SessionAuthentication',
+        #"app.api_auth.authentication.APIKeyAuthentication",
     ),
     'DATETIME_FORMAT': '%Y-%m-%dT%H:%M:%S%z',
     'DATE_FORMAT': '%Y-%m-%d',

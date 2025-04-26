@@ -61,3 +61,5 @@ html2image
 pillow
 pycom
 xhtml2pdf
+
+django-widget-tweaks

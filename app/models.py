@@ -6,6 +6,14 @@ from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils.translation import gettext_lazy as _
 from decimal import Decimal
+import uuid
+import base64
+import binascii
+from django.conf import settings
+from django.core.validators import FileExtensionValidator
+from django.utils import timezone
+from cryptography.fernet import Fernet
+
 class Language(models.Model):
     name = models.CharField(max_length=100, unique=True)
     code = models.CharField(max_length=10, unique=True)  # ISO code
@@ -891,3 +899,197 @@ class Deduction(models.Model):
     
     def __str__(self):
         return f"{self.get_deduction_type_display()}: {self.description} - ${self.amount}"
+    
+    
+    
+####################E-SIGN SYSTEM V.1
+class InterpreterContractSignature(models.Model):
+    """Model for interpreter contract signatures with secure encryption for confidential data"""
+    
+    # Signature types
+    SIGNATURE_TYPE_CHOICES = [
+        ('image', 'Uploaded image'),
+        ('typography', 'Typography signature'),
+        ('manual', 'Manual signature'),
+    ]
+    
+    # Identifiers
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    
+    # User relationship (can be null)
+    user = models.ForeignKey(
+        User, 
+        on_delete=models.SET_NULL,
+        related_name='interpreter_contracts',
+        null=True,
+        blank=True,
+        help_text="Associated user account if available"
+    )
+    
+    # Interpreter information
+    interpreter_name = models.CharField(max_length=255)
+    interpreter_email = models.EmailField()
+    interpreter_phone = models.CharField(max_length=20)
+    interpreter_address = models.TextField()
+    
+    # Banking information (non-encrypted - for basic information)
+    bank_name = models.CharField(max_length=255)
+    account_type = models.CharField(max_length=20, choices=[('checking', 'Checking'), ('savings', 'Savings')])
+    
+    # Banking information (encrypted)
+    encrypted_account_number = models.BinaryField(blank=True, null=True)
+    encrypted_routing_number = models.BinaryField(blank=True, null=True)
+    encrypted_swift_code = models.BinaryField(blank=True, null=True)
+    
+    # Contract document
+    contract_document = models.FileField(upload_to='interpreter_contracts/')
+    contract_version = models.CharField(max_length=20, default='1.0')
+    
+    # Signature
+    signature_type = models.CharField(max_length=20, choices=SIGNATURE_TYPE_CHOICES)
+    signature_image = models.ImageField(
+        upload_to='signatures/', 
+        blank=True, 
+        null=True,
+        validators=[FileExtensionValidator(allowed_extensions=['jpg', 'png', 'jpeg'])]
+    )
+    signature_typography_text = models.CharField(max_length=100, blank=True, null=True)
+    signature_manual_data = models.TextField(blank=True, null=True, help_text="Coordinates of manual signature")
+    
+    # Signature metadata
+    signed_at = models.DateTimeField(default=timezone.now)
+    ip_address = models.GenericIPAddressField()
+    signature_hash = models.CharField(max_length=64)  # Hash for verification
+    
+    # Company signature
+    company_representative_name = models.CharField(max_length=255, default="Marc-Henry Valme")
+    company_representative_signature = models.TextField(blank=True, null=True)
+    company_signed_at = models.DateTimeField(blank=True, null=True)
+    
+    # Contract status
+    is_fully_signed = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=False)
+    
+    def __str__(self):
+        return f"Interpreter contract for {self.interpreter_name} signed on {self.signed_at.strftime('%Y-%m-%d')}"
+    
+    @staticmethod
+    def get_encryption_key():
+        """Get the encryption key from settings"""
+        try:
+            # Try to convert from hex format
+            key_bytes = binascii.unhexlify(settings.ENCRYPTION_KEY)
+            # Ensure it's properly base64 encoded for Fernet
+            return base64.urlsafe_b64encode(key_bytes[:32])
+        except (binascii.Error, TypeError, AttributeError):
+            # If the key is already in correct format or settings doesn't exist
+            if hasattr(settings, 'ENCRYPTION_KEY'):
+                return settings.ENCRYPTION_KEY
+            else:
+                # Fallback for development only - NEVER use in production
+                import warnings
+                warnings.warn("Using default encryption key! This is insecure for production!")
+                return Fernet.generate_key()
+    
+    @classmethod
+    def encrypt_data(cls, data):
+        """Encrypt sensitive data"""
+        if not data:
+            return None
+        
+        f = Fernet(cls.get_encryption_key())
+        return f.encrypt(str(data).encode())
+    
+    @classmethod
+    def decrypt_data(cls, encrypted_data):
+        """Decrypt sensitive data"""
+        if not encrypted_data:
+            return None
+        
+        f = Fernet(cls.get_encryption_key())
+        return f.decrypt(encrypted_data).decode()
+    
+    def set_account_number(self, account_number):
+        """Encrypt and set the account number"""
+        self.encrypted_account_number = self.encrypt_data(account_number)
+    
+    def get_account_number(self):
+        """Decrypt and return the account number"""
+        return self.decrypt_data(self.encrypted_account_number)
+    
+    def set_routing_number(self, routing_number):
+        """Encrypt and set the routing number"""
+        self.encrypted_routing_number = self.encrypt_data(routing_number)
+    
+    def get_routing_number(self):
+        """Decrypt and return the routing number"""
+        return self.decrypt_data(self.encrypted_routing_number)
+    
+    def set_swift_code(self, swift_code):
+        """Encrypt and set the SWIFT code"""
+        self.encrypted_swift_code = self.encrypt_data(swift_code)
+    
+    def get_swift_code(self):
+        """Decrypt and return the SWIFT code"""
+        return self.decrypt_data(self.encrypted_swift_code)
+    
+    def save(self, *args, **kwargs):
+        """Override save method to ensure hash creation and auto-populate from user when possible"""
+        # Auto-populate from user if available and fields are not set
+        if self.user and not self.pk:  # Only for new records
+            if not self.interpreter_name and self.user.get_full_name():
+                self.interpreter_name = self.user.get_full_name()
+            if not self.interpreter_email:
+                self.interpreter_email = self.user.email
+        
+        # Create a signature hash if not already set
+        if not self.signature_hash:
+            import hashlib
+            # Create a unique hash based on document, signer and timestamp
+            data = f"{self.interpreter_name}{self.interpreter_email}{self.signed_at.isoformat()}{uuid.uuid4()}"
+            self.signature_hash = hashlib.sha256(data.encode()).hexdigest()
+        
+        super().save(*args, **kwargs)
+        
+class APIKey(models.Model):
+    """Modèle pour gérer les clés API"""
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, 
+        on_delete=models.CASCADE, 
+        related_name='api_keys'
+    )
+    name = models.CharField(max_length=100, help_text="Nom pour identifier cette clé API")
+    app_name = models.CharField(max_length=100, help_text="Nom de l'application utilisant cette clé API")
+    key = models.CharField(max_length=64, unique=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+    last_used = models.DateTimeField(null=True, blank=True)
+    
+    class Meta:
+        verbose_name = "Clé API"
+        verbose_name_plural = "Clés API"
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.name} ({self.key[:8]}...)"
+    
+    def is_valid(self):
+        """Vérifie si la clé API est valide (active et non expirée)"""
+        if not self.is_active:
+            return False
+        if self.expires_at and self.expires_at < timezone.now():
+            return False
+        return True
+    
+    def mark_as_used(self):
+        """Marque la clé comme utilisée en mettant à jour le timestamp de dernière utilisation"""
+        self.last_used = timezone.now()
+        self.save(update_fields=['last_used'])
+    
+    @classmethod
+    def generate_key(cls):
+        """Génère une nouvelle clé API unique"""
+        return uuid.uuid4().hex + uuid.uuid4().hex  # 64 caractères

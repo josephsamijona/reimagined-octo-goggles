@@ -1,3 +1,4 @@
+{% load widget_tweaks %}
 {% load static %}
 <!DOCTYPE html>
 <html lang="en">
@@ -270,6 +271,31 @@
             cursor: not-allowed;
             pointer-events: none;
         }
+        
+        /* Duration input styles */
+        .duration-input-group {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        
+        .duration-hours, .duration-minutes {
+            width: 60px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            text-align: center;
+        }
+        
+        .duration-separator {
+            font-weight: 500;
+            color: #333;
+        }
+        
+        .duration-hidden {
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -339,7 +365,16 @@
                                     {% for field in service_form %}
                                         <div class="form-group">
                                             <label class="form-label">{{ field.label }}</label>
-                                            {{ field }}
+                                            {% if 'duration' in field.name %}
+                                                <div class="duration-input-group">
+                                                    <input type="number" class="duration-hours" min="0" max="24" placeholder="hrs">
+                                                    <span class="duration-separator">:</span>
+                                                    <input type="number" class="duration-minutes" min="0" max="59" placeholder="min">
+                                                    {{ field|add_class:"duration-hidden" }}
+                                                </div>
+                                            {% else %}
+                                                {{ field }}
+                                            {% endif %}
                                         </div>
                                     {% endfor %}
                                 </div>
@@ -460,6 +495,41 @@
             const totalSteps = 3;
             let currentPayrollId = null;
             
+            // Initialize duration inputs
+            function initializeDurationInputs(serviceEntry) {
+                const durationInput = serviceEntry.querySelector('[name$="-duration"]');
+                const durationGroup = serviceEntry.querySelector('.duration-input-group');
+                
+                if (durationInput && durationGroup) {
+                    const hoursInput = durationGroup.querySelector('.duration-hours');
+                    const minutesInput = durationGroup.querySelector('.duration-minutes');
+                    
+                    // Sync from hidden input to hours/minutes on load
+                    if (durationInput.value) {
+                        const totalHours = parseFloat(durationInput.value) || 0;
+                        const hours = Math.floor(totalHours);
+                        const minutes = Math.round((totalHours - hours) * 60);
+                        hoursInput.value = hours;
+                        minutesInput.value = minutes;
+                    }
+                    
+                    // Update hidden input when hours/minutes change
+                    const updateDuration = () => {
+                        const hours = parseInt(hoursInput.value) || 0;
+                        const minutes = parseInt(minutesInput.value) || 0;
+                        const decimalDuration = hours + (minutes / 60);
+                        durationInput.value = decimalDuration.toFixed(2);
+                        
+                        // Trigger input event on the hidden input to update calculations
+                        const event = new Event('input', { bubbles: true });
+                        durationInput.dispatchEvent(event);
+                    };
+                    
+                    hoursInput.addEventListener('input', updateDuration);
+                    minutesInput.addEventListener('input', updateDuration);
+                }
+            }
+            
             // Update progress bar and navigation
             function updateStep(step) {
                 // Hide all steps
@@ -573,29 +643,59 @@
             // Add service button handler
             document.getElementById('add-service').addEventListener('click', function() {
                 const container = document.getElementById('services-container');
-                const newService = container.querySelector('.service-entry').cloneNode(true);
+                const newServiceTemplate = document.createElement('div');
+                newServiceTemplate.className = 'service-entry';
                 
-                // Reset input values
-                newService.querySelectorAll('input').forEach(input => {
-                    input.value = '';
-                    // Update form prefix
-                    const oldName = input.getAttribute('name');
-                    if (oldName) {
-                        const newIndex = container.children.length;
-                        input.name = oldName.replace(/\d+/, newIndex);
-                        input.id = input.id.replace(/\d+/, newIndex);
-                    }
-                });
+                const newIndex = container.children.length;
                 
-                // Reset total
-                newService.querySelector('.service-amount').textContent = '0';
+                // Create new service entry with hours/minutes inputs
+                newServiceTemplate.innerHTML = `
+                    <div class="service-grid">
+                        <div class="form-group">
+                            <label class="form-label">Date</label>
+                            <input type="date" name="services-${newIndex}-date" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Client</label>
+                            <input type="text" name="services-${newIndex}-client" class="form-input" placeholder="Client name">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Source language</label>
+                            <input type="text" name="services-${newIndex}-source_language" class="form-input" placeholder="Source language">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Target language</label>
+                            <input type="text" name="services-${newIndex}-target_language" class="form-input" placeholder="Target language">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Duration</label>
+                            <div class="duration-input-group">
+                                <input type="number" class="duration-hours" min="0" max="24" placeholder="hrs">
+                                <span class="duration-separator">:</span>
+                                <input type="number" class="duration-minutes" min="0" max="59" placeholder="min">
+                                <input type="hidden" name="services-${newIndex}-duration" class="form-input duration-hidden" step="0.5">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Rate</label>
+                            <input type="number" name="services-${newIndex}-rate" class="form-input" placeholder="Hourly rate">
+                        </div>
+                    </div>
+                    <div class="service-total">
+                        Total: $<span class="service-amount">0</span>
+                    </div>
+                `;
+                
+                container.appendChild(newServiceTemplate);
+                
+                // Initialize duration inputs for the new service
+                initializeDurationInputs(newServiceTemplate);
                 
                 // Add event listeners for calculations
-                newService.querySelectorAll('input[name$="-duration"], input[name$="-rate"]').forEach(input => {
-                    input.addEventListener('input', () => calculateServiceAmount(newService));
+                newServiceTemplate.querySelectorAll('input[name$="-duration"], input[name$="-rate"]').forEach(input => {
+                    input.addEventListener('input', () => calculateServiceAmount(newServiceTemplate));
                 });
                 
-                container.appendChild(newService);
                 updateFormsetManagement();
             });
             
@@ -689,8 +789,12 @@
                 }
             });
             
-            // Initialize service calculations
+            // Initialize service calculations and duration inputs
             document.querySelectorAll('.service-entry').forEach(entry => {
+                // Initialize duration inputs
+                initializeDurationInputs(entry);
+                
+                // Add event listeners for calculations
                 entry.querySelectorAll('input[name$="-duration"], input[name$="-rate"]').forEach(input => {
                     input.addEventListener('input', () => calculateServiceAmount(entry));
                 });

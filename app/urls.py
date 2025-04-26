@@ -165,6 +165,8 @@ urlpatterns = [
     path('payroll/export/<int:pk>/<str:format>/', views.export_document, name='export_document'),
     path('generate-pdf/', views.generate_pdf, name='generate-pdf'),
     ## Vue de création et saisie du payroll
+    ###ESIGN
+    
 
     
     
