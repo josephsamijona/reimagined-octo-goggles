@@ -3,6 +3,8 @@ import io
 import json
 import logging
 import os
+import socket
+import time
 import pytz
 import string
 import tempfile
@@ -14,7 +16,9 @@ import base64
 import random
 from django.db import models
 import traceback
+from django.utils.html import strip_tags
 from django.db.models.functions import ExtractDay, ExtractMonth, ExtractYear
+from django.urls import NoReverseMatch
 # Third-Party Imports
 from docx import Document
 from docx.shared import Inches
@@ -25,7 +29,7 @@ from reportlab.lib.pagesizes import letter, A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.pdfgen import canvas
-
+from django.core.mail import EmailMultiAlternatives
 # Django Core Imports
 from django.conf import settings
 from django.contrib import messages
@@ -100,7 +104,7 @@ from .models import (
     QuoteRequest,
     Service,
     ServiceType,
-    User,Reimbursement,Deduction
+    User,Reimbursement,Deduction,InterpreterContractSignature
 )
 from .mixins.assignment_mixins import AssignmentAdminMixin
 from .assignment_views import AssignmentAcceptView, AssignmentDeclineView
@@ -1771,6 +1775,7 @@ class InterpreterRegistrationStep3View(FormView):
            step1_data = self.request.session['dbdint:interpreter_registration_step1']
            step2_data = self.request.session['dbdint:interpreter_registration_step2']
            
+           # Création de l'utilisateur
            user = User.objects.create_user(
                username=step1_data['username'],
                email=step1_data['email'],
@@ -1782,6 +1787,7 @@ class InterpreterRegistrationStep3View(FormView):
            )
            logger.info(f"User created: {user.email}")
 
+           # Création de l'interprète
            interpreter = form.save(commit=False)
            interpreter.user = user
            interpreter.save()
@@ -1789,17 +1795,99 @@ class InterpreterRegistrationStep3View(FormView):
            for language_id in step2_data['languages']:
                interpreter.languages.add(language_id)
            
+           # Création du contrat
+           otp_code = ''.join([str(random.randint(0, 9)) for _ in range(6)])
+           contract = InterpreterContractSignature(
+               user=user,
+               interpreter=interpreter,
+               interpreter_name=f"{user.first_name} {user.last_name}",
+               interpreter_email=user.email,
+               interpreter_phone=user.phone,
+               interpreter_address=f"{interpreter.address}, {interpreter.city}, {interpreter.state} {interpreter.zip_code}",
+               token=str(uuid.uuid4()),
+               otp_code=otp_code,
+           )
+           contract.save()
+           logger.info(f"Contract created for interpreter: {interpreter.id}, token: {contract.token}")
+           
+           # Envoi de l'email avec le contrat
+           self.send_contract_email(user, interpreter, contract)
+           
            del self.request.session['dbdint:interpreter_registration_step1']
            del self.request.session['dbdint:interpreter_registration_step2']
 
            login(self.request, user)
-           messages.success(self.request, 'Your interpreter account has been created successfully! Our team will review your application.')
+           messages.success(self.request, 'Your interpreter account has been created successfully! Please check your email to sign the agreement contract.')
            return super().form_valid(form)
 
        except Exception as e:
            logger.error(f"Registration error: {str(e)}", exc_info=True)
            messages.error(self.request, 'An error occurred while creating your account.')
            return redirect('dbdint:interpreter_registration_step1')
+
+   def send_contract_email(self, user, interpreter, contract):
+        """Sends the contract email to the interpreter with anti-spam optimization."""
+        try:
+            # Création d'un identifiant unique pour ce message
+            message_id = f"<contract-{contract.id}-{uuid.uuid4()}@{socket.gethostname()}>"
+            
+            # Construction de l'URL absolue pour le lien de vérification
+            verification_url = self.request.build_absolute_uri(
+                reverse('dbdint:contract_verification', kwargs={'token': contract.token})
+            )
+            
+            # Préparation des données pour le template
+            context = {
+                'interpreter_name': f"{user.first_name} {user.last_name}",
+                'token': contract.token,
+                'otp_code': contract.otp_code,
+                'verification_url': verification_url,  # Passez l'URL complète au template
+                'email': user.email  # Pour le lien de désabonnement
+            }
+            
+            # Rendu du template HTML
+            html_message = render_to_string('notifmail/esign_notif.html', context)
+            plain_message = strip_tags(html_message)
+            
+            # Ligne d'objet en anglais - éviter les formulations qui déclenchent les filtres anti-spam
+            subject = f"Your JH Bridge Interpreter Agreement - Signature Required"
+            
+            # Format professionnel pour l'adresse expéditeur
+            from_email = f"JH Bridge Contracts <contracts@jhbridgetranslation.com>"
+            
+            # Création de l'email avec du texte brut comme corps principal
+            email = EmailMultiAlternatives(
+                subject=subject,
+                body=plain_message,
+                from_email=from_email,
+                to=[user.email],
+                reply_to=['support@jhbridgetranslation.com']
+            )
+            
+            # Ajout de la version HTML comme alternative
+            email.attach_alternative(html_message, "text/html")
+            
+            # En-têtes optimisés pour la délivrabilité
+            email.extra_headers = {
+                # En-têtes d'avant
+                'Message-ID': message_id,
+                'X-Entity-Ref-ID': str(contract.token),
+                'X-Mailer': 'JHBridge-ContractMailer/1.0',
+                'X-Contact-ID': str(user.id),
+                'List-Unsubscribe': f'<mailto:unsubscribe@jhbridgetranslation.com?subject=Unsubscribe-{user.email}>',
+                'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+                'Precedence': 'bulk',
+                'Auto-Submitted': 'auto-generated',
+                'Feedback-ID': f'contract-{contract.id}:{user.id}:jhbridge:{int(time.time())}'
+            }
+            
+            # Envoi de l'email
+            email.send(fail_silently=False)
+            
+            logger.info(f"Contract agreement email sent to: {user.email} with Message-ID: {message_id}")
+            
+        except Exception as e:
+            logger.error(f"Error sending contract email: {str(e)}", exc_info=True)
 
    def form_invalid(self, form):
        logger.warning(f"Form validation failed: {form.errors}")
@@ -2739,9 +2827,17 @@ def get_earnings_data(request, year=None):
 def dashboard_view(request):
     """
     Vue principale du dashboard.
-    Vérifie que l'utilisateur possède un profil d'interprète,
+    Vérifie que l'utilisateur a complété son inscription,
+    puis vérifie qu'il possède un profil d'interprète,
     calcule les statistiques et prépare les données des missions.
     """
+    # Vérification si l'inscription est complète
+    if not request.user.registration_complete:
+        # Affichage de la page de complétion d'inscription
+        return render(request, 'complete_registration.html', {
+            'user': request.user
+        })
+    
     if not hasattr(request.user, 'interpreter_profile'):
         return render(request, 'error.html', {
             'message': 'Access denied. Interpreter profile required.'
@@ -2986,11 +3082,17 @@ def calendar_view(request):
     """
     Vue pour afficher le calendrier des rendez-vous de l'interprète
     """
+    if not request.user.registration_complete:
+        # Affichage de la page de complétion d'inscription
+        return render(request, 'complete_registration.html', {
+            'user': request.user
+        })
     # Vérifier si l'utilisateur a un profil d'interprète
     if not hasattr(request.user, 'interpreter_profile'):
         return render(request, 'error.html', {
             'message': 'Access denied. Interpreter profile required.'
         })
+        
 
     interpreter = request.user.interpreter_profile
 
@@ -3130,6 +3232,11 @@ def calendar_data_api(request, year, month):
     """
     API pour récupérer les données du calendrier pour un mois spécifique
     """
+    if not request.user.registration_complete:
+        # Affichage de la page de complétion d'inscription
+        return render(request, 'complete_registration.html', {
+            'user': request.user
+        })
     if not hasattr(request.user, 'interpreter_profile'):
         return JsonResponse({'error': 'Interpreter profile required'}, status=403)
 
@@ -3172,6 +3279,11 @@ def daily_missions_api(request, date_str):
     """
     API pour récupérer les missions d'une journée spécifique
     """
+    if not request.user.registration_complete:
+        # Affichage de la page de complétion d'inscription
+        return render(request, 'complete_registration.html', {
+            'user': request.user
+        })
     if not hasattr(request.user, 'interpreter_profile'):
         return JsonResponse({'error': 'Interpreter profile required'}, status=403)
 
@@ -3241,6 +3353,11 @@ def stats_view(request):
     """
     logger.info(f"Accessing stats view for user: {request.user.username}")
 
+    if not request.user.registration_complete:
+        # Affichage de la page de complétion d'inscription
+        return render(request, 'complete_registration.html', {
+            'user': request.user
+        })
     # Vérifier si l'utilisateur a un profil d'interprète
     if not hasattr(request.user, 'interpreter_profile'):
         logger.error(f"User {request.user.username} does not have interpreter profile")
@@ -3441,6 +3558,11 @@ def earnings_data_api(request, period):
     """
     API pour récupérer les données de gains selon la période
     """
+    if not request.user.registration_complete:
+        # Affichage de la page de complétion d'inscription
+        return render(request, 'complete_registration.html', {
+            'user': request.user
+        })
     if not hasattr(request.user, 'interpreter_profile'):
         return JsonResponse({'error': 'Interpreter profile required'}, status=403)
 
@@ -3531,11 +3653,18 @@ class PaymentListView(ListView):
     template_name = 'interpreter/payment_list.html'
     context_object_name = 'assignments'
     
+    
+    
     def dispatch(self, request, *args, **kwargs):
         """Check if user has interpreter profile before proceeding"""
         if not request.user.is_authenticated:
             return redirect('login')
             
+        if not request.user.registration_complete:
+        # Affichage de la page de complétion d'inscription
+            return render(request, 'complete_registration.html', {
+            'user': request.user
+        })
         if not hasattr(request.user, 'interpreter_profile'):
             return render(request, 'error.html', {
                 'message': 'Access denied. Interpreter profile required.'
@@ -3615,3 +3744,724 @@ class PaymentListView(ListView):
         
         return context
     
+#############################esignview
+
+
+
+@method_decorator(never_cache, name='dispatch')
+class ContractVerificationView(View):
+    template_name_otp = 'signature_app/otp_signup.html'
+    template_name_error = 'signature_app/expiredlinks.html'
+    
+    def get(self, request, token=None, *args, **kwargs):
+        logger.info(f"Contract verification attempted with token: {token}")
+        
+        if not token:
+            logger.warning("No token provided in the URL")
+            messages.error(request, 'Invalid verification link. No token was provided.')
+            return render(request, self.template_name_error, {'error': 'No token provided'})
+        
+        try:
+            # Recherche du contrat par token
+            contract = get_object_or_404(InterpreterContractSignature, token=token)
+            
+            # Vérification de l'expiration du contrat
+            if contract.is_expired():
+                logger.warning(f"Expired contract token accessed: {token}")
+                messages.error(request, 'This verification link has expired. Please contact support for assistance.')
+                return render(request, self.template_name_error, {'error': 'Token expired'})
+            
+            # Vérification du statut du contrat
+            if contract.status != 'PENDING':
+                logger.warning(f"Non-pending contract accessed: {token}, status: {contract.status}")
+                messages.warning(request, 'This contract has already been processed.')
+                return render(request, self.template_name_error, {'error': 'Contract already processed'})
+            
+            # Génération du numéro d'accord
+            current_year = timezone.now().year
+            # Comptage des contrats de cette année pour obtenir un numéro séquentiel
+            contract_count = InterpreterContractSignature.objects.filter(
+                created_at__year=current_year
+            ).count()
+            
+            # Format: JHB-INT-YYYY-XXXX (avec XXXX au format 0001, 0002, etc.)
+            agreement_number = f"JHB-INT-{current_year}-{str(contract_count + 1).zfill(4)}"
+            
+            # Stocker le numéro d'accord dans la session pour l'utiliser après la vérification OTP
+            request.session['agreement_number'] = agreement_number
+            request.session['contract_id'] = str(contract.id)
+            
+            logger.info(f"Contract verification successful, redirecting to OTP page. Agreement number: {agreement_number}")
+            
+            # Redirection vers la page OTP avec le contexte nécessaire
+            context = {
+                'contract': contract,
+                'interpreter_name': contract.interpreter_name,
+                'agreement_number': agreement_number,
+                'expires_at': contract.expires_at
+            }
+            
+            return render(request, self.template_name_otp, context)
+            
+        except Exception as e:
+            logger.error(f"Error in contract verification: {str(e)}", exc_info=True)
+            messages.error(request, 'An error occurred while processing your request. Please try again or contact support.')
+            return render(request, self.template_name_error, {'error': 'System error'})
+        
+@method_decorator(never_cache, name='dispatch')
+class ContractOTPVerificationView(View):
+    template_name_success = 'signature_app/reviewcontract.html'
+    template_name_otp = 'signature_app/otp_signup.html'
+    template_name_error = 'signature_app/expiredlinks.html'
+    
+    def post(self, request, *args, **kwargs):
+        logger.info("OTP verification attempt received")
+        
+        entered_otp = request.POST.get('otp_code')
+        contract_id = request.session.get('contract_id')
+        agreement_number = request.session.get('agreement_number')
+        
+        if not entered_otp or not contract_id:
+            logger.warning("Missing OTP code or contract ID in request")
+            messages.error(request, 'Missing information. Please try again.')
+            return render(request, self.template_name_error, {'error': 'Missing information'})
+        
+        try:
+            # Récupération du contrat
+            contract = get_object_or_404(InterpreterContractSignature, id=contract_id)
+            
+            # Vérification du code OTP
+            if entered_otp != contract.otp_code:
+                logger.warning(f"Invalid OTP code for contract ID: {contract_id}")
+                messages.error(request, 'The verification code you entered is incorrect. Please try again.')
+                
+                # Redirection vers la page OTP avec une erreur
+                context = {
+                    'contract': contract,
+                    'interpreter_name': contract.interpreter_name,
+                    'agreement_number': agreement_number,
+                    'expires_at': contract.expires_at,
+                    'error': 'Invalid OTP code'
+                }
+                return render(request, self.template_name_otp, context)
+            
+            # Vérification expiration
+            if contract.is_expired():
+                logger.warning(f"Expired contract accessed during OTP verification: {contract_id}")
+                messages.error(request, 'This verification link has expired. Please contact support for assistance.')
+                return render(request, self.template_name_error, {'error': 'Token expired'})
+            
+            logger.info(f"OTP verification successful for contract ID: {contract_id}")
+            
+            # Définir le flag de vérification dans la session
+            request.session['otp_verified'] = True
+            request.session['contract_verified_at'] = timezone.now().isoformat()
+            
+            # Préparer le contexte pour la page de review du contrat
+            context = {
+                'contract': contract,
+                'interpreter_name': contract.interpreter_name,
+                'agreement_number': agreement_number,
+                'expires_at': contract.expires_at,
+                'languages': contract.interpreter.languages.all() if hasattr(contract.interpreter, 'languages') else []
+            }
+            
+            return render(request, self.template_name_success, context)
+            
+        except Exception as e:
+            logger.error(f"Error in OTP verification: {str(e)}", exc_info=True)
+            messages.error(request, 'An error occurred while processing your request. Please try again or contact support.')
+            return render(request, self.template_name_error, {'error': 'System error'})
+    
+@method_decorator(never_cache, name='dispatch')
+class ContractReviewView(View):
+    template_name_review = 'signature_app/reviewcontract.html'
+    template_name_error = 'signature_app/expiredlinks.html'
+    
+    def get(self, request, *args, **kwargs):
+        logger.info("Contract review page accessed")
+        
+        # Vérification si l'utilisateur a validé l'OTP
+        contract_id = request.session.get('contract_id')
+        agreement_number = request.session.get('agreement_number')
+        otp_verified = request.session.get('otp_verified', False)
+        
+        if not all([contract_id, agreement_number, otp_verified]):
+            logger.warning("Unauthorized access attempt to contract review page")
+            messages.error(request, 'You must complete the verification process first.')
+            return render(request, self.template_name_error, {'error': 'Unauthorized access'})
+        
+        try:
+            # Récupération du contrat
+            contract = get_object_or_404(InterpreterContractSignature, id=contract_id)
+            
+            # Vérification de l'expiration du contrat
+            if contract.is_expired():
+                logger.warning(f"Expired contract accessed: {contract_id}")
+                messages.error(request, 'This contract has expired. Please contact support for assistance.')
+                return render(request, self.template_name_error, {'error': 'Contract expired'})
+            
+            # Vérifier le temps écoulé depuis la vérification de l'OTP
+            if 'contract_verified_at' in request.session:
+                verified_at = datetime.datetime.fromisoformat(request.session['contract_verified_at'])
+                current_time = timezone.now()
+                
+                # Si plus de 5 heures se sont écoulées depuis la vérification, exiger une nouvelle vérification
+                if (current_time - verified_at).total_seconds() > 18000:  # 5 heures en secondes (5 * 60 * 60)
+                    logger.warning(f"OTP verification timeout for contract ID: {contract_id}")
+                    messages.error(request, 'Your verification has expired. Please verify your identity again.')
+                    
+                    # Réinitialiser le flag de vérification
+                    request.session['otp_verified'] = False
+                    
+                    # Rediriger vers la page de vérification
+                    return redirect('dbdint:contract_verification', token=contract.token)
+            
+            # Préparation du contexte pour la page de revue du contrat
+            context = {
+                'contract': contract,
+                'interpreter_name': contract.interpreter_name,
+                'interpreter_email': contract.interpreter_email,
+                'interpreter_phone': contract.interpreter_phone,
+                'interpreter_address': contract.interpreter_address,
+                'agreement_number': agreement_number,
+                'expires_at': contract.expires_at,
+                'contract_date': timezone.now().strftime('%B %d, %Y')
+            }
+            
+            # Ajout des langues et tarifs spécifiques à l'interprète
+            if contract.interpreter and hasattr(contract.interpreter, 'languages'):
+                # Récupération des langues de l'interprète
+                interpreter_languages = contract.interpreter.languages.all()
+                
+                # Dictionnaire de correspondance langue-tarif
+                language_rates = {
+                    'Portuguese': '$35 per hour',
+                    'Spanish': '$30 per hour',
+                    'Haitian Creole': '$30 per hour',
+                    'Cape Verdean': '$30 per hour',
+                    'French': '$35 per hour',
+                    'Mandarin': '$40 per hour'
+                }
+                
+                # Création d'une liste de dictionnaires pour les langues et leurs tarifs
+                interpreter_language_rates = []
+                for lang in interpreter_languages:
+                    rate = language_rates.get(lang.name, '$45 per hour')  # Par défaut pour les langues rares
+                    interpreter_language_rates.append({
+                        'name': lang.name,
+                        'rate': rate
+                    })
+                
+                context['interpreter_language_rates'] = interpreter_language_rates
+            
+            logger.info(f"Contract review page rendered for contract ID: {contract_id}")
+            return render(request, self.template_name_review, context)
+            
+        except Exception as e:
+            logger.error(f"Error in contract review: {str(e)}", exc_info=True)
+            messages.error(request, 'An error occurred while processing your request. Please try again or contact support.')
+            return render(request, self.template_name_error, {'error': 'System error'})
+        
+@method_decorator(never_cache, name='dispatch')
+class ContractPaymentInfoView(View):
+    template_name = 'signature_app/paymentinfo.html'
+    template_name_error = 'signature_app/expiredlinks.html'
+    
+    def get(self, request, *args, **kwargs):
+        logger.info("Payment info page accessed")
+        
+        # Vérification si l'utilisateur a validé l'OTP
+        contract_id = request.session.get('contract_id')
+        agreement_number = request.session.get('agreement_number')
+        otp_verified = request.session.get('otp_verified', False)
+        
+        if not all([contract_id, agreement_number, otp_verified]):
+            logger.warning("Unauthorized access attempt to payment info page")
+            messages.error(request, 'You must complete the verification process first.')
+            return render(request, self.template_name_error, {'error': 'Unauthorized access'})
+        
+        try:
+            # Récupération du contrat
+            contract = get_object_or_404(InterpreterContractSignature, id=contract_id)
+            
+            # Vérification de l'expiration du contrat
+            if contract.is_expired():
+                logger.warning(f"Expired contract accessed: {contract_id}")
+                messages.error(request, 'This contract has expired. Please contact support for assistance.')
+                return render(request, self.template_name_error, {'error': 'Contract expired'})
+            
+            # Préparation du contexte pour la page de saisie des informations bancaires
+            context = {
+                'contract': contract,
+                'interpreter_name': contract.interpreter_name,
+                'interpreter_email': contract.interpreter_email,
+                'interpreter_phone': contract.interpreter_phone,
+                'interpreter_address': contract.interpreter_address,
+                'agreement_number': agreement_number,
+                'expires_at': contract.expires_at
+            }
+            
+            # Si des informations bancaires existent déjà, les ajouter au contexte
+            if contract.bank_name or contract.get_account_number():
+                context['payment_data'] = {
+                    'payment_name': contract.interpreter_name,
+                    'payment_phone': contract.interpreter_phone,
+                    'payment_address': contract.interpreter_address,
+                    'payment_email': contract.interpreter_email,
+                    'bank_name': contract.bank_name or '',
+                    'account_type': contract.account_type or 'checking',
+                    'account_number': contract.get_account_number() or '',
+                    'routing_number': contract.get_routing_number() or '',
+                    'swift_code': contract.get_swift_code() or ''
+                }
+            
+            logger.info(f"Payment info page rendered for contract ID: {contract_id}")
+            return render(request, self.template_name, context)
+            
+        except Exception as e:
+            logger.error(f"Error in payment info page: {str(e)}", exc_info=True)
+            messages.error(request, 'An error occurred while processing your request. Please try again or contact support.')
+            return render(request, self.template_name_error, {'error': 'System error'})
+    
+    def post(self, request, *args, **kwargs):
+        logger.info("Payment info form submitted")
+        
+        # Vérification des données de session
+        contract_id = request.session.get('contract_id')
+        agreement_number = request.session.get('agreement_number')
+        
+        if not contract_id:
+            logger.warning("Missing contract ID in request")
+            messages.error(request, 'Missing information. Please try again.')
+            return render(request, self.template_name_error, {'error': 'Missing information'})
+        
+        try:
+            # Récupération du contrat
+            contract = get_object_or_404(InterpreterContractSignature, id=contract_id)
+            
+            # Extraction des données du formulaire
+            payment_data = {
+                'payment_name': request.POST.get('payment_name'),
+                'payment_phone': request.POST.get('payment_phone'),
+                'payment_address': request.POST.get('payment_address'),
+                'payment_email': request.POST.get('payment_email'),
+                'bank_name': request.POST.get('bank_name'),
+                'bank_address': request.POST.get('bank_address'),
+                'account_holder': request.POST.get('account_holder'),
+                'account_number': request.POST.get('account_number'),
+                'routing_number': request.POST.get('routing_number'),
+                'swift_code': request.POST.get('swift_code'),
+                'account_type': request.POST.get('account_type')
+            }
+            
+            # Validation des champs obligatoires
+            required_fields = ['payment_name', 'payment_phone', 'payment_address', 'payment_email', 
+                              'bank_name', 'account_holder', 'account_number', 'routing_number', 'account_type']
+            
+            for field in required_fields:
+                if not payment_data[field]:
+                    logger.warning(f"Missing required field: {field}")
+                    messages.error(request, f"Please fill in all required fields.")
+                    return self.form_invalid(request, contract, agreement_number, payment_data)
+            
+            # Mise à jour des informations de l'interprète si elles ont changé
+            if payment_data['payment_name'] != contract.interpreter_name:
+                contract.interpreter_name = payment_data['payment_name']
+            if payment_data['payment_phone'] != contract.interpreter_phone:
+                contract.interpreter_phone = payment_data['payment_phone']
+            if payment_data['payment_address'] != contract.interpreter_address:
+                contract.interpreter_address = payment_data['payment_address']
+            if payment_data['payment_email'] != contract.interpreter_email:
+                contract.interpreter_email = payment_data['payment_email']
+            
+            # Mise à jour des informations bancaires
+            contract.bank_name = payment_data['bank_name']
+            contract.account_type = payment_data['account_type']
+            
+            # Utilisation des méthodes de chiffrement pour les données sensibles
+            contract.set_account_number(payment_data['account_number'])
+            contract.set_routing_number(payment_data['routing_number'])
+            if payment_data['swift_code']:
+                contract.set_swift_code(payment_data['swift_code'])
+            
+            # Sauvegarde des modifications
+            contract.save()
+            
+            # Définir un flag pour indiquer que cette étape est complétée
+            request.session['payment_info_completed'] = True
+            
+            logger.info(f"Payment information saved successfully for contract ID: {contract_id}")
+            
+            # Rediriger vers la page de signature
+            return redirect('dbdint:contract_signature')
+            
+        except Exception as e:
+            logger.error(f"Error saving payment information: {str(e)}", exc_info=True)
+            messages.error(request, 'An error occurred while saving your payment information. Please try again or contact support.')
+            return render(request, self.template_name_error, {'error': 'System error'})
+    
+    def form_invalid(self, request, contract, agreement_number, payment_data):
+        """Gère le cas où le formulaire est invalide en réaffichant la page avec les erreurs."""
+        context = {
+            'contract': contract,
+            'interpreter_name': contract.interpreter_name,
+            'interpreter_email': contract.interpreter_email,
+            'interpreter_phone': contract.interpreter_phone,
+            'interpreter_address': contract.interpreter_address,
+            'agreement_number': agreement_number,
+            'payment_data': payment_data,  # Pour remplir le formulaire avec les données déjà saisies
+            'expires_at': contract.expires_at
+        }
+        return render(request, self.template_name, context)
+    
+    
+@method_decorator(never_cache, name='dispatch')
+class ContractSignatureView(View):
+    template_name = 'signature_app/signmethode.html'
+    template_name_error = 'signature_app/expiredlinks.html'
+    
+    def get(self, request, *args, **kwargs):
+        logger.info("Signature page accessed")
+        
+        # Vérification des sessions
+        contract_id = request.session.get('contract_id')
+        agreement_number = request.session.get('agreement_number')
+        otp_verified = request.session.get('otp_verified', False)
+        payment_info_completed = request.session.get('payment_info_completed', False)
+        
+        # Vérifier que l'utilisateur a bien complété les étapes précédentes
+        if not all([contract_id, agreement_number, otp_verified, payment_info_completed]):
+            logger.warning("Unauthorized access attempt to signature page")
+            messages.error(request, 'You must complete the previous steps first.')
+            return render(request, self.template_name_error, {'error': 'Unauthorized access'})
+        
+        try:
+            # Récupération du contrat
+            contract = get_object_or_404(InterpreterContractSignature, id=contract_id)
+            
+            # Vérification de l'expiration du contrat
+            if contract.is_expired():
+                logger.warning(f"Expired contract accessed: {contract_id}")
+                messages.error(request, 'This contract has expired. Please contact support for assistance.')
+                return render(request, self.template_name_error, {'error': 'Contract expired'})
+            
+            # Préparation du contexte pour la page de signature
+            context = {
+                'contract': contract,
+                'interpreter_name': contract.interpreter_name,
+                'interpreter_email': contract.interpreter_email,
+                'interpreter_phone': contract.interpreter_phone,
+                'interpreter_address': contract.interpreter_address,
+                'agreement_number': agreement_number,
+                'expires_at': contract.expires_at,
+                'current_date': timezone.now().strftime('%B %d, %Y')
+            }
+            
+            logger.info(f"Signature page rendered for contract ID: {contract_id}")
+            return render(request, self.template_name, context)
+            
+        except Exception as e:
+            logger.error(f"Error in signature page: {str(e)}", exc_info=True)
+            messages.error(request, 'An error occurred while processing your request. Please try again or contact support.')
+            return render(request, self.template_name_error, {'error': 'System error'})
+    
+    def post(self, request, *args, **kwargs):
+        logger.info("Signature form submitted")
+        
+        # Vérification des sessions
+        contract_id = request.session.get('contract_id')
+        agreement_number = request.session.get('agreement_number')
+        
+        if not contract_id:
+            logger.warning("Missing contract ID in request")
+            messages.error(request, 'Missing information. Please try again.')
+            return render(request, self.template_name_error, {'error': 'Missing information'})
+        
+        try:
+            # Récupération du contrat
+            contract = get_object_or_404(InterpreterContractSignature, id=contract_id)
+            
+            # Vérification de l'expiration du contrat
+            if contract.is_expired():
+                logger.warning(f"Expired contract accessed during signature: {contract_id}")
+                messages.error(request, 'This contract has expired. Please contact support for assistance.')
+                return render(request, self.template_name_error, {'error': 'Contract expired'})
+            
+            # Récupération des données de signature
+            signature_method = request.POST.get('signature_method')
+            agreement_checked = request.POST.get('agreement_checkbox') == 'on'
+            
+            # Vérification des conditions requises
+            if not signature_method or not agreement_checked:
+                logger.warning(f"Incomplete signature form for contract ID: {contract_id}")
+                messages.error(request, 'Please complete all required fields and confirm the agreement.')
+                return self.render_signature_page_with_error(request, contract, agreement_number, 'incomplete_form')
+            
+            # Récupération de la signature selon la méthode
+            signature_data = None
+            
+            if signature_method == 'draw':
+                signature_data = request.POST.get('drawn_signature_data')
+                if not signature_data:
+                    return self.render_signature_page_with_error(request, contract, agreement_number, 'missing_signature')
+            
+            elif signature_method == 'type':
+                typed_signature = request.POST.get('typed_signature')
+                font_class = request.POST.get('font_selector')
+                
+                if not typed_signature:
+                    return self.render_signature_page_with_error(request, contract, agreement_number, 'missing_signature')
+                
+                signature_data = {
+                    'text': typed_signature,
+                    'font': font_class
+                }
+                signature_data = json.dumps(signature_data)
+            
+            elif signature_method == 'upload':
+                uploaded_file = request.FILES.get('signature_file')
+                
+                if not uploaded_file:
+                    return self.render_signature_page_with_error(request, contract, agreement_number, 'missing_signature')
+                
+                # Traitement de l'image de signature
+                if signature_method == 'upload':
+                    # Vérifier le type de fichier
+                    if not uploaded_file.content_type.startswith('image/'):
+                        messages.error(request, 'Please upload a valid image file.')
+                        return self.render_signature_page_with_error(request, contract, agreement_number, 'invalid_file')
+                    
+                    # Vérifier la taille du fichier (max 2 Mo)
+                    if uploaded_file.size > 2 * 1024 * 1024:
+                        messages.error(request, 'File size must be less than 2MB.')
+                        return self.render_signature_page_with_error(request, contract, agreement_number, 'file_too_large')
+                    
+                    # Sauvegarder l'image
+                    contract.signature_image.save(
+                        f"signature_{contract.id}_{int(time.time())}.{uploaded_file.name.split('.')[-1]}",
+                        uploaded_file
+                    )
+            
+            # Obtenir l'adresse IP
+            ip_address = self.get_client_ip(request)
+            
+            # Mise à jour du contrat avec les informations de signature
+            contract.mark_as_signed(
+                signature_type=signature_method,
+                ip_address=ip_address,
+                text=json.loads(signature_data).get('text') if signature_method == 'type' else None,
+                data=signature_data if signature_method == 'draw' else None
+            )
+            
+            # Mettre à jour le statut de l'utilisateur pour marquer sa registration comme complète
+            if contract.user:
+                contract.user.is_registration_complete = True
+                contract.user.registration_completed_at = timezone.now()
+                contract.user.save()
+                logger.info(f"User {contract.user.email} registration marked as complete")
+            
+            # Si l'interprète existe, mettre également à jour son statut
+            if contract.interpreter:
+                contract.interpreter.is_active = True
+                contract.interpreter.contract_signed_at = timezone.now()
+                contract.interpreter.contract_status = 'SIGNED'
+                contract.interpreter.save()
+                logger.info(f"Interpreter {contract.interpreter.id} marked as active with signed contract")
+            
+            # Définir un flag pour indiquer que cette étape est complétée
+            request.session['signature_completed'] = True
+            
+            logger.info(f"Contract signed successfully for contract ID: {contract_id}")
+            
+            # Rediriger vers la page de confirmation
+            return redirect('dbdint:confirmation')
+            
+        except Exception as e:
+            logger.error(f"Error in contract signature: {str(e)}", exc_info=True)
+            messages.error(request, 'An error occurred while processing your signature. Please try again or contact support.')
+            return render(request, self.template_name_error, {'error': 'System error'})
+    
+    def render_signature_page_with_error(self, request, contract, agreement_number, error_code):
+        """Rendu de la page de signature avec un message d'erreur approprié."""
+        context = {
+            'contract': contract,
+            'interpreter_name': contract.interpreter_name,
+            'interpreter_email': contract.interpreter_email,
+            'interpreter_phone': contract.interpreter_phone,
+            'interpreter_address': contract.interpreter_address,
+            'agreement_number': agreement_number,
+            'expires_at': contract.expires_at,
+            'current_date': timezone.now().strftime('%B %d, %Y'),
+            'error_code': error_code
+        }
+        return render(request, self.template_name, context)
+    
+    def get_client_ip(self, request):
+        """Récupère l'adresse IP du client."""
+        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+        if x_forwarded_for:
+            ip = x_forwarded_for.split(',')[0]
+        else:
+            ip = request.META.get('REMOTE_ADDR')
+        return ip
+    
+    
+
+
+@method_decorator(never_cache, name='dispatch')
+class ContractConfirmationView(View):
+    template_name = 'signature_app/confirmationsign.html'
+    template_name_error = 'signature_app/expiredlinks.html'
+    
+    def get(self, request, *args, **kwargs):
+        logger.info("Confirmation page accessed")
+        
+        # Vérification des sessions
+        contract_id = request.session.get('contract_id')
+        agreement_number = request.session.get('agreement_number')
+        otp_verified = request.session.get('otp_verified', False)
+        payment_info_completed = request.session.get('payment_info_completed', False)
+        signature_completed = request.session.get('signature_completed', False)
+        
+        # Vérifier que l'utilisateur a bien complété les étapes précédentes
+        if not all([contract_id, agreement_number, otp_verified, payment_info_completed, signature_completed]):
+            logger.warning("Unauthorized access attempt to confirmation page")
+            messages.error(request, 'You must complete the previous steps first.')
+            return render(request, self.template_name_error, {'error': 'Unauthorized access'})
+        
+        try:
+            # Récupération du contrat
+            contract = get_object_or_404(InterpreterContractSignature, id=contract_id)
+            
+            # Préparer les données bancaires sécurisées
+            account_number = None
+            routing_number = None
+            swift_code = None
+            
+            try:
+                if contract.encrypted_account_number:
+                    account_number = contract.get_account_number()
+                    # Masquer le numéro de compte pour l'affichage
+                    if account_number and len(account_number) > 4:
+                        account_number = '••••' + account_number[-4:]
+                
+                if contract.encrypted_routing_number:
+                    routing_number = contract.get_routing_number()
+                    # Masquer le numéro de routage pour l'affichage
+                    if routing_number and len(routing_number) > 4:
+                        routing_number = '••••' + routing_number[-4:]
+                
+                if contract.encrypted_swift_code:
+                    swift_code = contract.get_swift_code()
+                    # Masquer le code SWIFT pour l'affichage
+                    if swift_code and len(swift_code) > 4:
+                        swift_code = '••••' + swift_code[-4:]
+            except Exception as e:
+                logger.error(f"Error decrypting banking information: {str(e)}")
+                # Continuer même si le déchiffrement échoue
+            
+            # Préparation du contexte pour la page de confirmation
+            context = {
+                'contract': contract,
+                'interpreter_name': contract.interpreter_name,
+                'interpreter_email': contract.interpreter_email,
+                'interpreter_phone': contract.interpreter_phone,
+                'interpreter_address': contract.interpreter_address,
+                'agreement_number': agreement_number,
+                'bank_name': contract.bank_name,
+                'account_type': contract.account_type,
+                'account_number': account_number,
+                'routing_number': routing_number,
+                'swift_code': swift_code,
+                'signed_at': contract.signed_at,
+                'signature_type': contract.signature_type,
+                'current_date': timezone.now().strftime('%B %d, %Y %H:%M:%S')
+            }
+            
+            # Envoyer l'email de confirmation si ce n'est pas déjà fait
+            if not request.session.get('confirmation_email_sent'):
+                self.send_confirmation_email(contract)
+                request.session['confirmation_email_sent'] = True
+            
+            logger.info(f"Confirmation page rendered for contract ID: {contract_id}")
+            return render(request, self.template_name, context)
+            
+        except Exception as e:
+            logger.error(f"Error in confirmation page: {str(e)}", exc_info=True)
+            messages.error(request, 'An error occurred while processing your request. Please try again or contact support.')
+            return render(request, self.template_name_error, {'error': 'System error'})
+    
+    def send_confirmation_email(self, contract):
+        """Envoie l'email de confirmation à l'interprète."""
+        try:
+            # Création d'un identifiant unique pour ce message
+            message_id = f"<confirmation-{contract.id}-{uuid.uuid4()}@{socket.gethostname()}>"
+            
+            # Préparation des données pour le template
+            context = {
+                'interpreter_name': contract.interpreter_name,
+                'email': contract.interpreter_email,
+                'agreement_number': f"JHB-INT-{timezone.now().year}-{str(contract.id)[:4]}",
+                'signed_date': contract.signed_at.strftime('%B %d, %Y') if contract.signed_at else timezone.now().strftime('%B %d, %Y'),
+            }
+            
+            # Rendu du template HTML
+            html_message = render_to_string('notifmail/contract_agreement_good.html', context)
+            plain_message = strip_tags(html_message)
+            
+            # Ligne d'objet
+            subject = f"Your Contract Has Been Approved! - JH Bridge"
+            
+            # Format professionnel pour l'adresse expéditeur
+            from_email = f"JH Bridge Contracts <contracts@jhbridgetranslation.com>"
+            
+            # Création de l'email avec du texte brut comme corps principal
+            email = EmailMultiAlternatives(
+                subject=subject,
+                body=plain_message,
+                from_email=from_email,
+                to=[contract.interpreter_email],
+                reply_to=['support@jhbridgetranslation.com']
+            )
+            
+            # Ajout de la version HTML comme alternative
+            email.attach_alternative(html_message, "text/html")
+            
+            # Joindre le contrat signé s'il existe
+            if contract.contract_document:
+                email.attach_file(os.path.join(settings.MEDIA_ROOT, contract.contract_document.name))
+            
+            # En-têtes optimisés pour la délivrabilité
+            email.extra_headers = {
+                # Identifiant unique de message
+                'Message-ID': message_id,
+                
+                # En-têtes d'authentification et de traçabilité
+                'X-Entity-Ref-ID': str(contract.token),
+                'X-Mailer': 'JHBridge-ContractMailer/1.0',
+                'X-Contact-ID': str(contract.id),
+                
+                # Mécanisme de désabonnement
+                'List-Unsubscribe': f'<mailto:unsubscribe@jhbridgetranslation.com?subject=Unsubscribe-{contract.interpreter_email}>',
+                'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+                
+                # En-têtes de classification du message
+                'Precedence': 'bulk',
+                'Auto-Submitted': 'auto-generated',
+                
+                # ID unique pour le feedback loop
+                'Feedback-ID': f'contract-{contract.id}:{contract.id}:jhbridge:{int(time.time())}'
+            }
+            
+            # Envoi de l'email
+            email.send(fail_silently=False)
+            
+            logger.info(f"Confirmation email sent to: {contract.interpreter_email} with Message-ID: {message_id}")
+            
+            # Mettre à jour le statut du contrat pour indiquer qu'il est en attente d'approbation
+            contract.status = 'SIGNED'
+            contract.save()
+            
+        except Exception as e:
+            logger.error(f"Error sending confirmation email: {str(e)}", exc_info=True)

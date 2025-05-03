@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JH Bridge - Interpreter Service Agreement</title>
+    <style>
+        :root {
+            --primary-color: #1a5959;
+            --secondary-color: #2a7a7a;
+            --accent-color: #4bb74b;
+            --text-color: #ffffff;
+            --background-color: #193f3f;
+            --card-background: #214e4e;
+            --border-color: #336666;
+            --input-background: rgba(255, 255, 255, 0.05);
+            --highlight-color: rgba(75, 183, 75, 0.1);
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background-color: var(--background-color);
+            color: var(--text-color);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        header {
+            background-color: var(--primary-color);
+            padding: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .logo {
+            height: 40px;
+        }
+        
+        .header-info {
+            font-size: 0.9rem;
+            text-align: right;
+        }
+        
+        main {
+            flex: 1;
+            padding: 2rem 1rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .progress-container {
+            width: 100%;
+            max-width: 800px;
+            margin-bottom: 2rem;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .progress-step {
+            flex: 1;
+            text-align: center;
+            position: relative;
+        }
+        
+        .progress-step::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background-color: var(--secondary-color);
+            z-index: 1;
+        }
+        
+        .progress-step:first-child::before {
+            left: 50%;
+        }
+        
+        .progress-step:last-child::before {
+            right: 50%;
+        }
+        
+        .step-number {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background-color: var(--secondary-color);
+            color: var(--text-color);
+            font-weight: 600;
+            position: relative;
+            z-index: 2;
+        }
+        
+        .active .step-number {
+            background-color: var(--accent-color);
+        }
+        
+        .completed .step-number {
+            background-color: var(--accent-color);
+        }
+        
+        .step-label {
+            margin-top: 0.5rem;
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.7);
+        }
+        
+        .active .step-label {
+            color: var(--text-color);
+            font-weight: 500;
+        }
+        
+        .agreement-container {
+            background-color: var(--card-background);
+            border-radius: 8px;
+            width: 100%;
+            max-width: 800px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            margin-bottom: 2rem;
+        }
+        
+        .agreement-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        h1 {
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .agreement-info {
+            font-size: 0.9rem;
+            color: rgba(255, 255, 255, 0.7);
+            margin-bottom: 1rem;
+        }
+        
+        .company-info {
+            background-color: var(--highlight-color);
+            padding: 1rem;
+            border-radius: 4px;
+            margin-top: 1rem;
+        }
+        
+        .company-info h3 {
+            margin-bottom: 0.5rem;
+            font-size: 1rem;
+        }
+        
+        .info-item {
+            margin-bottom: 0.25rem;
+        }
+        
+        .agreement-content {
+            padding: 1.5rem;
+            max-height: 500px;
+            overflow-y: auto;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .agreement-text {
+            line-height: 1.6;
+        }
+        
+        h2 {
+            font-size: 1.2rem;
+            margin: 1.5rem 0 0.5rem;
+        }
+        
+        .section-content {
+            margin-bottom: 1rem;
+        }
+        
+        .language-rates {
+            margin: 1rem 0;
+        }
+        
+        .language-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+        }
+        
+        .btn-container {
+            padding: 1.5rem;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .btn {
+            padding: 1rem 2rem;
+            background-color: var(--accent-color);
+            color: var(--text-color);
+            border: none;
+            border-radius: 4px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        
+        .btn:hover {
+            background-color: #3da63d;
+        }
+        
+        .btn-secondary {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        
+        .btn-secondary:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+        
+        .interpreter-info {
+            background-color: rgba(255, 255, 255, 0.05);
+            border-radius: 4px;
+            padding: 1rem;
+            margin-top: 1rem;
+        }
+        
+        .interpreter-info h3 {
+            margin-bottom: 0.5rem;
+            font-size: 1rem;
+        }
+        
+        .date-info {
+            margin-top: 1rem;
+            font-size: 0.9rem;
+            text-align: right;
+            color: rgba(255, 255, 255, 0.7);
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <img src="https://jhbridgetranslation.com/assets/two-CrMBXFPQ.png" alt="JH Bridge Logo" class="logo">
+        <div class="header-info">
+            <div>Agreement #: <span id="agreement-number">{{ agreement_number }}</span></div>
+            <div>Contract ID: <span id="contract-id">{{ contract.id }}</span></div>
+        </div>
+    </header>
+    
+    <main>
+        <div class="progress-container">
+            <div class="progress-step completed">
+                <div class="step-number">1</div>
+                <div class="step-label">Verification</div>
+            </div>
+            <div class="progress-step active">
+                <div class="step-number">2</div>
+                <div class="step-label">Review</div>
+            </div>
+            <div class="progress-step">
+                <div class="step-number">3</div>
+                <div class="step-label">Payment Info</div>
+            </div>
+            <div class="progress-step">
+                <div class="step-number">4</div>
+                <div class="step-label">Sign</div>
+            </div>
+            <div class="progress-step">
+                <div class="step-number">5</div>
+                <div class="step-label">Confirmation</div>
+            </div>
+        </div>
+        
+        <div class="agreement-container">
+            <div class="agreement-header">
+                <h1>Interpreter Service Agreement</h1>
+                <div class="date-info">{{ contract_date }}</div>
+                
+                <div class="interpreter-info">
+                    <h3>Interpreter Information</h3>
+                    <div class="info-item"><strong>Name:</strong> {{ interpreter_name }}</div>
+                    <div class="info-item"><strong>Email:</strong> {{ interpreter_email }}</div>
+                    <div class="info-item"><strong>Phone:</strong> {{ interpreter_phone }}</div>
+                    <div class="info-item"><strong>Address:</strong> {{ interpreter_address }}</div>
+                </div>
+                
+                <div class="company-info">
+                    <h3>Company Information</h3>
+                    <div class="info-item"><strong>Company Name:</strong> JHBridge Translation Services</div>
+                    <div class="info-item"><strong>Address:</strong> 500 GROSSMAN DR, BRAINTREE, MA, 02184</div>
+                    <div class="info-item"><strong>Contact Information:</strong> (774) 223 8771 / jhbridgetranslation@gmail.com</div>
+                </div>
+            </div>
+            
+            <div class="agreement-content">
+                <div class="agreement-text">
+                    <h2>1. Scope of Services</h2>
+                    <div class="section-content">
+                        The Interpreter agrees to provide professional interpretation services for the Company, including on site
+                        Interpretation but not limited to oral interpretation, written translation, and any other language-related
+                        services as required.
+                    </div>
+                    
+                    <h2>2. Independent Contractor Relationship</h2>
+                    <div class="section-content">
+                        The Interpreter acknowledges that they are an independent contractor and not an employee of the
+                        Company. The Interpreter shall be responsible for their own taxes, insurance, and other expenses.
+                    </div>
+                    
+                    <h2>3. Compensation</h2>
+                    <div class="section-content">
+                        The Company agrees to pay the Interpreter at the following rates, payable every two weeks:
+                        
+                        <div class="language-rates">
+                            {% if interpreter_language_rates %}
+                                {% for lang_rate in interpreter_language_rates %}
+                                <div class="language-item">
+                                    <span>{{ lang_rate.name }}</span>
+                                    <span>{{ lang_rate.rate }}</span>
+                                </div>
+                                {% endfor %}
+                            {% else %}
+                                <div class="language-item">
+                                    <span>Portuguese</span>
+                                    <span>$35 per hour</span>
+                                </div>
+                                <div class="language-item">
+                                    <span>Spanish</span>
+                                    <span>$30 per hour</span>
+                                </div>
+                                <div class="language-item">
+                                    <span>Haitian Creole</span>
+                                    <span>$30 per hour</span>
+                                </div>
+                                <div class="language-item">
+                                    <span>Cape Verdean</span>
+                                    <span>$30 per hour</span>
+                                </div>
+                                <div class="language-item">
+                                    <span>French</span>
+                                    <span>$35 per hour</span>
+                                </div>
+                                <div class="language-item">
+                                    <span>Mandarin</span>
+                                    <span>$40 per hour</span>
+                                </div>
+                                <div class="language-item">
+                                    <span>Rare Languages</span>
+                                    <span>$45 per hour</span>
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        Each appointment is scheduled for a minimum of two (2) hours. The Interpreter will be compensated for
+                        the full two-hour duration even if the appointment ends earlier. Additionally, if the Interpreter is already
+                        on-site or in route to the location and the appointment results in a no-show, they will still be paid for the
+                        full two-hour minimum.
+                    </div>
+                    
+                    <h2>4. Scheduling and Cancellations</h2>
+                    <div class="section-content">
+                        Interpreters are required to arrive on-site at least fifteen (15) minutes before the scheduled start time of
+                        their appointment. If the Interpreter needs to cancel an appointment, they must provide at least forty-
+                        eight (48) hours' notice before the appointment date. Failure to provide timely notice may result in
+                        penalties or impact future assignments.
+                    </div>
+                    
+                    <h2>5. Confidentiality</h2>
+                    <div class="section-content">
+                        The Interpreter agrees to maintain the confidentiality of all client and company information and not to
+                        disclose any proprietary or sensitive information obtained in the course of their services.
+                    </div>
+                    
+                    <h2>6. Code of Conduct</h2>
+                    <div class="section-content">
+                        The Interpreter shall uphold professional ethics, including accuracy, impartiality, and neutrality, and
+                        shall not engage in any conduct that may harm the Company's reputation.
+                    </div>
+                    
+                    <h2>7. Term and Termination</h2>
+                    <div class="section-content">
+                        This Agreement shall commence on the date specified above and continue until terminated by either party with 30
+                        days written notice. The Company may terminate this Agreement immediately in the event of breach of
+                        contract or misconduct.
+                    </div>
+                    
+                    <h2>8. Indemnification</h2>
+                    <div class="section-content">
+                        The Interpreter agrees to indemnify and hold harmless the Company from any claims, damages, or
+                        liabilities arising from their interpretation services.
+                    </div>
+                    
+                    <h2>9. Governing Law</h2>
+                    <div class="section-content">
+                        This Agreement shall be governed by and construed in accordance with the laws of Massachusetts.
+                    </div>
+                    
+                    <h2>10. Entire Agreement</h2>
+                    <div class="section-content">
+                        This Agreement constitutes the entire understanding between the parties and supersedes any prior
+                        agreements or understandings, whether written or oral.
+                    </div>
+                </div>
+            </div>
+            
+            <div class="btn-container">
+                <button type="button" class="btn btn-secondary" id="back-btn">Back</button>
+                <button type="button" class="btn" id="next-btn">Continue to Payment Info</button>
+            </div>
+        </div>
+    </main>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Elements
+            const nextBtn = document.getElementById('next-btn');
+            const backBtn = document.getElementById('back-btn');
+            
+            // Button event listeners
+            backBtn.addEventListener('click', function() {
+                // Go back to verification page
+                if (confirm('Are you sure you want to go back?')) {
+                    window.location.href = "{% url 'dbdint:contract_verification' token=contract.token %}";
+                }
+            });
+            
+            nextBtn.addEventListener('click', function() {
+                // Navigate to payment info page
+                window.location.href = "{% url 'dbdint:contract_payment_info' %}";
+            });
+        });
+    </script>
+</body>
+</html>

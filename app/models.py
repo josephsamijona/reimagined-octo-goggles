@@ -1,3 +1,5 @@
+import os
+import random
 import uuid
 from django.db import models
 from django.utils import timezone
@@ -13,7 +15,15 @@ from django.conf import settings
 from django.core.validators import FileExtensionValidator
 from django.utils import timezone
 from cryptography.fernet import Fernet
-
+import uuid
+import binascii
+import base64
+import hashlib
+from django.db import models
+from django.utils import timezone
+from django.conf import settings
+from django.core.validators import FileExtensionValidator
+from cryptography.fernet import Fernet
 class Language(models.Model):
     name = models.CharField(max_length=100, unique=True)
     code = models.CharField(max_length=10, unique=True)  # ISO code
@@ -903,8 +913,21 @@ class Deduction(models.Model):
     
     
 ####################E-SIGN SYSTEM V.1
+def get_expiration_time():
+    return timezone.now() + timezone.timedelta(hours=24)
+
+
 class InterpreterContractSignature(models.Model):
     """Model for interpreter contract signatures with secure encryption for confidential data"""
+    
+    # Contract status choices
+    STATUS_CHOICES = [
+        ('PENDING', 'Pending'),
+        ('SIGNED', 'Signed'),
+        ('EXPIRED', 'Expired'),
+        ('REJECTED', 'Rejected'),
+        ('COMPLETED', 'Completed')  # Signé par l'interprète et par la compagnie
+    ]
     
     # Signature types
     SIGNATURE_TYPE_CHOICES = [
@@ -916,6 +939,13 @@ class InterpreterContractSignature(models.Model):
     # Identifiers
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     
+    # Contract authentication information (pour l'email et la validation)
+    token = models.CharField(max_length=100, unique=True, db_index=True, null=True, blank=True)
+    otp_code = models.CharField(max_length=6, null=True, blank=True)
+    created_at = models.DateTimeField(default=timezone.now)
+    expires_at = models.DateTimeField(default=get_expiration_time)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING')
+    
     # User relationship (can be null)
     user = models.ForeignKey(
         User, 
@@ -926,6 +956,15 @@ class InterpreterContractSignature(models.Model):
         help_text="Associated user account if available"
     )
     
+    # Interpreter relationship (should not be null when using registration system)
+    interpreter = models.ForeignKey(
+        'Interpreter',
+        on_delete=models.CASCADE,
+        related_name='contracts',
+        null=True,
+        blank=True
+    )
+    
     # Interpreter information
     interpreter_name = models.CharField(max_length=255)
     interpreter_email = models.EmailField()
@@ -933,8 +972,13 @@ class InterpreterContractSignature(models.Model):
     interpreter_address = models.TextField()
     
     # Banking information (non-encrypted - for basic information)
-    bank_name = models.CharField(max_length=255)
-    account_type = models.CharField(max_length=20, choices=[('checking', 'Checking'), ('savings', 'Savings')])
+    bank_name = models.CharField(max_length=255, blank=True, null=True)
+    account_type = models.CharField(
+        max_length=20, 
+        choices=[('checking', 'Checking'), ('savings', 'Savings')],
+        blank=True,
+        null=True
+    )
     
     # Banking information (encrypted)
     encrypted_account_number = models.BinaryField(blank=True, null=True)
@@ -942,11 +986,11 @@ class InterpreterContractSignature(models.Model):
     encrypted_swift_code = models.BinaryField(blank=True, null=True)
     
     # Contract document
-    contract_document = models.FileField(upload_to='interpreter_contracts/')
+    contract_document = models.FileField(upload_to='interpreter_contracts/', blank=True, null=True)
     contract_version = models.CharField(max_length=20, default='1.0')
     
     # Signature
-    signature_type = models.CharField(max_length=20, choices=SIGNATURE_TYPE_CHOICES)
+    signature_type = models.CharField(max_length=20, choices=SIGNATURE_TYPE_CHOICES, blank=True, null=True)
     signature_image = models.ImageField(
         upload_to='signatures/', 
         blank=True, 
@@ -957,9 +1001,9 @@ class InterpreterContractSignature(models.Model):
     signature_manual_data = models.TextField(blank=True, null=True, help_text="Coordinates of manual signature")
     
     # Signature metadata
-    signed_at = models.DateTimeField(default=timezone.now)
-    ip_address = models.GenericIPAddressField()
-    signature_hash = models.CharField(max_length=64)  # Hash for verification
+    signed_at = models.DateTimeField(blank=True, null=True)
+    ip_address = models.GenericIPAddressField(blank=True, null=True)
+    signature_hash = models.CharField(max_length=64, blank=True, null=True)  # Hash for verification
     
     # Company signature
     company_representative_name = models.CharField(max_length=255, default="Marc-Henry Valme")
@@ -971,7 +1015,7 @@ class InterpreterContractSignature(models.Model):
     is_active = models.BooleanField(default=False)
     
     def __str__(self):
-        return f"Interpreter contract for {self.interpreter_name} signed on {self.signed_at.strftime('%Y-%m-%d')}"
+        return f"Interpreter contract for {self.interpreter_name} ({self.status})"
     
     @staticmethod
     def get_encryption_key():
@@ -1033,6 +1077,45 @@ class InterpreterContractSignature(models.Model):
         """Decrypt and return the SWIFT code"""
         return self.decrypt_data(self.encrypted_swift_code)
     
+    def is_expired(self):
+        """Check if the contract signing period has expired"""
+        return timezone.now() > self.expires_at
+    
+    def generate_signature_hash(self):
+        """Generate a unique hash for the signature"""
+        data = f"{self.interpreter_name}{self.interpreter_email}{timezone.now().isoformat()}{uuid.uuid4()}"
+        return hashlib.sha256(data.encode()).hexdigest()
+    
+    def mark_as_signed(self, signature_type, ip_address, **kwargs):
+        """Mark the contract as signed by the interpreter"""
+        self.status = 'SIGNED'
+        self.signature_type = signature_type
+        self.ip_address = ip_address
+        self.signed_at = timezone.now()
+        self.signature_hash = self.generate_signature_hash()
+        
+        # Set signature data based on type
+        if signature_type == 'typography':
+            self.signature_typography_text = kwargs.get('text')
+        elif signature_type == 'manual':
+            self.signature_manual_data = kwargs.get('data')
+        # For 'image' type, the image should be set separately
+        
+        self.save()
+    
+    def mark_as_company_signed(self, signature_data=None):
+        """Mark the contract as signed by the company representative"""
+        self.company_representative_signature = signature_data or "Electronically signed"
+        self.company_signed_at = timezone.now()
+        
+        # If both parties have signed, mark as fully signed
+        if self.signed_at:
+            self.is_fully_signed = True
+            self.is_active = True
+            self.status = 'COMPLETED'
+        
+        self.save()
+    
     def save(self, *args, **kwargs):
         """Override save method to ensure hash creation and auto-populate from user when possible"""
         # Auto-populate from user if available and fields are not set
@@ -1041,13 +1124,28 @@ class InterpreterContractSignature(models.Model):
                 self.interpreter_name = self.user.get_full_name()
             if not self.interpreter_email:
                 self.interpreter_email = self.user.email
+            if not self.interpreter_phone and hasattr(self.user, 'phone'):
+                self.interpreter_phone = self.user.phone
         
-        # Create a signature hash if not already set
-        if not self.signature_hash:
-            import hashlib
-            # Create a unique hash based on document, signer and timestamp
-            data = f"{self.interpreter_name}{self.interpreter_email}{self.signed_at.isoformat()}{uuid.uuid4()}"
-            self.signature_hash = hashlib.sha256(data.encode()).hexdigest()
+        # Auto-populate from interpreter if available
+        if self.interpreter and not self.pk:
+            if not self.interpreter_name:
+                self.interpreter_name = f"{self.interpreter.user.first_name} {self.interpreter.user.last_name}"
+            if not self.interpreter_email:
+                self.interpreter_email = self.interpreter.user.email
+            if not self.interpreter_phone:
+                self.interpreter_phone = self.interpreter.user.phone
+            if not self.interpreter_address:
+                self.interpreter_address = f"{self.interpreter.address}, {self.interpreter.city}, {self.interpreter.state} {self.interpreter.zip_code}"
+        
+        # Generate token and OTP if this is a new record and they're not set
+        if not self.pk:
+            if not self.token:
+                self.token = str(uuid.uuid4())
+            if not self.otp_code:
+                self.otp_code = ''.join([str(random.randint(0, 9)) for _ in range(6)])
+            if not self.expires_at:
+                self.expires_at = timezone.now() + timezone.timedelta(hours=24)
         
         super().save(*args, **kwargs)
         
@@ -1093,3 +1191,33 @@ class APIKey(models.Model):
     def generate_key(cls):
         """Génère une nouvelle clé API unique"""
         return uuid.uuid4().hex + uuid.uuid4().hex  # 64 caractères
+
+def signature_upload_path(instance, filename):
+    """Chemin personnalisé pour les signatures"""
+    ext = filename.split('.')[-1]
+    filename = f"{uuid.uuid4()}.{ext}"
+    return os.path.join('signatures', filename)
+
+def pdf_upload_path(instance, filename):
+    """Chemin personnalisé pour les PDFs"""
+    return os.path.join('documents', f"{uuid.uuid4()}.pdf")
+
+class SignedDocument(models.Model):
+    """Modèle pour les documents signés"""
+    SIGNATURE_TYPES = [
+        ('handwritten', 'Signature manuscrite'),
+        ('image', 'Image de signature'),
+        ('typographic', 'Signature typographique'),
+    ]
+    
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
+    original_document = models.FileField(upload_to=pdf_upload_path)
+    signed_document = models.FileField(upload_to=pdf_upload_path, null=True, blank=True)
+    signature_image = models.ImageField(upload_to=signature_upload_path, null=True, blank=True)
+    signature_type = models.CharField(max_length=20, choices=SIGNATURE_TYPES)
+    signature_position = models.JSONField(default=dict)  # Stocke les coordonnées x, y, page, width, height
+    signature_metadata = models.JSONField(default=dict)  # Stocke auteur, raison, date, etc
+    created_at = models.DateTimeField(default=timezone.now)
+    
+    def __str__(self):
+        return f"Document signé le {self.created_at.strftime('%d/%m/%Y')}"

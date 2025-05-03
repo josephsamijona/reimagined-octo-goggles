@@ -166,9 +166,13 @@ urlpatterns = [
     path('generate-pdf/', views.generate_pdf, name='generate-pdf'),
     ## Vue de création et saisie du payroll
     ###ESIGN
-    
+    path('contract/verify/<str:token>/', views.ContractVerificationView.as_view(), name='contract_verification'),
+    path('contract/verify-otp/', views.ContractOTPVerificationView.as_view(), name='contract_otp_verification'),
+    path('contract/review/', views.ContractReviewView.as_view(), name='contract_review'),
+    path('contract/payment-info/', views.ContractPaymentInfoView.as_view(), name='contract_payment_info'),
+    path('contract/signature/', views.ContractSignatureView.as_view(), name='contract_signature'),
+    path('contract/confirmation/', views.ContractConfirmationView.as_view(), name='confirmation'),
 
-    
     
     
 

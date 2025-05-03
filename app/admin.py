@@ -1227,47 +1227,34 @@ class APIKeyAdmin(admin.ModelAdmin):
     extend_expiration.short_description = _("Prolonger l'expiration (+30 jours)")
 
 
+
+
 @admin.register(models.InterpreterContractSignature)
 class InterpreterContractSignatureAdmin(admin.ModelAdmin):
     list_display = ('emoji_status', 'interpreter_name', 'interpreter_email', 
-                    'signature_type_display', 'signed_date', 'is_fully_signed', 'is_active')
+                    'token_display', 'signature_type_display', 'signed_date', 
+                    'status', 'is_fully_signed', 'is_active')
     
-    list_filter = ('is_fully_signed', 'is_active', 'signature_type', 'account_type', 'signed_at')
-    search_fields = ('interpreter_name', 'interpreter_email', 'interpreter_phone', 'signature_hash')
-    readonly_fields = ('signature_hash', 'signed_at', 'id', 
-                      'account_number_display', 'routing_number_display', 'swift_code_display')
+    list_filter = ('status', 'is_fully_signed', 'is_active', 'signature_type', 
+                  'account_type', 'signed_at')
+    search_fields = ('interpreter_name', 'interpreter_email', 'interpreter_phone', 
+                    'signature_hash', 'token', 'otp_code')
+    readonly_fields = ('signature_hash', 'signed_at', 'id', 'created_at',
+                      'account_number_display', 'routing_number_display', 'swift_code_display',
+                      'encrypted_account_number', 'encrypted_routing_number', 'encrypted_swift_code')
+    
     date_hierarchy = 'signed_at'
-    
-    # Define a custom form that includes our sensitive fields
-    class SensitiveDataForm(forms.ModelForm):
-        # Custom temporary fields for banking data
-        account_number = forms.CharField(
-            required=False, 
-            help_text="Enter account number (will be encrypted)",
-            widget=forms.TextInput(attrs={'autocomplete': 'off'})
-        )
-        routing_number = forms.CharField(
-            required=False, 
-            help_text="Enter routing number (will be encrypted)",
-            widget=forms.TextInput(attrs={'autocomplete': 'off'})
-        )
-        swift_code = forms.CharField(
-            required=False, 
-            help_text="Enter SWIFT code (will be encrypted)",
-            widget=forms.TextInput(attrs={'autocomplete': 'off'})
-        )
-        
-        class Meta:
-            model = models.InterpreterContractSignature
-            exclude = ['encrypted_account_number', 'encrypted_routing_number', 'encrypted_swift_code']
-    
-    form = SensitiveDataForm
     
     fieldsets = (
         ('🧑‍💼 Interpreter Information', {
             'fields': (
-                'user', 'interpreter_name', 'interpreter_email', 
+                'user', 'interpreter', 'interpreter_name', 'interpreter_email', 
                 'interpreter_phone', 'interpreter_address'
+            ),
+        }),
+        ('🔐 Contract Authentication', {
+            'fields': (
+                'token', 'otp_code', 'created_at', 'expires_at', 'status',
             ),
         }),
         ('📝 Contract Details', {
@@ -1285,9 +1272,9 @@ class InterpreterContractSignatureAdmin(admin.ModelAdmin):
         ('💰 Banking Information', {
             'fields': (
                 'bank_name', 'account_type',
-                'account_number', 'routing_number', 'swift_code',
-                'account_number_display', 'routing_number_display', 'swift_code_display'
+                'account_number_display', 'routing_number_display', 'swift_code_display',
             ),
+            'description': 'Banking information is encrypted and can only be viewed in masked form. To modify banking information, please use the application interface.',
             'classes': ('collapse',),
         }),
         ('🏢 Company Information', {
@@ -1304,13 +1291,23 @@ class InterpreterContractSignatureAdmin(admin.ModelAdmin):
     
     def emoji_status(self, obj):
         """Display status with emoji"""
-        if obj.is_fully_signed:
-            return "📋 ✅"
-        elif obj.company_signed_at:
-            return "📋 ⏳"
-        else:
-            return "📋 ❌"
+        status_map = {
+            'PENDING': "📋 ⏳",
+            'SIGNED': "📋 ✅",
+            'EXPIRED': "📋 ⌛",
+            'REJECTED': "📋 ❌",
+            'COMPLETED': "📋 ✅✅"
+        }
+        return status_map.get(obj.status, "📋 ❓")
     emoji_status.short_description = "Status"
+    
+    def token_display(self, obj):
+        """Display shortened token"""
+        if obj.token:
+            short_token = obj.token[:8] + "..." + obj.token[-8:]
+            return f"🔑 {short_token}"
+        return "—"
+    token_display.short_description = 'Token'
     
     def signature_type_display(self, obj):
         """Display signature type with emoji"""
@@ -1319,12 +1316,14 @@ class InterpreterContractSignatureAdmin(admin.ModelAdmin):
             'typography': '🔤 Typography',
             'manual': '✒️ Manual'
         }
-        return types.get(obj.signature_type, obj.signature_type)
+        return types.get(obj.signature_type, obj.signature_type or "—")
     signature_type_display.short_description = 'Type'
     
     def signed_date(self, obj):
         """Format signed date with emoji"""
-        return f"🗓️ {obj.signed_at.strftime('%Y-%m-%d')}"
+        if obj.signed_at:
+            return f"🗓️ {obj.signed_at.strftime('%Y-%m-%d')}"
+        return "—"
     signed_date.short_description = 'Signed On'
     
     def account_number_display(self, obj):
@@ -1364,28 +1363,84 @@ class InterpreterContractSignatureAdmin(admin.ModelAdmin):
             return False
         return super().has_delete_permission(request, obj)
     
-    def get_readonly_fields(self, request, obj=None):
-        """Make sensitive data fields read-only for existing objects"""
-        readonly_fields = list(super().get_readonly_fields(request, obj))
-        if obj:  # This is an existing object
-            readonly_fields.extend(['account_number', 'routing_number', 'swift_code'])
-        return readonly_fields
+    actions = ['mark_as_expired', 'mark_as_completed', 'resend_contract_email']
     
-    def save_model(self, request, obj, form, change):
-        """Custom save to handle encryption of sensitive data"""
-        # Handle sensitive data encryption
-        if 'account_number' in form.cleaned_data and form.cleaned_data['account_number']:
-            obj.set_account_number(form.cleaned_data['account_number'])
+    def mark_as_expired(self, request, queryset):
+        """Mark selected contracts as expired"""
+        updated = queryset.update(status='EXPIRED')
+        self.message_user(request, f"{updated} contract(s) marked as expired.")
+    mark_as_expired.short_description = "Mark selected contracts as expired"
+    
+    def mark_as_completed(self, request, queryset):
+        """Mark selected contracts as completed"""
+        updated = queryset.update(
+            status='COMPLETED',
+            is_fully_signed=True,
+            is_active=True,
+            company_signed_at=timezone.now()
+        )
+        self.message_user(request, f"{updated} contract(s) marked as completed.")
+    mark_as_completed.short_description = "Mark selected contracts as completed"
+    
+    def resend_contract_email(self, request, queryset):
+        """Resend contract email to selected interpreters"""
+        from django.core.mail import EmailMessage
+        from django.template.loader import render_to_string
+        from django.utils.html import strip_tags
         
-        if 'routing_number' in form.cleaned_data and form.cleaned_data['routing_number']:
-            obj.set_routing_number(form.cleaned_data['routing_number'])
+        count = 0
+        for contract in queryset:
+            if not contract.interpreter_email:
+                continue
+                
+            try:
+                # Reset token and OTP if needed
+                if not contract.token or not contract.otp_code:
+                    import uuid
+                    import random
+                    contract.token = str(uuid.uuid4())
+                    contract.otp_code = ''.join([str(random.randint(0, 9)) for _ in range(6)])
+                    contract.expires_at = timezone.now() + timezone.timedelta(hours=24)
+                    contract.save()
+                
+                # Prepare email
+                context = {
+                    'interpreter_name': contract.interpreter_name,
+                    'token': contract.token,
+                    'otp_code': contract.otp_code
+                }
+                
+                html_message = render_to_string('notifmail/esign_notif.html', context)
+                plain_message = strip_tags(html_message)
+                
+                subject = f"{contract.interpreter_name.split()[0]}, votre contrat d'interprète JH Bridge est prêt à signer"
+                
+                email = EmailMessage(
+                    subject=subject,
+                    body=html_message,
+                    from_email=f"JH Bridge Interprètes <jhbridgetranslation@gmail.com>",
+                    to=[contract.interpreter_email],
+                    reply_to=['jhbridgetranslation@gmail.com']
+                )
+                
+                email.content_subtype = "html"
+                
+                email.extra_headers = {
+                    'X-Priority': '1',
+                    'X-MSMail-Priority': 'High',
+                    'Importance': 'High',
+                    'X-Auto-Response-Suppress': 'OOF, DR, RN, NRN, AutoReply',
+                    'List-Unsubscribe': f'<mailto:unsubscribe@jhbridgetranslation.com?subject=Unsubscribe+{contract.interpreter_email}>'
+                }
+                
+                email.send()
+                count += 1
+                
+            except Exception as e:
+                self.message_user(request, f"Error sending email to {contract.interpreter_email}: {str(e)}", level=messages.ERROR)
         
-        if 'swift_code' in form.cleaned_data and form.cleaned_data['swift_code']:
-            obj.set_swift_code(form.cleaned_data['swift_code'])
-        
-        super().save_model(request, obj, form, change)
-
-
+        self.message_user(request, f"Successfully resent contract emails to {count} interpreter(s).")
+    resend_contract_email.short_description = "Resend contract emails to selected interpreters"
 
 
 # =======================================================

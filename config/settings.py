@@ -326,3 +326,12 @@ STORAGES = {
 # Media files
 MEDIA_URL = f'{SUPABASE_URL}/storage/v1/object/public/media/'
 MEDIA_ROOT = None  # Pas de stockage local en production
+
+# Configuration pour le stockage des PDFs et signatures
+# (ajoutez ceci à votre fichier settings.py)
+FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10MB 
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10MB
+
+# Assurez-vous que le dossier des certificats existe
+CERTS_DIR = os.path.join(BASE_DIR, 'certs')
+os.makedirs(CERTS_DIR, exist_ok=True)

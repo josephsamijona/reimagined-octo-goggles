@@ -63,3 +63,9 @@ pycom
 xhtml2pdf
 
 django-widget-tweaks
+pyHanko
+pyhanko-certvalidator 
+asn1crypto 
+oscrypto 
+qrcode 
+pillow
