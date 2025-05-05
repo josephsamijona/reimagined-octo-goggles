@@ -4247,25 +4247,57 @@ class ContractSignatureView(View):
             ip_address = self.get_client_ip(request)
             
             # Mise à jour du contrat avec les informations de signature
+            signature_kwargs = {
+                'ip_address': ip_address,
+            }
+            
+            # Traitement spécifique selon la méthode de signature
+            if signature_method == 'draw':
+                signature_kwargs['data'] = signature_data
+            elif signature_method == 'type':
+                try:
+                    typed_data = json.loads(signature_data)
+                    signature_kwargs['text'] = typed_data.get('text')
+                    # Stocker également la police si nécessaire
+                    if 'font' in typed_data:
+                        signature_kwargs['font'] = typed_data.get('font')
+                except (json.JSONDecodeError, TypeError):
+                    # Si le format JSON n'est pas valide, utiliser le texte brut
+                    signature_kwargs['text'] = signature_data
+            # Pour 'upload', l'image est déjà sauvegardée dans le traitement précédent
+            
+            # Marquer le contrat comme signé
             contract.mark_as_signed(
                 signature_type=signature_method,
-                ip_address=ip_address,
-                text=json.loads(signature_data).get('text') if signature_method == 'type' else None,
-                data=signature_data if signature_method == 'draw' else None
+                **signature_kwargs
             )
+            
+            # Ajouter automatiquement la signature de l'entreprise
+            contract.mark_as_company_signed()
             
             # Mettre à jour le statut de l'utilisateur pour marquer sa registration comme complète
             if contract.user:
-                contract.user.is_registration_complete = True
-                contract.user.registration_completed_at = timezone.now()
+                # Correction ici: Utiliser le bon champ du modèle User
+                contract.user.registration_complete = True
+                
+                # Si vous souhaitez également conserver la date de fin d'inscription
+                # (vous devrez ajouter ce champ à votre modèle User si ce n'est pas déjà fait)
+                if hasattr(contract.user, 'registration_completed_at'):
+                    contract.user.registration_completed_at = timezone.now()
+                    
                 contract.user.save()
                 logger.info(f"User {contract.user.email} registration marked as complete")
             
             # Si l'interprète existe, mettre également à jour son statut
             if contract.interpreter:
-                contract.interpreter.is_active = True
-                contract.interpreter.contract_signed_at = timezone.now()
-                contract.interpreter.contract_status = 'SIGNED'
+                contract.interpreter.active = True  # Utiliser le champ correct selon votre modèle Interpreter
+                
+                # Si vous avez ces champs dans votre modèle Interpreter
+                if hasattr(contract.interpreter, 'contract_signed_at'):
+                    contract.interpreter.contract_signed_at = timezone.now()
+                if hasattr(contract.interpreter, 'contract_status'):
+                    contract.interpreter.contract_status = 'SIGNED'
+                    
                 contract.interpreter.save()
                 logger.info(f"Interpreter {contract.interpreter.id} marked as active with signed contract")
             
@@ -4361,6 +4393,30 @@ class ContractConfirmationView(View):
                 logger.error(f"Error decrypting banking information: {str(e)}")
                 # Continuer même si le déchiffrement échoue
             
+            # Préparation des informations de signature
+            signature_info = {
+                'type': contract.signature_type,
+                'display_type': self.get_signature_display_type(contract.signature_type),
+                'font': None,
+                'data': None,
+                'image_url': None
+            }
+            
+            # Récupérer les données de signature selon le type
+            if contract.signature_type == 'type':
+                signature_info['data'] = contract.signature_typography_text
+                signature_info['font'] = getattr(contract, 'signature_typography_font', 'font-brush-script')
+            elif contract.signature_type == 'draw':
+                signature_info['data'] = contract.signature_manual_data
+            elif contract.signature_type == 'upload' and contract.signature_image:
+                signature_info['image_url'] = contract.signature_image.url
+            
+            # Journal pour le débogage
+            logger.info(f"Signature type: {contract.signature_type}")
+            logger.info(f"Signature typography text: {contract.signature_typography_text}")
+            logger.info(f"Signature manual data exists: {'Yes' if contract.signature_manual_data else 'No'}")
+            logger.info(f"Signature image exists: {'Yes' if contract.signature_image else 'No'}")
+            
             # Préparation du contexte pour la page de confirmation
             context = {
                 'contract': contract,
@@ -4376,6 +4432,7 @@ class ContractConfirmationView(View):
                 'swift_code': swift_code,
                 'signed_at': contract.signed_at,
                 'signature_type': contract.signature_type,
+                'signature_info': signature_info,
                 'current_date': timezone.now().strftime('%B %d, %Y %H:%M:%S')
             }
             
@@ -4391,6 +4448,16 @@ class ContractConfirmationView(View):
             logger.error(f"Error in confirmation page: {str(e)}", exc_info=True)
             messages.error(request, 'An error occurred while processing your request. Please try again or contact support.')
             return render(request, self.template_name_error, {'error': 'System error'})
+    
+    def get_signature_display_type(self, signature_type):
+        """Retourne un nom lisible pour le type de signature."""
+        types = {
+            'draw': 'Drawn Signature',
+            'type': 'Typed Signature',
+            'upload': 'Uploaded Signature',
+            None: 'Electronic Signature'
+        }
+        return types.get(signature_type, 'Electronic Signature')
     
     def send_confirmation_email(self, contract):
         """Envoie l'email de confirmation à l'interprète."""

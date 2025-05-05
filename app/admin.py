@@ -1265,7 +1265,7 @@ class InterpreterContractSignatureAdmin(admin.ModelAdmin):
         }),
         ('✍️ Signature Data', {
             'fields': (
-                'signature_image', 'signature_typography_text', 'signature_manual_data',
+                'signature_image', 'signature_typography_text', 'signature_typography_font', 'signature_manual_data',
             ),
             'classes': ('collapse',),
         }),
@@ -1312,9 +1312,9 @@ class InterpreterContractSignatureAdmin(admin.ModelAdmin):
     def signature_type_display(self, obj):
         """Display signature type with emoji"""
         types = {
-            'image': '🖼️ Image',
-            'typography': '🔤 Typography',
-            'manual': '✒️ Manual'
+            'upload': '🖼️ Image',
+            'type': '🔤 Typography',
+            'draw': '✒️ Manual'
         }
         return types.get(obj.signature_type, obj.signature_type or "—")
     signature_type_display.short_description = 'Type'
@@ -1363,7 +1363,7 @@ class InterpreterContractSignatureAdmin(admin.ModelAdmin):
             return False
         return super().has_delete_permission(request, obj)
     
-    actions = ['mark_as_expired', 'mark_as_completed', 'resend_contract_email']
+    actions = ['mark_as_expired', 'mark_as_completed', 'resend_contract_email', 'debug_contract_status']
     
     def mark_as_expired(self, request, queryset):
         """Mark selected contracts as expired"""
@@ -1373,14 +1373,47 @@ class InterpreterContractSignatureAdmin(admin.ModelAdmin):
     
     def mark_as_completed(self, request, queryset):
         """Mark selected contracts as completed"""
-        updated = queryset.update(
-            status='COMPLETED',
-            is_fully_signed=True,
-            is_active=True,
-            company_signed_at=timezone.now()
-        )
-        self.message_user(request, f"{updated} contract(s) marked as completed.")
+        for contract in queryset:
+            contract.status = 'COMPLETED'
+            contract.is_fully_signed = True
+            contract.is_active = True
+            
+            # Mettre à jour la date de signature de l'entreprise si elle n'existe pas
+            if not contract.company_signed_at:
+                contract.company_signed_at = timezone.now()
+            
+            # Mettre à jour l'utilisateur lié pour marquer son inscription comme complète
+            if contract.user:
+                contract.user.registration_complete = True
+                contract.user.save(update_fields=['registration_complete'])
+            
+            # Mettre à jour l'interprète lié
+            if contract.interpreter:
+                contract.interpreter.active = True
+                contract.interpreter.save()
+            
+            contract.save()
+        
+        self.message_user(request, f"{queryset.count()} contract(s) marked as completed.")
     mark_as_completed.short_description = "Mark selected contracts as completed"
+    
+    def debug_contract_status(self, request, queryset):
+        """Afficher des informations de débogage sur les contrats sélectionnés"""
+        for contract in queryset:
+            status_info = [
+                f"ID: {contract.id}",
+                f"Status: {contract.status}",
+                f"Signature Type: {contract.signature_type}",
+                f"Signature Typography Text: {'Présent' if contract.signature_typography_text else 'Absent'}",
+                f"Signature Typography Font: {'Présent' if hasattr(contract, 'signature_typography_font') and contract.signature_typography_font else 'Absent'}",
+                f"Signature Manual Data: {'Présent' if contract.signature_manual_data else 'Absent'}",
+                f"Signature Image: {'Présent' if contract.signature_image else 'Absent'}",
+                f"User Registration Complete: {'Oui' if contract.user and contract.user.registration_complete else 'Non'}",
+                f"Interpreter Active: {'Oui' if contract.interpreter and contract.interpreter.active else 'Non'}"
+            ]
+            
+            self.message_user(request, f"Contract Debug Info:\n" + "\n".join(status_info))
+    debug_contract_status.short_description = "Debug selected contracts"
     
     def resend_contract_email(self, request, queryset):
         """Resend contract email to selected interpreters"""

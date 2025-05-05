@@ -709,6 +709,95 @@
                 return false;
             }
             
+            // Fonctions de mise à jour spécifiques pour chaque type de signature
+            function updateDrawnSignature() {
+                hasSignature = hasDrawnSignature();
+                if (hasSignature) {
+                    const signatureImage = canvas.toDataURL();
+                    drawnSignatureDataInput.value = signatureImage;
+                    signatureResult.innerHTML = `<img src="${signatureImage}" alt="Drawn Signature" style="max-height: 60px;">`;
+                    console.log("Signature dessinée mise à jour - Longueur des données:", drawnSignatureDataInput.value.length);
+                } else {
+                    drawnSignatureDataInput.value = '';
+                    signatureResult.innerHTML = '';
+                }
+            }
+            
+            function updateTypedSignature() {
+                const typedText = typedSignature.value.trim();
+                hasSignature = typedText !== '';
+                
+                if (hasSignature) {
+                    const fontClass = fontSelector.value;
+                    signatureResult.innerHTML = `<span class="${fontClass}" style="font-size: 1.8rem; color: #fff;">${typedText}</span>`;
+                    
+                    // Créer/mettre à jour le champ caché pour les données de signature typée
+                    let typeDataInput = document.getElementById('type_signature_data');
+                    if (!typeDataInput) {
+                        typeDataInput = document.createElement('input');
+                        typeDataInput.type = 'hidden';
+                        typeDataInput.id = 'type_signature_data';
+                        typeDataInput.name = 'type_signature_data';
+                        signatureForm.appendChild(typeDataInput);
+                    }
+                    
+                    const typeSignatureData = {
+                        text: typedText,
+                        font: fontClass
+                    };
+                    
+                    typeDataInput.value = JSON.stringify(typeSignatureData);
+                    console.log("Signature typée mise à jour:", JSON.stringify(typeSignatureData));
+                } else {
+                    signatureResult.innerHTML = '';
+                    
+                    // Supprimer les données de signature typée si elles existent
+                    const typeDataInput = document.getElementById('type_signature_data');
+                    if (typeDataInput) {
+                        typeDataInput.value = '';
+                    }
+                }
+            }
+            
+            function updateUploadedSignature() {
+                hasSignature = uploadedSignature.style.display === 'block';
+                
+                if (hasSignature) {
+                    signatureResult.innerHTML = `<img src="${uploadedSignature.src}" alt="Uploaded Signature" style="max-height: 60px;">`;
+                    
+                    // Créer/mettre à jour le champ caché pour les métadonnées du fichier
+                    const file = signatureFile.files[0];
+                    if (file) {
+                        let uploadDataInput = document.getElementById('upload_signature_data');
+                        if (!uploadDataInput) {
+                            uploadDataInput = document.createElement('input');
+                            uploadDataInput.type = 'hidden';
+                            uploadDataInput.id = 'upload_signature_data';
+                            uploadDataInput.name = 'upload_signature_data';
+                            signatureForm.appendChild(uploadDataInput);
+                        }
+                        
+                        const uploadMetadata = {
+                            name: file.name,
+                            type: file.type,
+                            size: file.size,
+                            lastModified: file.lastModified
+                        };
+                        
+                        uploadDataInput.value = JSON.stringify(uploadMetadata);
+                        console.log("Métadonnées de signature téléchargée:", JSON.stringify(uploadMetadata));
+                    }
+                } else {
+                    signatureResult.innerHTML = '';
+                    
+                    // Supprimer les métadonnées si elles existent
+                    const uploadDataInput = document.getElementById('upload_signature_data');
+                    if (uploadDataInput) {
+                        uploadDataInput.value = '';
+                    }
+                }
+            }
+            
             // Ajouter les écouteurs d'événements pour le dessin
             canvas.addEventListener('mousedown', startDrawing);
             canvas.addEventListener('mousemove', draw);
@@ -785,6 +874,13 @@
                 // Effacer le résultat de la signature
                 signatureResult.innerHTML = '';
                 
+                // Effacer les champs cachés
+                const typeDataInput = document.getElementById('type_signature_data');
+                if (typeDataInput) typeDataInput.value = '';
+                
+                const uploadDataInput = document.getElementById('upload_signature_data');
+                if (uploadDataInput) uploadDataInput.value = '';
+                
                 // Réinitialiser le drapeau hasSignature
                 hasSignature = false;
                 
@@ -794,37 +890,24 @@
             
             // Mettre à jour le statut de la signature en fonction de la méthode actuelle
             function updateSignatureStatus() {
+                // S'assurer que la méthode de signature est correctement définie
+                signatureMethodInput.value = currentMethod;
+                console.log("Méthode de signature actuelle:", currentMethod);
+                
+                // Mettre à jour selon la méthode choisie
                 switch (currentMethod) {
                     case 'draw':
-                        hasSignature = hasDrawnSignature();
-                        if (hasSignature) {
-                            const signatureImage = canvas.toDataURL();
-                            drawnSignatureDataInput.value = signatureImage;
-                            signatureResult.innerHTML = `<img src="${signatureImage}" alt="Drawn Signature" style="max-height: 60px;">`;
-                        } else {
-                            drawnSignatureDataInput.value = '';
-                            signatureResult.innerHTML = '';
-                        }
+                        updateDrawnSignature();
                         break;
                     case 'type':
-                        hasSignature = typedSignature.value.trim() !== '';
-                        if (hasSignature) {
-                            const fontClass = fontSelector.value;
-                            signatureResult.innerHTML = `<span class="${fontClass}" style="font-size: 1.8rem; color: #fff;">${typedSignature.value}</span>`;
-                        } else {
-                            signatureResult.innerHTML = '';
-                        }
+                        updateTypedSignature();
                         break;
                     case 'upload':
-                        hasSignature = uploadedSignature.style.display === 'block';
-                        if (hasSignature) {
-                            signatureResult.innerHTML = `<img src="${uploadedSignature.src}" alt="Uploaded Signature" style="max-height: 60px;">`;
-                        } else {
-                            signatureResult.innerHTML = '';
-                        }
+                        updateUploadedSignature();
                         break;
                 }
                 
+                // Mettre à jour l'état du bouton
                 checkFormValidity();
             }
             
@@ -843,12 +926,13 @@
                     this.classList.add('active');
                     
                     // Mettre à jour la méthode active
-                    signatureMethods.forEach(method => method.classList.remove('active'));
+                    signatureMethods.forEach(m => m.classList.remove('active'));
                     document.getElementById(`${method}-method`).classList.add('active');
                     
                     // Mettre à jour la méthode actuelle
                     currentMethod = method;
                     signatureMethodInput.value = method;
+                    console.log("Changement de méthode de signature vers:", method);
                     
                     // Vérifier le statut de la signature
                     updateSignatureStatus();
@@ -862,6 +946,7 @@
             function checkFormValidity() {
                 const isValid = hasSignature && agreementCheckbox.checked;
                 submitBtn.disabled = !isValid;
+                console.log("Formulaire valide:", isValid, "- Signature présente:", hasSignature, "- Accord coché:", agreementCheckbox.checked);
                 return isValid;
             }
             
@@ -878,31 +963,48 @@
                     e.preventDefault();
                     statusMessage.textContent = 'Please complete all required fields.';
                     statusMessage.className = 'status-message error-message';
-                } else {
-                    // Mettre en forme les données selon la méthode de signature
-                    if (currentMethod === 'type') {
-                        // Créer une structure de données JSON pour la signature typée
-                        const typeSignatureData = {
-                            text: typedSignature.value,
-                            font: fontSelector.value
-                        };
-                        
-                        // Ajouter les données structurées en tant que champ caché
-                        const hiddenInput = document.createElement('input');
-                        hiddenInput.type = 'hidden';
-                        hiddenInput.name = 'type_signature_data';
-                        hiddenInput.value = JSON.stringify(typeSignatureData);
-                        signatureForm.appendChild(hiddenInput);
-                    }
-                    
-                    // Afficher un message de traitement
-                    statusMessage.textContent = 'Processing your signature...';
-                    statusMessage.className = 'status-message';
+                    console.log("Soumission bloquée - formulaire invalide");
+                    return;
                 }
+                
+                // Vérifier que la méthode est correctement définie
+                if (!signatureMethodInput.value) {
+                    signatureMethodInput.value = currentMethod;
+                }
+                
+                // Afficher des informations de débogage
+                console.log("========= SOUMISSION DU FORMULAIRE =========");
+                console.log("Méthode de signature:", signatureMethodInput.value);
+                
+                switch (currentMethod) {
+                    case 'draw':
+                        console.log("Données de signature dessinée présentes:", drawnSignatureDataInput.value ? "Oui" : "Non");
+                        console.log("Taille des données:", drawnSignatureDataInput.value ? drawnSignatureDataInput.value.length : 0);
+                        break;
+                    case 'type':
+                        const typeData = document.getElementById('type_signature_data');
+                        console.log("Texte saisi:", typedSignature.value);
+                        console.log("Police choisie:", fontSelector.value);
+                        console.log("Données JSON de signature tapée:", typeData ? typeData.value : "Non défini");
+                        break;
+                    case 'upload':
+                        const uploadData = document.getElementById('upload_signature_data');
+                        console.log("Fichier chargé:", signatureFile.files.length > 0 ? signatureFile.files[0].name : "Aucun");
+                        console.log("Métadonnées du fichier:", uploadData ? uploadData.value : "Non défini");
+                        break;
+                }
+                
+                // Afficher un message de traitement
+                statusMessage.textContent = 'Processing your signature...';
+                statusMessage.className = 'status-message';
+                console.log("Formulaire soumis avec succès");
             });
             
             // Validation initiale
             updateSignatureStatus();
+            
+            // Journaliser l'état initial
+            console.log("Page de signature initialisée - Méthode par défaut:", currentMethod);
         });
     </script>
 </body>

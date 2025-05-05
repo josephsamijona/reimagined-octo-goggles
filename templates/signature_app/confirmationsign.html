@@ -320,6 +320,41 @@
             font-size: 1.5rem;
             margin-right: 1rem;
         }
+
+
+
+            
+        .font-brush-script {
+            font-family: 'Brush Script MT', cursive;
+        }
+        
+        .font-dancing-script {
+            font-family: 'Dancing Script', 'Brush Script MT', cursive;
+        }
+        
+        .font-pacifico {
+            font-family: 'Pacifico', 'Brush Script MT', cursive;
+        }
+        
+        .font-satisfy {
+            font-family: 'Satisfy', 'Brush Script MT', cursive;
+        }
+        
+        .font-caveat {
+            font-family: 'Caveat', 'Brush Script MT', cursive;
+        }
+        
+        .font-sacramento {
+            font-family: 'Sacramento', 'Brush Script MT', cursive;
+        }
+        
+        .font-great-vibes {
+            font-family: 'Great Vibes', 'Brush Script MT', cursive;
+        }
+        
+        /* Assurez-vous d'importer les polices Google */
+        @import url('https://fonts.googleapis.com/css2?family=Caveat&family=Dancing+Script&family=Great+Vibes&family=Pacifico&family=Sacramento&family=Satisfy&display=swap');
+
     </style>
 </head>
 <body>
@@ -417,17 +452,7 @@
                     <div class="summary-grid">
                         <div class="summary-item">
                             <div class="item-label">Signature Method</div>
-                            <div class="item-value">
-                                {% if signature_type == 'draw' %}
-                                    Drawn Signature
-                                {% elif signature_type == 'type' %}
-                                    Typed Signature
-                                {% elif signature_type == 'upload' %}
-                                    Uploaded Signature
-                                {% else %}
-                                    Electronic Signature
-                                {% endif %}
-                            </div>
+                            <div class="item-value">{{ signature_info.display_type }}</div>
                         </div>
                         <div class="summary-item">
                             <div class="item-label">Date Signed</div>
@@ -437,12 +462,16 @@
                     <div class="summary-item">
                         <div class="item-label">Signature</div>
                         <div class="signature-preview">
-                            {% if signature_type == 'upload' and contract.signature_image %}
-                                <img src="{{ contract.signature_image.url }}" alt="Signature">
-                            {% elif signature_type == 'type' and contract.signature_typography_text %}
-                                <span style="font-family: 'Brush Script MT', cursive; font-size: 1.8rem; color: #fff;">{{ contract.signature_typography_text }}</span>
-                            {% elif signature_type == 'draw' and contract.signature_manual_data %}
-                                <img src="{{ contract.signature_manual_data }}" alt="Signature">
+                            {% if signature_info.type == 'upload' and contract.signature_image %}
+                                <img src="{{ contract.signature_image.url }}" alt="Uploaded Signature">
+                            {% elif signature_info.type == 'type' and signature_info.data %}
+                                {% if signature_info.font %}
+                                    <span class="{{ signature_info.font }}" style="font-size: 1.8rem; color: #fff;">{{ signature_info.data }}</span>
+                                {% else %}
+                                    <span style="font-family: 'Brush Script MT', cursive; font-size: 1.8rem; color: #fff;">{{ signature_info.data }}</span>
+                                {% endif %}
+                            {% elif signature_info.type == 'draw' and signature_info.data %}
+                                <img src="{{ signature_info.data }}" alt="Drawn Signature">
                             {% else %}
                                 <span style="font-family: 'Brush Script MT', cursive; font-size: 1.8rem; color: #fff;">{{ interpreter_name }}</span>
                             {% endif %}

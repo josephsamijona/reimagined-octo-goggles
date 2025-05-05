@@ -23,7 +23,11 @@ from django.db import models
 from django.utils import timezone
 from django.conf import settings
 from django.core.validators import FileExtensionValidator
-from cryptography.fernet import Fernet
+from cryptography.fernet import Fernet, InvalidToken
+import logging
+
+
+logger = logging.getLogger(__name__)
 class Language(models.Model):
     name = models.CharField(max_length=100, unique=True)
     code = models.CharField(max_length=10, unique=True)  # ISO code
@@ -931,9 +935,9 @@ class InterpreterContractSignature(models.Model):
     
     # Signature types
     SIGNATURE_TYPE_CHOICES = [
-        ('image', 'Uploaded image'),
-        ('typography', 'Typography signature'),
-        ('manual', 'Manual signature'),
+        ('upload', 'Uploaded image'),
+        ('type', 'Typography signature'),
+        ('draw', 'Manual signature'),
     ]
     
     # Identifiers
@@ -998,6 +1002,7 @@ class InterpreterContractSignature(models.Model):
         validators=[FileExtensionValidator(allowed_extensions=['jpg', 'png', 'jpeg'])]
     )
     signature_typography_text = models.CharField(max_length=100, blank=True, null=True)
+    signature_typography_font = models.CharField(max_length=50, blank=True, null=True)  # Nouveau champ pour stocker la police
     signature_manual_data = models.TextField(blank=True, null=True, help_text="Coordinates of manual signature")
     
     # Signature metadata
@@ -1050,8 +1055,11 @@ class InterpreterContractSignature(models.Model):
         if not encrypted_data:
             return None
         
-        f = Fernet(cls.get_encryption_key())
-        return f.decrypt(encrypted_data).decode()
+        try:
+            f = Fernet(cls.get_encryption_key())
+            return f.decrypt(encrypted_data).decode()
+        except (TypeError, ValueError, InvalidToken):
+            return None
     
     def set_account_number(self, account_number):
         """Encrypt and set the account number"""
@@ -1094,19 +1102,40 @@ class InterpreterContractSignature(models.Model):
         self.signed_at = timezone.now()
         self.signature_hash = self.generate_signature_hash()
         
-        # Set signature data based on type
-        if signature_type == 'typography':
-            self.signature_typography_text = kwargs.get('text')
-        elif signature_type == 'manual':
-            self.signature_manual_data = kwargs.get('data')
-        # For 'image' type, the image should be set separately
+        # Nettoyage des logs pour le débogage
+        logger.info(f"Marquage du contrat {self.id} comme signé avec méthode: {signature_type}")
+        logger.info(f"Arguments reçus: {kwargs}")
         
-        self.save()
+        # Set signature data based on type
+        if signature_type == 'type':
+            if 'text' in kwargs and kwargs['text']:
+                self.signature_typography_text = kwargs['text']
+                logger.info(f"Texte de signature défini: {self.signature_typography_text}")
+            
+            # Stocker la police de caractères si disponible
+            if 'font' in kwargs and kwargs['font']:
+                self.signature_typography_font = kwargs['font']
+                logger.info(f"Police de signature définie: {self.signature_typography_font}")
+        
+        elif signature_type == 'draw':
+            if 'data' in kwargs and kwargs['data']:
+                self.signature_manual_data = kwargs['data']
+                logger.info(f"Données de signature manuelle définies: longueur {len(str(self.signature_manual_data))}")
+        
+        # Pour 'upload', nous utilisons le champ signature_image qui devrait déjà être défini
+        # Mais nous pouvons enregistrer des métadonnées supplémentaires si nécessaire
+        if signature_type == 'upload' and self.signature_image:
+            logger.info(f"Image de signature déjà définie: {self.signature_image.name}")
+        
+        # S'assurer que les changements sont enregistrés
+        self.save(update_fields=['status', 'signature_type', 'ip_address', 'signed_at', 
+                               'signature_hash', 'signature_typography_text', 
+                               'signature_typography_font', 'signature_manual_data'])
     
     def mark_as_company_signed(self, signature_data=None):
         """Mark the contract as signed by the company representative"""
         self.company_representative_signature = signature_data or "Electronically signed"
-        self.company_signed_at = timezone.now()
+        self.company_signed_at = timezone.now()  # Toujours enregistrer la date actuelle
         
         # If both parties have signed, mark as fully signed
         if self.signed_at:
@@ -1221,3 +1250,322 @@ class SignedDocument(models.Model):
     
     def __str__(self):
         return f"Document signé le {self.created_at.strftime('%d/%m/%Y')}"
+    
+class PGPKey(models.Model):
+    """
+    Modèle simplifié pour stocker les clés PGP utilisées pour signer les documents.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=255, help_text="Nom descriptif de cette clé")
+    key_id = models.CharField(max_length=100, unique=True, help_text="Identifiant de la clé PGP")
+    public_key = models.TextField(help_text="Clé publique PGP au format ASCII")
+    
+    # La clé privée est stockée dans un environnement sécurisé externe
+    # et référencée par cet identifiant - ne jamais stocker la clé privée en DB
+    private_key_reference = models.CharField(
+        max_length=255,
+        help_text="Référence sécurisée à la clé privée (chemin ou identifiant)"
+    )
+    
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+    
+    def __str__(self):
+        return f"{self.name} ({self.key_id})"
+    
+    @property
+    def is_expired(self):
+        if not self.expires_at:
+            return False
+        return timezone.now() > self.expires_at
+    
+    class Meta:
+        verbose_name = "PGP Key"
+        verbose_name_plural = "PGP Keys"
+
+
+class Document(models.Model):
+    """
+    Modèle pour stocker les documents générés avec leurs métadonnées.
+    Peut être utilisé pour des contrats, factures, devis, etc.
+    """
+    DOCUMENT_TYPES = [
+        ('CONTRACT', 'Contract'),
+        ('INVOICE', 'Invoice'),
+        ('QUOTE', 'Quote'),
+        ('CERTIFICATE', 'Certificate'),
+        ('LETTER', 'Letter'),
+        ('REPORT', 'Report'),
+        ('OTHER', 'Other')
+    ]
+    
+    STATUS_CHOICES = [
+        ('DRAFT', 'Draft'),
+        ('SIGNED', 'Signed'),
+        ('SENT', 'Sent'),
+        ('CANCELLED', 'Cancelled'),
+        ('ARCHIVED', 'Archived')
+    ]
+    
+    # Identifiants
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    document_number = models.CharField(
+        max_length=50, 
+        unique=True,
+        null=True,
+        blank=True,
+        help_text="Numéro unique du document (généré automatiquement)"
+    )
+    agreement_id = models.CharField(
+        max_length=50, 
+        null=True, 
+        blank=True,
+        help_text="ID de l'accord associé, si applicable"
+    )
+    
+    # Informations de base
+    title = models.CharField(max_length=255)
+    document_type = models.CharField(max_length=20, choices=DOCUMENT_TYPES)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='DRAFT')
+    
+    # Relations
+    user = models.ForeignKey(
+        User, 
+        on_delete=models.PROTECT, 
+        null=True,
+        blank=True,
+        related_name='documents'
+    )
+    interpreter_contract = models.ForeignKey(
+        'InterpreterContractSignature',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='documents'
+    )
+    
+    # Fichier et données
+    file = models.FileField(
+        upload_to='documents/%Y/%m/',
+        null=True,
+        blank=True
+    )
+    file_hash = models.CharField(
+        max_length=128, 
+        null=True, 
+        blank=True,
+        help_text="Hachage SHA-256 du fichier pour vérification d'intégrité"
+    )
+    
+    # Métadonnées PGP
+    pgp_signature = models.TextField(
+        null=True, 
+        blank=True,
+        help_text="Signature PGP du document"
+    )
+    signing_key = models.ForeignKey(
+        PGPKey,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='signed_documents'
+    )
+    
+    # Métadonnées temporelles
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    signed_at = models.DateTimeField(null=True, blank=True)
+    
+    # Métadonnées JSON pour des champs flexibles
+    metadata = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Métadonnées PDF et informations supplémentaires"
+    )
+    
+    def __str__(self):
+        return f"{self.title} - {self.document_number}"
+    
+    def save(self, *args, **kwargs):
+        # Générer le numéro de document s'il n'existe pas
+        if not self.document_number:
+            self.document_number = self.generate_document_number()
+        
+        # Calculer le hachage du fichier s'il existe
+        if self.file and not self.file_hash:
+            self.calculate_file_hash()
+        
+        # Si le statut devient 'SIGNED', enregistrer la date de signature
+        if self.status == 'SIGNED' and not self.signed_at:
+            self.signed_at = timezone.now()
+            
+        super().save(*args, **kwargs)
+    
+    def generate_document_number(self):
+        """Génère un numéro de document unique."""
+        today = timezone.now()
+        prefix_map = {
+            'CONTRACT': 'CONT',
+            'INVOICE': 'INV',
+            'QUOTE': 'QUO',
+            'CERTIFICATE': 'CERT',
+            'LETTER': 'LTR',
+            'REPORT': 'RPT',
+            'OTHER': 'DOC'
+        }
+        prefix = prefix_map.get(self.document_type, 'DOC')
+        
+        # Format: PREFIX-YEAR-MONTH-RANDOM
+        random_part = str(uuid.uuid4())[:6].upper()
+        return f"{prefix}-{today.year}{today.month:02d}-{random_part}"
+    
+    def calculate_file_hash(self):
+        """Calcule le hachage SHA-256 du fichier."""
+        if not self.file:
+            return
+        
+        self.file.open(mode='rb')
+        content = self.file.read()
+        self.file.close()
+        
+        self.file_hash = hashlib.sha256(content).hexdigest()
+    
+    def add_metadata(self, key, value):
+        """Ajoute une métadonnée au document."""
+        metadata = self.metadata or {}
+        metadata[key] = value
+        self.metadata = metadata
+    
+    def get_metadata(self, key, default=None):
+        """Récupère une métadonnée du document."""
+        return (self.metadata or {}).get(key, default)
+    
+    def sign_document(self, key=None):
+        """
+        Signe le document avec PGP. Cette méthode devra être implémentée
+        selon votre infrastructure spécifique.
+        """
+        # Code de signature PGP à implémenter selon votre système
+        pass
+    
+    class Meta:
+        verbose_name = "Document"
+        verbose_name_plural = "Documents"
+        indexes = [
+            models.Index(fields=['document_number']),
+            models.Index(fields=['agreement_id']),
+            models.Index(fields=['document_type']),
+            models.Index(fields=['created_at']),
+        ]
+
+
+class DocumentMetadata(models.Model):
+    """
+    Stocke les métadonnées qui seront intégrées aux documents générés.
+    Ces métadonnées peuvent être définies à l'avance pour chaque type de document.
+    """
+    DOCUMENT_TYPES = Document.DOCUMENT_TYPES
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    document_type = models.CharField(max_length=20, choices=DOCUMENT_TYPES)
+    
+    # Métadonnées standard
+    company_name = models.CharField(max_length=255, default="JH Bridge Translation")
+    company_address = models.TextField(null=True, blank=True)
+    company_logo = models.ImageField(upload_to='company_logos/', null=True, blank=True)
+    company_footer = models.TextField(null=True, blank=True)
+    legal_text = models.TextField(null=True, blank=True)
+    
+    # Signature numérique
+    signature_position = models.CharField(
+        max_length=50,
+        default="bottom-right",
+        help_text="Position de la signature sur le document (top-left, bottom-right, etc.)"
+    )
+    signature_page = models.IntegerField(
+        default=-1,
+        help_text="Page où placer la signature (-1 pour dernière page)"
+    )
+    
+    # Métadonnées PDF
+    pdf_author = models.CharField(max_length=255, default="JH Bridge Translation")
+    pdf_creator = models.CharField(max_length=255, default="JH Bridge Document System")
+    pdf_keywords = models.TextField(null=True, blank=True)
+    
+    # Métadonnées JSON additionnelles
+    additional_metadata = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Métadonnées supplémentaires au format JSON"
+    )
+    
+    # Dates
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"Metadata for {self.get_document_type_display()}"
+    
+    def get_all_metadata(self):
+        """Retourne toutes les métadonnées dans un dictionnaire."""
+        basic_meta = {
+            'company_name': self.company_name,
+            'company_address': self.company_address,
+            'legal_text': self.legal_text,
+            'pdf_author': self.pdf_author,
+            'pdf_creator': self.pdf_creator,
+            'pdf_keywords': self.pdf_keywords,
+        }
+        
+        # Fusionner avec les métadonnées additionnelles
+        return {**basic_meta, **(self.additional_metadata or {})}
+    
+    class Meta:
+        verbose_name = "Document Metadata"
+        verbose_name_plural = "Document Metadata"
+        unique_together = [('document_type',)]
+
+
+class DocumentAuditLog(models.Model):
+    """
+    Journal d'audit pour les documents (création, signature, téléchargement, etc.)
+    """
+    ACTION_CHOICES = [
+        ('CREATE', 'Create'),
+        ('UPDATE', 'Update'),
+        ('SIGN', 'Sign'),
+        ('VIEW', 'View'),
+        ('DOWNLOAD', 'Download'),
+        ('SEND', 'Send'),
+        ('ARCHIVE', 'Archive'),
+        ('CANCEL', 'Cancel'),
+    ]
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    document = models.ForeignKey(
+        Document,
+        on_delete=models.CASCADE,
+        related_name='audit_logs'
+    )
+    action = models.CharField(max_length=20, choices=ACTION_CHOICES)
+    user = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='document_actions'
+    )
+    timestamp = models.DateTimeField(auto_now_add=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.TextField(null=True, blank=True)
+    notes = models.TextField(null=True, blank=True)
+    
+    def __str__(self):
+        username = self.user.username if self.user else "System"
+        return f"{self.action} on {self.document.document_number} by {username}"
+    
+    class Meta:
+        verbose_name = "Document Audit Log"
+        verbose_name_plural = "Document Audit Logs"
+        ordering = ['-timestamp']
