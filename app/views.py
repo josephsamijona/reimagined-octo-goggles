@@ -4638,7 +4638,7 @@ class ContractConfirmationView(View):
             # Signature dessinée - utiliser l'URL stockée dans signature_converted_url
             if contract.signature_converted_url:
                 signature_type = 'image'
-                signature_value = contract.signature_converted_url  # URL déjà complète depuis B2
+                signature_value = contract.get_signature_url()  # URL déjà complète depuis B2
             
         elif contract.signature_type == 'upload':
             # Signature uploadée - utiliser l'URL de signature_image
