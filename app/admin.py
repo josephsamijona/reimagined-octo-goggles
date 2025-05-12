@@ -1357,12 +1357,7 @@ class InterpreterContractSignatureAdmin(admin.ModelAdmin):
         return f"🔒 {masked}"
     swift_code_display.short_description = 'SWIFT Code (Masked)'
 
-    def has_delete_permission(self, request, obj=None):
-        """Limit deletion capability"""
-        # Optional: Prevent deletion of signed contracts
-        if obj and obj.is_fully_signed:
-            return False
-        return super().has_delete_permission(request, obj)
+
     
     actions = ['mark_as_expired', 'mark_as_completed', 'resend_contract_email', 'debug_contract_status']
     
