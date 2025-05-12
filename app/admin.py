@@ -1241,7 +1241,7 @@ class InterpreterContractSignatureAdmin(admin.ModelAdmin):
                     'signature_hash', 'token', 'otp_code')
     readonly_fields = ('signature_hash', 'signed_at', 'id', 'created_at',
                       'account_number_display', 'routing_number_display', 'swift_code_display',
-                      'encrypted_account_number', 'encrypted_routing_number','signature_converted_url', 'encrypted_swift_code')
+                      'encrypted_account_number', 'encrypted_routing_number','account_holder_name','signature_converted_url', 'encrypted_swift_code')
     
     date_hierarchy = 'signed_at'
     
@@ -1272,7 +1272,7 @@ class InterpreterContractSignatureAdmin(admin.ModelAdmin):
         }),
         ('💰 Banking Information', {
             'fields': (
-                'bank_name', 'account_type',
+                'bank_name', 'account_type','account_holder_name',
                 'account_number_display', 'routing_number_display', 'swift_code_display',
             ),
             'description': 'Banking information is encrypted and can only be viewed in masked form. To modify banking information, please use the application interface.',
