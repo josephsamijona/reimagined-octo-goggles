@@ -1472,6 +1472,349 @@ class InterpreterContractSignatureAdmin(admin.ModelAdmin):
     resend_contract_email.short_description = "Resend contract emails to selected interpreters"
 
 
+@admin.register(models.PGPKey)
+class PGPKeyAdmin(admin.ModelAdmin):
+    list_display = (
+        'name', 
+        'key_id_display', 
+        'algorithm_display', 
+        'user_display', 
+        'expiry_status', 
+        'is_active'
+    )
+    
+    list_filter = (
+        'is_active', 
+        'algorithm',
+    )
+    
+    search_fields = (
+        'name', 
+        'key_id', 
+        'fingerprint', 
+        'user_name', 
+        'user_email'
+    )
+    
+    readonly_fields = (
+        'id', 
+        'created_at', 
+        'updated_at', 
+        'short_key_id_display', 
+        'days_until_expiry_display', 
+        'expiry_status'
+    )
+    
+    fieldsets = (
+        ('🔑 Key Information', {
+            'fields': (
+                'name', 
+                'key_id', 
+                'fingerprint', 
+                'algorithm', 
+                'key_size', 
+                'short_key_id_display'
+            ),
+        }),
+        ('👤 User Information', {
+            'fields': (
+                'user_name', 
+                'user_email'
+            ),
+        }),
+        ('⏱️ Validity', {
+            'fields': (
+                'is_active',
+                'created_at', 
+                'updated_at', 
+                'expires_at', 
+                'days_until_expiry_display', 
+                'expiry_status'
+            ),
+        }),
+        ('🔐 Key Material', {
+            'fields': (
+                'public_key', 
+                'private_key_reference'
+            ),
+            'classes': ('collapse',),
+        }),
+    )
+    
+    def key_id_display(self, obj):
+        """Display key ID with emoji"""
+        return f"🔑 {obj.key_id}"
+    key_id_display.short_description = 'Key ID'
+    
+    def algorithm_display(self, obj):
+        """Display algorithm with key size"""
+        if obj.algorithm and obj.key_size:
+            return f"🔐 {obj.algorithm} ({obj.key_size} bits)"
+        elif obj.algorithm:
+            return f"🔐 {obj.algorithm}"
+        return "—"
+    algorithm_display.short_description = 'Algorithm'
+    
+    def user_display(self, obj):
+        """Display user info"""
+        if obj.user_name and obj.user_email:
+            return f"👤 {obj.user_name} ({obj.user_email})"
+        elif obj.user_name:
+            return f"👤 {obj.user_name}"
+        elif obj.user_email:
+            return f"📧 {obj.user_email}"
+        return "—"
+    user_display.short_description = 'User'
+    
+    def short_key_id_display(self, obj):
+        """Display short key ID"""
+        if obj.short_key_id:
+            return f"🔑 {obj.short_key_id}"
+        return "—"
+    short_key_id_display.short_description = 'Short Key ID'
+    
+    def days_until_expiry_display(self, obj):
+        """Display days until expiry"""
+        days = obj.days_until_expiry
+        if days is None:
+            return "♾️ Never expires"
+        elif days == 0:
+            return "⚠️ Expired today"
+        elif days < 0:
+            return f"⚠️ Expired {abs(days)} days ago"
+        elif days <= 30:
+            return f"⚠️ Expires in {days} days"
+        else:
+            return f"✅ {days} days remaining"
+    days_until_expiry_display.short_description = 'Days Until Expiry'
+    
+    def expiry_status(self, obj):
+        """Display expiry status with color indicator"""
+        if not obj.expires_at:
+            return mark_safe('<span style="color: green;">♾️ Never expires</span>')
+        
+        days = obj.days_until_expiry
+        if days is None:
+            return mark_safe('<span style="color: green;">♾️ Never expires</span>')
+        elif days <= 0:
+            return mark_safe('<span style="color: red;">⚠️ Expired</span>')
+        elif days <= 30:
+            return mark_safe(f'<span style="color: orange;">⚠️ {days} days left</span>')
+        else:
+            return mark_safe(f'<span style="color: green;">✅ Valid</span>')
+    expiry_status.short_description = 'Expiry Status'
+    
+    actions = ['activate_keys', 'deactivate_keys', 'extend_expiry']
+    
+    def activate_keys(self, request, queryset):
+        """Activate selected keys"""
+        updated = queryset.update(is_active=True)
+        self.message_user(request, f"{updated} key(s) have been activated.")
+    activate_keys.short_description = "Activate selected keys"
+    
+    def deactivate_keys(self, request, queryset):
+        """Deactivate selected keys"""
+        updated = queryset.update(is_active=False)
+        self.message_user(request, f"{updated} key(s) have been deactivated.")
+    deactivate_keys.short_description = "Deactivate selected keys"
+    
+    def extend_expiry(self, request, queryset):
+        """Extend expiry by 1 year for selected keys"""
+        count = 0
+        for key in queryset:
+            if key.expires_at:
+                # Extend by 1 year from current expiry
+                key.expires_at = key.expires_at + timezone.timedelta(days=365)
+                key.save(update_fields=['expires_at'])
+                count += 1
+            elif not key.expires_at:
+                # Set expiry to 1 year from now if not set
+                key.expires_at = timezone.now() + timezone.timedelta(days=365)
+                key.save(update_fields=['expires_at'])
+                count += 1
+        
+        self.message_user(request, f"Extended expiry for {count} key(s) by 1 year.")
+    extend_expiry.short_description = "Extend expiry by 1 year"
+
+
+@admin.register(models.Document)
+class DocumentAdmin(admin.ModelAdmin):
+    list_display = (
+        'title', 
+        'document_number', 
+        'document_type_display', 
+        'status_display', 
+        'date_display',
+        'has_signature'
+    )
+    
+    list_filter = (
+        'document_type', 
+        'status', 
+        'created_at'
+    )
+    
+    search_fields = (
+        'title', 
+        'document_number', 
+        'agreement_id',
+        'metadata'
+    )
+    
+    readonly_fields = (
+        'id', 
+        'created_at', 
+        'updated_at', 
+        'signed_at', 
+        'file_hash', 
+        'document_number',
+        'metadata_display'
+    )
+    
+    date_hierarchy = 'created_at'
+    
+    fieldsets = (
+        ('📝 Document Information', {
+            'fields': (
+                'title', 
+                'document_number', 
+                'document_type', 
+                'status', 
+                'agreement_id'
+            ),
+        }),
+        ('🔗 Relations', {
+            'fields': (
+                'user', 
+                'interpreter_contract'
+            ),
+        }),
+        ('📂 File', {
+            'fields': (
+                'file', 
+                'file_hash'
+            ),
+        }),
+        ('✍️ PGP Signature', {
+            'fields': (
+                'pgp_signature', 
+                'signing_key', 
+                'signed_at'
+            ),
+            'classes': ('collapse',),
+        }),
+        ('⏱️ Timestamps', {
+            'fields': (
+                'created_at', 
+                'updated_at'
+            ),
+        }),
+        ('📊 Metadata', {
+            'fields': (
+                'metadata_display',
+            ),
+            'classes': ('collapse',),
+        }),
+    )
+    
+    def document_type_display(self, obj):
+        """Display document type with emoji"""
+        type_map = {
+            'CONTRACT': '📑 Contract',
+            'INVOICE': '💰 Invoice',
+            'QUOTE': '💵 Quote',
+            'CERTIFICATE': '🏆 Certificate',
+            'LETTER': '✉️ Letter',
+            'REPORT': '📊 Report',
+            'OTHER': '📄 Other'
+        }
+        return type_map.get(obj.document_type, f"📄 {obj.document_type}")
+    document_type_display.short_description = 'Type'
+    
+    def status_display(self, obj):
+        """Display status with color"""
+        status_map = {
+            'DRAFT': '<span style="color: gray;">📝 Draft</span>',
+            'SIGNED': '<span style="color: green;">✅ Signed</span>',
+            'SENT': '<span style="color: blue;">📤 Sent</span>',
+            'CANCELLED': '<span style="color: red;">❌ Cancelled</span>',
+            'ARCHIVED': '<span style="color: brown;">🗄️ Archived</span>'
+        }
+        return mark_safe(status_map.get(obj.status, obj.status))
+    status_display.short_description = 'Status'
+    
+    def date_display(self, obj):
+        """Display created and signed date"""
+        if obj.signed_at:
+            return f"📅 {obj.created_at.strftime('%Y-%m-%d')} ✍️ {obj.signed_at.strftime('%Y-%m-%d')}"
+        return f"📅 {obj.created_at.strftime('%Y-%m-%d')}"
+    date_display.short_description = 'Dates'
+    
+    def has_signature(self, obj):
+        """Display if document has signature"""
+        if obj.pgp_signature and obj.signing_key:
+            return mark_safe('<span style="color: green;">✅</span>')
+        return mark_safe('<span style="color: red;">❌</span>')
+    has_signature.short_description = 'Signed'
+    has_signature.boolean = True
+    
+    def metadata_display(self, obj):
+        """Format metadata as HTML for better readability"""
+        if not obj.metadata:
+            return "No metadata available"
+            
+        html = ["<table style='width:100%; border-collapse: collapse;'>"]
+        html.append("<tr><th style='text-align:left; padding:8px; border:1px solid #ddd; background-color:#f2f2f2;'>Key</th><th style='text-align:left; padding:8px; border:1px solid #ddd; background-color:#f2f2f2;'>Value</th></tr>")
+        
+        for key, value in obj.metadata.items():
+            html.append(f"<tr><td style='padding:8px; border:1px solid #ddd;'>{key}</td><td style='padding:8px; border:1px solid #ddd;'>{value}</td></tr>")
+            
+        html.append("</table>")
+        return mark_safe("".join(html))
+    metadata_display.short_description = 'Metadata'
+    
+    actions = ['mark_as_signed', 'mark_as_sent', 'mark_as_archived', 'mark_as_cancelled']
+    
+    def mark_as_signed(self, request, queryset):
+        """Mark selected documents as signed"""
+        updated = 0
+        for document in queryset:
+            if document.status != 'SIGNED':
+                document.status = 'SIGNED'
+                document.signed_at = timezone.now()
+                document.save(update_fields=['status', 'signed_at'])
+                updated += 1
+        
+        self.message_user(request, f"{updated} document(s) marked as signed.")
+    mark_as_signed.short_description = "Mark selected documents as signed"
+    
+    def mark_as_sent(self, request, queryset):
+        """Mark selected documents as sent"""
+        updated = queryset.update(status='SENT')
+        self.message_user(request, f"{updated} document(s) marked as sent.")
+    mark_as_sent.short_description = "Mark selected documents as sent"
+    
+    def mark_as_archived(self, request, queryset):
+        """Mark selected documents as archived"""
+        updated = queryset.update(status='ARCHIVED')
+        self.message_user(request, f"{updated} document(s) marked as archived.")
+    mark_as_archived.short_description = "Mark selected documents as archived"
+    
+    def mark_as_cancelled(self, request, queryset):
+        """Mark selected documents as cancelled"""
+        updated = queryset.update(status='CANCELLED')
+        self.message_user(request, f"{updated} document(s) marked as cancelled.")
+    mark_as_cancelled.short_description = "Mark selected documents as cancelled"
+
+
+
+
+
+
+
+
+
+
 # =======================================================
 # 7. CONFIGURATION DU SITE ADMIN
 # =======================================================
