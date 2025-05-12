@@ -1752,9 +1752,7 @@ class DocumentAdmin(admin.ModelAdmin):
     
     def has_signature(self, obj):
         """Display if document has signature"""
-        if obj.pgp_signature and obj.signing_key:
-            return mark_safe('<span style="color: green;">✅</span>')
-        return mark_safe('<span style="color: red;">❌</span>')
+        return bool(obj.pgp_signature and obj.signing_key)
     has_signature.short_description = 'Signed'
     has_signature.boolean = True
     
@@ -1805,15 +1803,9 @@ class DocumentAdmin(admin.ModelAdmin):
         updated = queryset.update(status='CANCELLED')
         self.message_user(request, f"{updated} document(s) marked as cancelled.")
     mark_as_cancelled.short_description = "Mark selected documents as cancelled"
-
-
-
-
-
-
-
-
-
+    
+    
+    
 
 # =======================================================
 # 7. CONFIGURATION DU SITE ADMIN
