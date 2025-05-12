@@ -69,3 +69,10 @@ asn1crypto
 oscrypto 
 qrcode 
 pillow
+django-storages 
+boto3
+gnupg
+python-gnupg 
+pgpy
+cryptography
+requests

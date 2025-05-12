@@ -172,6 +172,7 @@ urlpatterns = [
     path('contract/payment-info/', views.ContractPaymentInfoView.as_view(), name='contract_payment_info'),
     path('contract/signature/', views.ContractSignatureView.as_view(), name='contract_signature'),
     path('contract/confirmation/', views.ContractConfirmationView.as_view(), name='confirmation'),
+    path('contract/view/', views.contract_render_view, name='contract_view'),
 
     
     

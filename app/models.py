@@ -25,6 +25,10 @@ from django.conf import settings
 from django.core.validators import FileExtensionValidator
 from cryptography.fernet import Fernet, InvalidToken
 import logging
+from django.core.files.storage import default_storage
+from .utils.signature_app import convert_signature_data_to_png
+from django.core.files.base import ContentFile
+import time
 
 
 logger = logging.getLogger(__name__)
@@ -929,6 +933,7 @@ class InterpreterContractSignature(models.Model):
         ('PENDING', 'Pending'),
         ('SIGNED', 'Signed'),
         ('EXPIRED', 'Expired'),
+        ('LINK_ACCESSED', 'Link_accessed'),
         ('REJECTED', 'Rejected'),
         ('COMPLETED', 'Completed')  # Signé par l'interprète et par la compagnie
     ]
@@ -977,6 +982,7 @@ class InterpreterContractSignature(models.Model):
     
     # Banking information (non-encrypted - for basic information)
     bank_name = models.CharField(max_length=255, blank=True, null=True)
+    account_holder_name = models.CharField(max_length=255, blank=True, null=True)
     account_type = models.CharField(
         max_length=20, 
         choices=[('checking', 'Checking'), ('savings', 'Savings')],
@@ -1001,8 +1007,14 @@ class InterpreterContractSignature(models.Model):
         null=True,
         validators=[FileExtensionValidator(allowed_extensions=['jpg', 'png', 'jpeg'])]
     )
+    signature_converted_url = models.CharField(
+        max_length=500, 
+        blank=True, 
+        null=True,
+        help_text="URL S3 de la signature manuelle convertie en PNG"
+    )
     signature_typography_text = models.CharField(max_length=100, blank=True, null=True)
-    signature_typography_font = models.CharField(max_length=50, blank=True, null=True)  # Nouveau champ pour stocker la police
+    signature_typography_font = models.CharField(max_length=50, blank=True, null=True)
     signature_manual_data = models.TextField(blank=True, null=True, help_text="Coordinates of manual signature")
     
     # Signature metadata
@@ -1021,6 +1033,42 @@ class InterpreterContractSignature(models.Model):
     
     def __str__(self):
         return f"Interpreter contract for {self.interpreter_name} ({self.status})"
+    
+    def get_signature_url(self):
+        """
+        Retourne l'URL de la signature selon le type.
+        Pour 'draw': retourne signature_converted_url
+        Pour 'upload': retourne signature_image.url
+        Pour 'type': retourne None (pas d'image)
+        """
+        if self.signature_type == 'draw' and self.signature_converted_url:
+            return self.signature_converted_url
+        elif self.signature_type == 'upload' and self.signature_image:
+            return self.signature_image.url
+        return None
+      
+    def get_signature_display_info(self):
+        """
+        Retourne les informations d'affichage de la signature selon le type.
+        """
+        info = {
+            'type': self.signature_type,
+            'image_url': None,
+            'text': None,
+            'font': None,
+            'raw_data': None
+        }
+        
+        if self.signature_type == 'type':
+            info['text'] = self.signature_typography_text
+            info['font'] = self.signature_typography_font
+        elif self.signature_type == 'draw':
+            info['image_url'] = self.signature_converted_url
+            info['raw_data'] = self.signature_manual_data
+        elif self.signature_type == 'upload':
+            info['image_url'] = self.signature_image.url if self.signature_image else None
+        
+        return info  
     
     @staticmethod
     def get_encryption_key():
@@ -1094,6 +1142,37 @@ class InterpreterContractSignature(models.Model):
         data = f"{self.interpreter_name}{self.interpreter_email}{timezone.now().isoformat()}{uuid.uuid4()}"
         return hashlib.sha256(data.encode()).hexdigest()
     
+    def upload_signature_to_s3(self, image_data, filename_prefix='signature'):
+        """
+        Upload une image de signature vers Backblaze B2 en utilisant le système de stockage Django
+        
+        Args:
+            image_data: BytesIO object contenant l'image PNG
+            filename_prefix: Préfixe pour le nom du fichier
+            
+        Returns:
+            str: URL publique du fichier uploadé, ou None en cas d'erreur
+        """
+        try:
+            # Nom du fichier
+            filename = f"signatures/{filename_prefix}_{self.id}_{int(time.time())}.png"
+            
+            # Créer un ContentFile à partir des données de l'image
+            content_file = ContentFile(image_data.getvalue(), name=filename)
+            
+            # Sauvegarder le fichier en utilisant le système de stockage par défaut
+            saved_path = default_storage.save(filename, content_file)
+            
+            # Obtenir l'URL publique du fichier
+            url = default_storage.url(saved_path)
+            
+            logger.info(f"Signature uploadée avec succès: {url}")
+            return url
+            
+        except Exception as e:
+            logger.error(f"Erreur lors de l'upload vers B2: {e}")
+            return None
+    
     def mark_as_signed(self, signature_type, ip_address, **kwargs):
         """Mark the contract as signed by the interpreter"""
         self.status = 'SIGNED'
@@ -1102,7 +1181,6 @@ class InterpreterContractSignature(models.Model):
         self.signed_at = timezone.now()
         self.signature_hash = self.generate_signature_hash()
         
-        # Nettoyage des logs pour le débogage
         logger.info(f"Marquage du contrat {self.id} comme signé avec méthode: {signature_type}")
         logger.info(f"Arguments reçus: {kwargs}")
         
@@ -1112,25 +1190,48 @@ class InterpreterContractSignature(models.Model):
                 self.signature_typography_text = kwargs['text']
                 logger.info(f"Texte de signature défini: {self.signature_typography_text}")
             
-            # Stocker la police de caractères si disponible
             if 'font' in kwargs and kwargs['font']:
                 self.signature_typography_font = kwargs['font']
                 logger.info(f"Police de signature définie: {self.signature_typography_font}")
         
         elif signature_type == 'draw':
             if 'data' in kwargs and kwargs['data']:
+                # Sauvegarder les données brutes
                 self.signature_manual_data = kwargs['data']
                 logger.info(f"Données de signature manuelle définies: longueur {len(str(self.signature_manual_data))}")
+                
+                # Convertir les données en image PNG
+                try:
+                    img_data = convert_signature_data_to_png(kwargs['data'])
+                    
+                    if img_data:
+                        # Upload vers B2 en utilisant la méthode de l'instance
+                        url = self.upload_signature_to_s3(img_data)
+                        
+                        if url:
+                            # Sauvegarder l'URL dans le nouveau champ
+                            self.signature_converted_url = url
+                            logger.info(f"Signature manuelle convertie et uploadée: {url}")
+                        else:
+                            logger.error("Échec de l'upload de la signature convertie")
+                    else:
+                        logger.error("Échec de la conversion de la signature en image")
+                        
+                except Exception as e:
+                    logger.error(f"Erreur lors de la conversion/upload de la signature: {e}")
         
-        # Pour 'upload', nous utilisons le champ signature_image qui devrait déjà être défini
-        # Mais nous pouvons enregistrer des métadonnées supplémentaires si nécessaire
-        if signature_type == 'upload' and self.signature_image:
+        elif signature_type == 'upload' and self.signature_image:
             logger.info(f"Image de signature déjà définie: {self.signature_image.name}")
         
-        # S'assurer que les changements sont enregistrés
-        self.save(update_fields=['status', 'signature_type', 'ip_address', 'signed_at', 
-                               'signature_hash', 'signature_typography_text', 
-                               'signature_typography_font', 'signature_manual_data'])
+        # Sauvegarder toutes les modifications
+        self.save(update_fields=[
+            'status', 'signature_type', 'ip_address', 'signed_at', 
+            'signature_hash', 'signature_typography_text', 
+            'signature_typography_font', 'signature_manual_data',
+            'signature_converted_url', 'signature_image'
+        ])
+        
+        return self
     
     def mark_as_company_signed(self, signature_data=None):
         """Mark the contract as signed by the company representative"""
@@ -1253,11 +1354,12 @@ class SignedDocument(models.Model):
     
 class PGPKey(models.Model):
     """
-    Modèle simplifié pour stocker les clés PGP utilisées pour signer les documents.
+    Modèle pour stocker les clés PGP utilisées pour signer les documents.
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=255, help_text="Nom descriptif de cette clé")
-    key_id = models.CharField(max_length=100, unique=True, help_text="Identifiant de la clé PGP")
+    key_id = models.CharField(max_length=100, unique=True, help_text="Identifiant de la clé PGP (16 derniers caractères de l'empreinte)")
+    fingerprint = models.CharField(max_length=255, blank=True, null=True, help_text="Empreinte complète de la clé PGP")
     public_key = models.TextField(help_text="Clé publique PGP au format ASCII")
     
     # La clé privée est stockée dans un environnement sécurisé externe
@@ -1269,7 +1371,14 @@ class PGPKey(models.Model):
     
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)  # Nouveau: date de mise à jour
     expires_at = models.DateTimeField(null=True, blank=True)
+    
+    # Nouveaux champs utiles
+    algorithm = models.CharField(max_length=50, blank=True, null=True, help_text="Algorithme utilisé (RSA, etc.)")
+    key_size = models.PositiveIntegerField(null=True, blank=True, help_text="Taille de la clé en bits")
+    user_name = models.CharField(max_length=255, blank=True, null=True, help_text="Nom associé à la clé")
+    user_email = models.EmailField(blank=True, null=True, help_text="Email associé à la clé")
     
     def __str__(self):
         return f"{self.name} ({self.key_id})"
@@ -1280,9 +1389,78 @@ class PGPKey(models.Model):
             return False
         return timezone.now() > self.expires_at
     
+    @property
+    def days_until_expiry(self):
+        """Calcule le nombre de jours restants avant expiration"""
+        if not self.expires_at:
+            return None
+        
+        delta = self.expires_at - timezone.now()
+        return max(0, delta.days)
+    
+    @property
+    def short_key_id(self):
+        """Retourne les 8 derniers caractères de l'ID de clé (format court)"""
+        if not self.key_id:
+            return None
+        return self.key_id[-8:] if len(self.key_id) >= 8 else self.key_id
+    
+    def extract_key_info(self):
+        """
+        Extrait les informations de la clé publique si possible.
+        Cette méthode peut être appelée lors de la sauvegarde pour remplir
+        automatiquement les métadonnées.
+        """
+        if not self.public_key:
+            return
+            
+        try:
+            from pgpy import PGPKey as PGPyKey
+            
+            # Analyser la clé publique
+            public_key = PGPyKey()
+            public_key.parse(self.public_key)
+            
+            # Extraire les informations
+            if hasattr(public_key, 'fingerprint'):
+                self.fingerprint = public_key.fingerprint.upper()
+                
+            # Extraire l'algorithme et la taille si possible
+            # Cette partie dépend de la structure interne de PGPy
+            if public_key.key_algorithm:
+                self.algorithm = str(public_key.key_algorithm)
+                
+            # Extraire les informations utilisateur si disponibles
+            for uid in public_key.userids:
+                if uid.name:
+                    self.user_name = uid.name
+                if uid.email:
+                    self.user_email = uid.email
+                break  # On prend seulement le premier UID
+                
+        except Exception:
+            # En cas d'erreur, on ne fait rien
+            pass
+    
+    def save(self, *args, **kwargs):
+        """
+        Surcharge de la méthode save pour extraire automatiquement 
+        les informations de la clé publique.
+        """
+        # Si la fingerprint n'est pas définie mais que key_id existe,
+        # on utilise key_id comme valeur par défaut
+        if not self.fingerprint and self.key_id:
+            self.fingerprint = self.key_id
+            
+        # Essayer d'extraire les informations de la clé
+        self.extract_key_info()
+        
+        super().save(*args, **kwargs)
+    
     class Meta:
         verbose_name = "PGP Key"
         verbose_name_plural = "PGP Keys"
+        ordering = ['-created_at']
 
 
 class Document(models.Model):
@@ -1460,112 +1638,3 @@ class Document(models.Model):
         ]
 
 
-class DocumentMetadata(models.Model):
-    """
-    Stocke les métadonnées qui seront intégrées aux documents générés.
-    Ces métadonnées peuvent être définies à l'avance pour chaque type de document.
-    """
-    DOCUMENT_TYPES = Document.DOCUMENT_TYPES
-    
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    document_type = models.CharField(max_length=20, choices=DOCUMENT_TYPES)
-    
-    # Métadonnées standard
-    company_name = models.CharField(max_length=255, default="JH Bridge Translation")
-    company_address = models.TextField(null=True, blank=True)
-    company_logo = models.ImageField(upload_to='company_logos/', null=True, blank=True)
-    company_footer = models.TextField(null=True, blank=True)
-    legal_text = models.TextField(null=True, blank=True)
-    
-    # Signature numérique
-    signature_position = models.CharField(
-        max_length=50,
-        default="bottom-right",
-        help_text="Position de la signature sur le document (top-left, bottom-right, etc.)"
-    )
-    signature_page = models.IntegerField(
-        default=-1,
-        help_text="Page où placer la signature (-1 pour dernière page)"
-    )
-    
-    # Métadonnées PDF
-    pdf_author = models.CharField(max_length=255, default="JH Bridge Translation")
-    pdf_creator = models.CharField(max_length=255, default="JH Bridge Document System")
-    pdf_keywords = models.TextField(null=True, blank=True)
-    
-    # Métadonnées JSON additionnelles
-    additional_metadata = models.JSONField(
-        default=dict,
-        blank=True,
-        help_text="Métadonnées supplémentaires au format JSON"
-    )
-    
-    # Dates
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    
-    def __str__(self):
-        return f"Metadata for {self.get_document_type_display()}"
-    
-    def get_all_metadata(self):
-        """Retourne toutes les métadonnées dans un dictionnaire."""
-        basic_meta = {
-            'company_name': self.company_name,
-            'company_address': self.company_address,
-            'legal_text': self.legal_text,
-            'pdf_author': self.pdf_author,
-            'pdf_creator': self.pdf_creator,
-            'pdf_keywords': self.pdf_keywords,
-        }
-        
-        # Fusionner avec les métadonnées additionnelles
-        return {**basic_meta, **(self.additional_metadata or {})}
-    
-    class Meta:
-        verbose_name = "Document Metadata"
-        verbose_name_plural = "Document Metadata"
-        unique_together = [('document_type',)]
-
-
-class DocumentAuditLog(models.Model):
-    """
-    Journal d'audit pour les documents (création, signature, téléchargement, etc.)
-    """
-    ACTION_CHOICES = [
-        ('CREATE', 'Create'),
-        ('UPDATE', 'Update'),
-        ('SIGN', 'Sign'),
-        ('VIEW', 'View'),
-        ('DOWNLOAD', 'Download'),
-        ('SEND', 'Send'),
-        ('ARCHIVE', 'Archive'),
-        ('CANCEL', 'Cancel'),
-    ]
-    
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    document = models.ForeignKey(
-        Document,
-        on_delete=models.CASCADE,
-        related_name='audit_logs'
-    )
-    action = models.CharField(max_length=20, choices=ACTION_CHOICES)
-    user = models.ForeignKey(
-        User,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='document_actions'
-    )
-    timestamp = models.DateTimeField(auto_now_add=True)
-    ip_address = models.GenericIPAddressField(null=True, blank=True)
-    user_agent = models.TextField(null=True, blank=True)
-    notes = models.TextField(null=True, blank=True)
-    
-    def __str__(self):
-        username = self.user.username if self.user else "System"
-        return f"{self.action} on {self.document.document_number} by {username}"
-    
-    class Meta:
-        verbose_name = "Document Audit Log"
-        verbose_name_plural = "Document Audit Logs"
-        ordering = ['-timestamp']

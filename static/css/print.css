@@ -1,0 +1,225 @@
+/* 
+ * print.css - Styles d'impression optimisés pour le contrat d'interprète
+ * Assure une mise en page cohérente et esthétique pour le PDF généré
+ */
+
+/* Configuration globale de la page */
+@page {
+    size: A4 portrait;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    width: 210mm;
+    background: white;
+    font-size: 11pt;
+    line-height: 1.3;
+    color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+}
+
+/* Conteneur principal avec dimensions fixes */
+.contract-container {
+    width: 210mm;
+    margin: 0;
+    padding: 0;
+    box-shadow: none;
+    position: relative;
+    break-inside: avoid-page;
+}
+
+/* Prévention des sauts de page inappropriés */
+.section {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    margin-bottom: 15px;
+}
+
+.section-title {
+    break-after: avoid;
+    page-break-after: avoid;
+}
+
+.info-box {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    margin: 10mm 0;
+}
+
+.and-separator {
+    break-before: avoid;
+    break-after: avoid;
+    page-break-before: avoid;
+    page-break-after: avoid;
+    margin: 10px 0;
+}
+
+/* Garantir que les titres restent avec le contenu */
+h1, h2, h3 {
+    break-after: avoid;
+    page-break-after: avoid;
+}
+
+/* Espacement optimal entre les sections */
+.section-content {
+    margin-bottom: 10px;
+}
+
+/* Zone de signature toujours sur la même page */
+.signature-area {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    padding-top: 20px;
+    margin-top: 20px;
+}
+
+.signature-box {
+    width: 45%;
+    break-inside: avoid;
+    page-break-inside: avoid;
+}
+
+/* Informations bancaires toujours sur la même page */
+.payment-info {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    margin-top: 20px;
+    padding: 10px;
+    background-color: #f5f5f5 !important;
+}
+
+/* Optimisations pour les couleurs et arrière-plans */
+.header, .footer, .info-box {
+    color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+}
+
+.info-box {
+    background-color: #0099CC !important;
+    color: white !important;
+}
+
+/* Gestion des sauts de page manuels */
+.page-break {
+    page-break-after: always;
+    break-after: page;
+    height: 0;
+    display: block;
+}
+
+/* Pied de page sur chaque page */
+.footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 60px;
+    background: linear-gradient(90deg, #0099CC, #0B3C5D) !important;
+    page-break-inside: avoid;
+    break-inside: avoid;
+}
+
+.footer-wave {
+    position: absolute;
+    top: -40px;
+    left: 0;
+    width: 100%;
+    height: 40px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 100' preserveAspectRatio='none'%3E%3Cpath fill='%230099CC' d='M0,64L60,58.7C120,53,240,43,360,42.7C480,43,600,53,720,58.7C840,64,960,64,1080,58.7C1200,53,1320,43,1380,37.3L1440,32L1440,100L1380,100C1320,100,1200,100,1080,100C960,100,840,100,720,100C600,100,480,100,360,100C240,100,120,100,60,100L0,100Z'%3E%3C/path%3E%3C/svg%3E") !important;
+    background-size: cover !important;
+}
+
+.footer-logo {
+    position: absolute;
+    right: 20px;
+    bottom: 10px;
+    height: 30px;
+}
+
+/* Marges pour le contenu principal (éviter chevauchement avec footer) */
+.contract-content {
+    padding: 15mm 20mm 70px 20mm; /* Padding bottom augmenté pour éviter le chevauchement avec le footer */
+}
+
+/* Optimisation pour les éléments spécifiques */
+.contract-title {
+    margin: 15mm 0 10mm;
+    font-size: 16pt;
+}
+
+/* Rendu optimal des listes */
+.language-rates {
+    margin: 5mm 0;
+    padding-left: 5mm;
+}
+
+.language-rates li {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    margin-bottom: 2mm;
+}
+
+/* En-tête optimisé pour l'impression */
+.header {
+    height: 120px;
+    background: linear-gradient(90deg, #0B3C5D, #0099CC) !important;
+}
+
+.header-wave {
+    background-size: cover !important;
+}
+
+/* Cacher les éléments non pertinents pour l'impression */
+.no-print, 
+.contract-actions,
+#generate-pdf-button {
+    display: none !important;
+}
+
+/* Garantir le chargement des polices pour les signatures */
+@font-face {
+    font-family: 'Helvetica';
+    src: local('Helvetica'), local('Arial');
+    font-weight: normal;
+    font-style: normal;
+}
+
+/* Style de signature spécifique pour l'impression */
+.company-signature {
+    font-family: 'Helvetica', Arial, sans-serif;
+    font-size: 16pt;
+    line-height: 1.2;
+    min-height: 40px;
+}
+
+/* Ajustements pour les tailles d'éléments en impression */
+.interpreter-signature {
+    min-height: 50px;
+}
+
+.interpreter-signature img,
+.interpreter-signature svg {
+    max-height: 50px;
+}
+
+/* Gestion des sauts de page dans les tables et listes */
+table {
+    break-inside: auto;
+    page-break-inside: auto;
+}
+
+tr, li {
+    break-inside: avoid;
+    page-break-inside: avoid;
+}
+
+/* Espacement de paragraphe optimisé */
+p {
+    orphans: 3; /* Minimum de lignes en bas de page */
+    widows: 3;  /* Minimum de lignes en haut de page */
+}

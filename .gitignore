@@ -58,3 +58,15 @@ service.py
 credentials.txt
 datointpret.py
 credentials.md
+s3bucketest.py
+pgpkeycreator.py
+rsa_config_CCAB53ED.json
+private_key_CCAB53ED.pem
+public_key_CCAB53ED.pem
+pgpkeytest.py
+pgp_keys/
+keycreation.py
+testsimage.py
+testimage2.py
+api_test.py
+api_connexion_test.py

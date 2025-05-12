@@ -1241,7 +1241,7 @@ class InterpreterContractSignatureAdmin(admin.ModelAdmin):
                     'signature_hash', 'token', 'otp_code')
     readonly_fields = ('signature_hash', 'signed_at', 'id', 'created_at',
                       'account_number_display', 'routing_number_display', 'swift_code_display',
-                      'encrypted_account_number', 'encrypted_routing_number', 'encrypted_swift_code')
+                      'encrypted_account_number', 'encrypted_routing_number','signature_converted_url', 'encrypted_swift_code')
     
     date_hierarchy = 'signed_at'
     
@@ -1265,7 +1265,8 @@ class InterpreterContractSignatureAdmin(admin.ModelAdmin):
         }),
         ('✍️ Signature Data', {
             'fields': (
-                'signature_image', 'signature_typography_text', 'signature_typography_font', 'signature_manual_data',
+                'signature_image', 'signature_converted_url', 'signature_typography_text', 
+                'signature_typography_font', 'signature_manual_data',
             ),
             'classes': ('collapse',),
         }),
