@@ -1592,9 +1592,6 @@ class ProfilePasswordChangeView(LoginRequiredMixin, PasswordChangeView):
 
 #####INTERPRETERDASHBOARD##################################
 
-import logging
-
-logger = logging.getLogger(__name__)
 
 @method_decorator(never_cache, name='dispatch')
 class InterpreterRegistrationStep1View(FormView):

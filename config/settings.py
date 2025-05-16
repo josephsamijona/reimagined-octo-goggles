@@ -13,7 +13,7 @@ import os
 from dotenv import load_dotenv
 from datetime import timedelta
 import dj_database_url
-from supabase import create_client
+
 from django.utils.translation import gettext_lazy as _
 from django.core.management.utils import get_random_secret_key
 

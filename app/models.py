@@ -149,8 +149,6 @@ class Interpreter(models.Model):
     radius_of_service = models.IntegerField(null=True, blank=True)
     hourly_rate = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     
-    
-    
     # Informations bancaires pour ACH
     bank_name = models.CharField(max_length=100, null=True, blank=True)
     account_holder_name = models.CharField(max_length=100, null=True, blank=True)
@@ -167,6 +165,22 @@ class Interpreter(models.Model):
     background_check_status = models.BooleanField(default=False)
     w9_on_file = models.BooleanField(default=False)
     active = models.BooleanField(default=True)
+    
+    def __str__(self):
+        """Retourne une représentation lisible de l'interprète"""
+        if self.user:
+            # Format: Nom Prénom - Email - Langues
+            languages_str = ', '.join([lang.name for lang in self.languages.all()[:3]])
+            if self.languages.count() > 3:
+                languages_str += f" +{self.languages.count() - 3} autres"
+                
+            return f"{self.user.first_name} {self.user.last_name} ({self.user.email})"
+        return f"Interprète #{self.id}"
+        
+    def get_full_details(self):
+        """Retourne des détails complets pour l'affichage dans les formulaires administratifs"""
+        languages = ', '.join([lang.name for lang in self.languages.all()])
+        return f"{self.user.first_name} {self.user.last_name} - {languages} - {self.city}, {self.state}"
 
 # models.py
 class ServiceType(models.Model):

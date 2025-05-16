@@ -19,6 +19,18 @@ from .utils.datetime_handlers import DateTimeHandler
 from .mixins.assignment_mixins import AssignmentAdminMixin
 from . import models
 from django.core.exceptions import ValidationError
+from django.core.mail import EmailMultiAlternatives
+from django.utils import timezone
+from django.core.mail import EmailMultiAlternatives
+from django.template.loader import render_to_string
+from django.utils.html import strip_tags
+from django.urls import reverse
+from django.contrib import messages
+import uuid
+import random
+import socket
+import time
+from django.utils.safestring import mark_safe
 # =======================================================
 # 1. UTILITAIRES POUR LE FUSEAU HORAIRE
 # =======================================================
@@ -1228,7 +1240,6 @@ class APIKeyAdmin(admin.ModelAdmin):
 
 
 
-
 @admin.register(models.InterpreterContractSignature)
 class InterpreterContractSignatureAdmin(admin.ModelAdmin):
     list_display = ('emoji_status', 'interpreter_name', 'interpreter_email', 
@@ -1241,7 +1252,8 @@ class InterpreterContractSignatureAdmin(admin.ModelAdmin):
                     'signature_hash', 'token', 'otp_code')
     readonly_fields = ('signature_hash', 'signed_at', 'id', 'created_at',
                       'account_number_display', 'routing_number_display', 'swift_code_display',
-                      'encrypted_account_number', 'encrypted_routing_number','account_holder_name','signature_converted_url', 'encrypted_swift_code')
+                      'encrypted_account_number', 'encrypted_routing_number','account_holder_name',
+                      'signature_converted_url', 'encrypted_swift_code')
     
     date_hierarchy = 'signed_at'
     
@@ -1296,6 +1308,7 @@ class InterpreterContractSignatureAdmin(admin.ModelAdmin):
             'PENDING': "📋 ⏳",
             'SIGNED': "📋 ✅",
             'EXPIRED': "📋 ⌛",
+            'LINK_ACCESSED': "📋 👁️",
             'REJECTED': "📋 ❌",
             'COMPLETED': "📋 ✅✅"
         }
@@ -1356,9 +1369,128 @@ class InterpreterContractSignatureAdmin(admin.ModelAdmin):
         masked = swift_code[:4] + '*' * (len(swift_code) - 4) 
         return f"🔒 {masked}"
     swift_code_display.short_description = 'SWIFT Code (Masked)'
-
-
     
+    # Ajout des mappings User <-> Interpreter pour JavaScript
+    def get_user_interpreter_mappings(self):
+        """Génère un dictionnaire de correspondance entre users et interprètes"""
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        
+        # Récupérer les utilisateurs qui ont des profils d'interprète
+        users_with_interpreters = User.objects.filter(interpreter_profile__isnull=False)
+        
+        # Créer dictionnaires pour les mappings dans les deux sens
+        user_to_interpreter = {}
+        interpreter_to_user = {}
+        
+        for user in users_with_interpreters:
+            try:
+                interpreter_id = user.interpreter_profile.id
+                user_to_interpreter[user.id] = interpreter_id
+                interpreter_to_user[interpreter_id] = user.id
+            except:
+                continue
+        
+        return user_to_interpreter, interpreter_to_user
+    
+    class Media:
+        js = ('admin/js/interpreter_contract_admin.js',)
+    
+    def changelist_view(self, request, extra_context=None):
+        """Ajoute le script JS pour la liaison user-interprète"""
+        extra_context = extra_context or {}
+        return super().changelist_view(request, extra_context=extra_context)
+    
+    def change_view(self, request, object_id, form_url='', extra_context=None):
+        """Ajoute les mappings user-interprète au contexte pour la page de détail"""
+        extra_context = extra_context or {}
+        user_to_interpreter, interpreter_to_user = self.get_user_interpreter_mappings()
+        
+        # Ajoute ces data dans une balise script pour les récupérer en JS
+        script = f"""
+        <script>
+            // Mappings User -> Interpreter
+            var userToInterpreter = {user_to_interpreter};
+            // Mappings Interpreter -> User
+            var interpreterToUser = {interpreter_to_user};
+            
+            document.addEventListener('DOMContentLoaded', function() {{
+                // Sélection des champs d'entrée
+                var userSelect = document.getElementById('id_user');
+                var interpreterSelect = document.getElementById('id_interpreter');
+                
+                if (userSelect && interpreterSelect) {{
+                    // Ajouter les écouteurs d'événements
+                    userSelect.addEventListener('change', function() {{
+                        var userId = this.value;
+                        if (userId && userToInterpreter[userId]) {{
+                            // Mise à jour du champ interpreter quand user change
+                            interpreterSelect.value = userToInterpreter[userId];
+                        }}
+                    }});
+                    
+                    interpreterSelect.addEventListener('change', function() {{
+                        var interpreterId = this.value;
+                        if (interpreterId && interpreterToUser[interpreterId]) {{
+                            // Mise à jour du champ user quand interpreter change
+                            userSelect.value = interpreterToUser[interpreterId];
+                        }}
+                    }});
+                }}
+            }});
+        </script>
+        """
+        
+        # Ajoute le script au contexte
+        extra_context['after_related_objects'] = mark_safe(script)
+        
+        return super().change_view(request, object_id, form_url, extra_context=extra_context)
+    
+    def add_view(self, request, form_url='', extra_context=None):
+        """Ajoute les mappings user-interprète au contexte pour la page d'ajout"""
+        extra_context = extra_context or {}
+        user_to_interpreter, interpreter_to_user = self.get_user_interpreter_mappings()
+        
+        # Ajoute ces data dans une balise script pour les récupérer en JS
+        script = f"""
+        <script>
+            // Mappings User -> Interpreter
+            var userToInterpreter = {user_to_interpreter};
+            // Mappings Interpreter -> User
+            var interpreterToUser = {interpreter_to_user};
+            
+            document.addEventListener('DOMContentLoaded', function() {{
+                // Sélection des champs d'entrée
+                var userSelect = document.getElementById('id_user');
+                var interpreterSelect = document.getElementById('id_interpreter');
+                
+                if (userSelect && interpreterSelect) {{
+                    // Ajouter les écouteurs d'événements
+                    userSelect.addEventListener('change', function() {{
+                        var userId = this.value;
+                        if (userId && userToInterpreter[userId]) {{
+                            // Mise à jour du champ interpreter quand user change
+                            interpreterSelect.value = userToInterpreter[userId];
+                        }}
+                    }});
+                    
+                    interpreterSelect.addEventListener('change', function() {{
+                        var interpreterId = this.value;
+                        if (interpreterId && interpreterToUser[interpreterId]) {{
+                            // Mise à jour du champ user quand interpreter change
+                            userSelect.value = interpreterToUser[interpreterId];
+                        }}
+                    }});
+                }}
+            }});
+        </script>
+        """
+        
+        # Ajoute le script au contexte
+        extra_context['after_related_objects'] = mark_safe(script)
+        
+        return super().add_view(request, form_url, extra_context=extra_context)
+
     actions = ['mark_as_expired', 'mark_as_completed', 'resend_contract_email', 'debug_contract_status']
     
     def mark_as_expired(self, request, queryset):
@@ -1412,66 +1544,126 @@ class InterpreterContractSignatureAdmin(admin.ModelAdmin):
     debug_contract_status.short_description = "Debug selected contracts"
     
     def resend_contract_email(self, request, queryset):
-        """Resend contract email to selected interpreters"""
-        from django.core.mail import EmailMessage
+        """Renvoie l'email de contrat avec un nouveau token et OTP aux interprètes sélectionnés"""
+        from django.core.mail import EmailMultiAlternatives
         from django.template.loader import render_to_string
         from django.utils.html import strip_tags
+        from django.urls import reverse
+        import uuid
+        import random
+        import socket
+        import time
         
         count = 0
+        updated = 0
+        errors = 0
+        
         for contract in queryset:
             if not contract.interpreter_email:
                 continue
                 
             try:
-                # Reset token and OTP if needed
-                if not contract.token or not contract.otp_code:
-                    import uuid
-                    import random
-                    contract.token = str(uuid.uuid4())
-                    contract.otp_code = ''.join([str(random.randint(0, 9)) for _ in range(6)])
-                    contract.expires_at = timezone.now() + timezone.timedelta(hours=24)
-                    contract.save()
+                # Toujours générer un nouveau token et OTP pour garantir que le lien fonctionnera
+                contract.token = str(uuid.uuid4())
+                contract.otp_code = ''.join([str(random.randint(0, 9)) for _ in range(6)])
+                contract.expires_at = timezone.now() + timezone.timedelta(hours=24)
                 
-                # Prepare email
+                # Réinitialiser le statut si nécessaire pour permettre une nouvelle signature
+                if contract.status in ['EXPIRED', 'LINK_ACCESSED']:
+                    contract.status = 'PENDING'
+                    
+                contract.save()
+                updated += 1
+                
+                # Création d'un identifiant unique pour ce message
+                message_id = f"<contract-renewal-{contract.id}-{uuid.uuid4()}@{socket.gethostname()}>"
+                
+                # Construction de l'URL absolue pour le lien de vérification
+                path = reverse('dbdint:contract_verification', kwargs={'token': contract.token})
+                verification_url = request.build_absolute_uri(path)
+                
+                # Préparation des données pour le template
                 context = {
                     'interpreter_name': contract.interpreter_name,
                     'token': contract.token,
-                    'otp_code': contract.otp_code
+                    'otp_code': contract.otp_code,
+                    'verification_url': verification_url,
+                    'email': contract.interpreter_email
                 }
                 
+                # Rendu du template HTML
                 html_message = render_to_string('notifmail/esign_notif.html', context)
                 plain_message = strip_tags(html_message)
                 
-                subject = f"{contract.interpreter_name.split()[0]}, votre contrat d'interprète JH Bridge est prêt à signer"
+                # Ligne d'objet optimisée pour la délivrabilité
+                first_name = contract.interpreter_name.split()[0] if contract.interpreter_name else "Interprète"
+                subject = f"{first_name}, votre contrat d'interprète JH Bridge est prêt à signer"
                 
-                email = EmailMessage(
+                # Format professionnel pour l'adresse expéditeur
+                from_email = f"JH Bridge Contrats <contracts@jhbridgetranslation.com>"
+                
+                # Création de l'email
+                email = EmailMultiAlternatives(
                     subject=subject,
-                    body=html_message,
-                    from_email=f"JH Bridge Interprètes <jhbridgetranslation@gmail.com>",
+                    body=plain_message,
+                    from_email=from_email,
                     to=[contract.interpreter_email],
-                    reply_to=['jhbridgetranslation@gmail.com']
+                    reply_to=['support@jhbridgetranslation.com']
                 )
                 
-                email.content_subtype = "html"
+                # Ajout de la version HTML comme alternative
+                email.attach_alternative(html_message, "text/html")
                 
+                # En-têtes optimisés pour la délivrabilité
                 email.extra_headers = {
+                    'Message-ID': message_id,
+                    'X-Entity-Ref-ID': str(contract.token),
+                    'X-Mailer': 'JHBridge-ContractMailer/1.0',
+                    'X-Contact-ID': str(contract.id),
+                    'List-Unsubscribe': f'<mailto:unsubscribe@jhbridgetranslation.com?subject=Unsubscribe-{contract.interpreter_email}>',
+                    'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+                    'Precedence': 'bulk',
+                    'Auto-Submitted': 'auto-generated',
+                    'Feedback-ID': f'contract-{contract.id}:{contract.interpreter.id if contract.interpreter else "0"}:jhbridge:{int(time.time())}',
                     'X-Priority': '1',
                     'X-MSMail-Priority': 'High',
-                    'Importance': 'High',
-                    'X-Auto-Response-Suppress': 'OOF, DR, RN, NRN, AutoReply',
-                    'List-Unsubscribe': f'<mailto:unsubscribe@jhbridgetranslation.com?subject=Unsubscribe+{contract.interpreter_email}>'
+                    'Importance': 'High'
                 }
                 
-                email.send()
+                # Envoi de l'email
+                email.send(fail_silently=False)
+                
+                self.message_user(
+                    request, 
+                    f"✓ Email envoyé à {contract.interpreter_email} avec lien: {verification_url}",
+                    level=messages.SUCCESS
+                )
                 count += 1
                 
             except Exception as e:
-                self.message_user(request, f"Error sending email to {contract.interpreter_email}: {str(e)}", level=messages.ERROR)
+                errors += 1
+                self.message_user(
+                    request, 
+                    f"❌ Erreur pour {contract.interpreter_email}: {str(e)}", 
+                    level=messages.ERROR
+                )
         
-        self.message_user(request, f"Successfully resent contract emails to {count} interpreter(s).")
-    resend_contract_email.short_description = "Resend contract emails to selected interpreters"
-
-
+        # Message récapitulatif
+        if count > 0:
+            self.message_user(
+                request, 
+                f"✅ {count} email(s) envoyé(s) avec succès. {updated} contrat(s) mis à jour.",
+                level=messages.SUCCESS
+            )
+        
+        if errors > 0:
+            self.message_user(
+                request, 
+                f"⚠️ {errors} erreur(s) rencontrée(s). Consultez les messages ci-dessus.",
+                level=messages.WARNING
+            )
+            
+    resend_contract_email.short_description = "📧 Renvoyer un email avec nouveau lien de contrat"
 @admin.register(models.PGPKey)
 class PGPKeyAdmin(admin.ModelAdmin):
     list_display = (
