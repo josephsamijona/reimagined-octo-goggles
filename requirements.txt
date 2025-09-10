@@ -8,6 +8,7 @@ django-phonenumber-field[phonenumbers]
 django-countries
 django-crispy-forms
 crispy-bootstrap5
+resend
 # Authentification & Sécurité
 djangorestframework-simplejwt 
 django-cors-headers 

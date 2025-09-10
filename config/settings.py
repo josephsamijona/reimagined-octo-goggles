@@ -285,16 +285,18 @@ CSRF_TRUSTED_ORIGINS = os.getenv('CSRF_TRUSTED_ORIGINS', '').split(',') if os.ge
 
 # Email Configuration
 # Pour tester sans SMTP
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-QUOTE_NOTIFICATION_EMAIL = os.getenv('DEFAULT_FROM_EMAIL')
-EMAIL_HOST = os.getenv('EMAIL_HOST')
-EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
-EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
-EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
-EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True') == 'True'
-EMAIL_USE_SSL = os.getenv('EMAIL_USE_SSL', 'False') == 'True'
-DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL')
-CONTACT_NOTIFICATION_EMAIL = os.getenv('DEFAULT_FROM_EMAIL')
+EMAIL_BACKEND = 'app.backends.resend_backend.ResendEmailBackend'
+RESEND_API_KEY = os.getenv('RESEND_API_KEY')
+DEFAULT_FROM_EMAIL = "dispatch@jhbridgetranslation.com"
+#QUOTE_NOTIFICATION_EMAIL = os.getenv('DEFAULT_FROM_EMAIL')
+#EMAIL_HOST = os.getenv('EMAIL_HOST')
+#EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
+#EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
+#EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
+#EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True') == 'True'
+#EMAIL_USE_SSL = os.getenv('EMAIL_USE_SSL', 'False') == 'True'
+#DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL')
+#CONTACT_NOTIFICATION_EMAIL = os.getenv('DEFAULT_FROM_EMAIL')
 EMAIL_TIMEOUT = 10  # Ajoutez un timeout
 
 
