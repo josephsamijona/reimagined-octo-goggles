@@ -1,3 +1,4 @@
+
 # 1. Backend email personnalisé Resend
 # Créez le fichier: app/backends/resend_backend.py
 
@@ -90,31 +91,55 @@ class ResendEmailBackend(BaseEmailBackend):
     def _process_attachments(self, attachments):
         """
         Traite les pièces jointes pour le format Resend
+        Gère tous les formats d'attachments Django
         """
         processed_attachments = []
         
         for attachment in attachments:
-            if hasattr(attachment, 'read'):
-                # Fichier ouvert
-                content = attachment.read()
-                filename = getattr(attachment, 'name', 'attachment')
-            else:
-                # Tuple (filename, content, mimetype)
-                filename, content, mimetype = attachment
-            
-            # Encodage en base64 si nécessaire
-            import base64
-            if isinstance(content, bytes):
-                content_b64 = base64.b64encode(content).decode('utf-8')
-            else:
-                content_b64 = base64.b64encode(content.encode('utf-8')).decode('utf-8')
-            
-            processed_attachments.append({
-                "filename": filename,
-                "content": content_b64
-            })
+            try:
+                # Cas 1: Fichier avec méthode read()
+                if hasattr(attachment, 'read'):
+                    content = attachment.read()
+                    filename = getattr(attachment, 'name', 'attachment')
+                    
+                # Cas 2: Tuple ou liste
+                elif isinstance(attachment, (tuple, list)):
+                    if len(attachment) == 2:
+                        # Format (filename, content)
+                        filename, content = attachment
+                    elif len(attachment) == 3:
+                        # Format (filename, content, mimetype)
+                        filename, content, mimetype = attachment
+                    elif len(attachment) == 4:
+                        # Format (filename, content, mimetype, headers) - rare
+                        filename, content, mimetype, headers = attachment
+                    else:
+                        logger.warning(f"Attachment format not supported: {len(attachment)} elements")
+                        continue
+                        
+                # Cas 3: Objet Django MIMEBase ou similaire
+                else:
+                    logger.warning(f"Unsupported attachment type: {type(attachment)}")
+                    continue
+                
+                # Encodage du contenu en base64
+                import base64
+                if isinstance(content, bytes):
+                    content_b64 = base64.b64encode(content).decode('utf-8')
+                else:
+                    content_b64 = base64.b64encode(str(content).encode('utf-8')).decode('utf-8')
+                
+                processed_attachments.append({
+                    "filename": filename,
+                    "content": content_b64
+                })
+                
+            except Exception as e:
+                logger.error(f"Error processing attachment: {e}")
+                # Continue avec les autres attachments
+                continue
         
         return processed_attachments
 
 # 2. Configuration Django settings.py
-# Ajoutez ou modifiez dans votre settings.p
+# Ajoutez ou modifiez dans votre settings.py
