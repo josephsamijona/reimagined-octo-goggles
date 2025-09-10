@@ -52,25 +52,65 @@ LOGGING = {
             'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
             'style': '{',
         },
+        'simple': {
+            'format': '{levelname} {message}',
+            'style': '{',
+        },
     },
     'handlers': {
         'console': {
             'class': 'logging.StreamHandler',
-            'formatter': 'verbose',
-        },
-        'file': {
-            'class': 'logging.FileHandler',
-            'filename': 'debug.log',
-            'formatter': 'verbose',
+            'formatter': 'simple',  # Format plus simple pour la production
+            'level': 'WARNING' if not DEBUG else 'INFO',  # Niveau conditionnel
         },
     },
     'loggers': {
-        '': {  # Root logger
-            'handlers': ['console', 'file'],
-            'level': 'INFO',
+        # Configuration du logger racine
+        '': {
+            'handlers': ['console'],
+            'level': 'WARNING' if not DEBUG else 'INFO',
+        },
+        # Configuration spécifique Django
+        'django': {
+            'handlers': ['console'],
+            'level': 'ERROR' if not DEBUG else 'INFO',
+            'propagate': False,
+        },
+        # Configuration spécifique pour les emails (source du problème)
+        'django.core.mail': {
+            'handlers': ['console'],
+            'level': 'ERROR',  # Seulement les erreurs d'email
+            'propagate': False,
+        },
+        # Configuration pour les requêtes (peut être verbeux)
+        'django.request': {
+            'handlers': ['console'],
+            'level': 'ERROR',
+            'propagate': False,
+        },
+        # Configuration pour les requêtes de base de données
+        'django.db.backends': {
+            'handlers': ['console'],
+            'level': 'ERROR' if not DEBUG else 'INFO',
+            'propagate': False,
+        },
+        # Logger pour votre application (ajustez le nom)
+        'your_app_name': {  # Remplacez par le nom de votre app
+            'handlers': ['console'],
+            'level': 'INFO' if not DEBUG else 'DEBUG',
+            'propagate': False,
         },
     },
 }
+
+# Configuration supplémentaire pour Railway
+import os
+if os.getenv('RAILWAY_ENVIRONMENT'):  # Détection de Railway
+    # En production Railway, logs encore plus restrictifs
+    LOGGING['handlers']['console']['level'] = 'ERROR'
+    LOGGING['loggers']['']['level'] = 'ERROR'
+    LOGGING['loggers']['django']['level'] = 'ERROR'
+    LOGGING['loggers']['django.core.mail']['level'] = 'CRITICAL'  # Presque pas de logs email
 
 # Application definition
 INSTALLED_APPS = [
@@ -245,7 +285,7 @@ CSRF_TRUSTED_ORIGINS = os.getenv('CSRF_TRUSTED_ORIGINS', '').split(',') if os.ge
 
 # Email Configuration
 # Pour tester sans SMTP
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 QUOTE_NOTIFICATION_EMAIL = os.getenv('DEFAULT_FROM_EMAIL')
 EMAIL_HOST = os.getenv('EMAIL_HOST')
 EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
