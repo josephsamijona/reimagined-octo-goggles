@@ -1,25 +1,27 @@
 {% load static %}
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>JH Bridge - Interpreter Contract</title>
-    
+
     <!-- Styles CSS -->
     <link rel="stylesheet" href="{% static 'css/maincontract.css' %}">
     <link rel="stylesheet" href="{% static 'css/print.css' %}" media="print">
-    
+
     <!-- CSRF Token pour les requêtes django -->
     {% csrf_token %}
 </head>
+
 <body>
     <!-- Conteneur principal du contrat -->
     <div id="contract-document" class="contract-container">
         <!-- En-tête avec vagues -->
         <div class="header">
             <div class="logo-container">
-                <img src="https://jhbridgetranslation.com/assets/two-CrMBXFPQ.png" alt="JH Bridge Logo" class="logo">
+                <img src="https://jhbridgetranslation.com/images/logo.png" alt="JH Bridge Logo" class="logo">
                 <div class="logo-text">
                     <h2>JH BRIDGE</h2>
                     <p>TRANSLATION SERVICES</p>
@@ -36,212 +38,232 @@
         <!-- Contenu principal du contrat -->
         <div class="contract-content">
             <h1 class="contract-title">Interpreter Service Agreement</h1>
-            
+
             <div class="contract-intro">
-                <p>This Interpreter Service Agreement ("Agreement") is made and entered into as of {{ contract_date }}, by and between:</p>
+                <p>This Interpreter Service Agreement ("Agreement") is made and entered into as of {{ contract_date }},
+                    by and between:</p>
             </div>
-            
+
             <!-- Informations de la compagnie -->
             <div class="info-box company-info-box">
                 <p><strong>Company Name:</strong> JHBridge Translation Services</p>
                 <p><strong>Address:</strong> 500 GROSSMAN DR, BRAINTREE, MA, 02184</p>
                 <p><strong>Contact information:</strong> (774) 223 8771 / jhbridgetranslation@gmail.com</p>
             </div>
-            
+
             <div class="and-separator">AND</div>
-            
+
             <!-- Informations de l'interprète -->
             <div class="info-box interpreter-info-box">
                 <p><strong>Interpreter Name:</strong> {{ interpreter_name }}</p>
                 <p><strong>Address:</strong> {{ interpreter_address }}</p>
                 <p><strong>Contact Information:</strong> {{ interpreter_phone }} / {{ interpreter_email }}</p>
             </div>
-            
+
             <!-- Sections du contrat -->
             <div class="section">
                 <h2 class="section-title">1. Scope of Services</h2>
                 <div class="section-content">
-                    <p>The Interpreter agrees to provide professional interpretation services for the Company, including on site Interpretation but not limited to oral interpretation, written translation, and any other language-related services as required.</p>
+                    <p>The Interpreter agrees to provide professional interpretation services for the Company, including
+                        on site Interpretation but not limited to oral interpretation, written translation, and any
+                        other language-related services as required.</p>
                 </div>
             </div>
-            
+
             <div class="section">
                 <h2 class="section-title">2. Independent Contractor Relationship</h2>
                 <div class="section-content">
-                    <p>The Interpreter acknowledges that they are an independent contractor and not an employee of the Company. The Interpreter shall be responsible for their own taxes, insurance, and other expenses.</p>
+                    <p>The Interpreter acknowledges that they are an independent contractor and not an employee of the
+                        Company. The Interpreter shall be responsible for their own taxes, insurance, and other
+                        expenses.</p>
                 </div>
             </div>
-            
+
             <div class="section">
                 <h2 class="section-title">3. Compensation</h2>
                 <div class="section-content">
                     <p>The Company agrees to pay the Interpreter at the following rates, payable every two weeks:</p>
-                    
+
                     <ul class="language-rates">
                         {% if interpreter_languages %}
-                            {% for language in interpreter_languages %}
-                                <li>{{ language.name }}: {{ language.rate }}</li>
-                            {% endfor %}
+                        {% for language in interpreter_languages %}
+                        <li>{{ language.name }}: {{ language.rate }}</li>
+                        {% endfor %}
                         {% else %}
-                            <!-- Tarifs par défaut si aucune langue spécifique n'est définie -->
-                            <li>Portuguese: $35 per hour</li>
-                            <li>Spanish: $30 per hour</li>
-                            <li>Haitian Creole: $30 per hour</li>
-                            <li>Cape Verdean: $30 per hour</li>
-                            <li>French: $35 per hour</li>
-                            <li>Mandarin: $40 per hour</li>
-                            <li>Rare Languages: $45 per hour</li>
+                        <!-- Tarifs par défaut si aucune langue spécifique n'est définie -->
+                        <li>Portuguese: $35 per hour</li>
+                        <li>Spanish: $30 per hour</li>
+                        <li>Haitian Creole: $30 per hour</li>
+                        <li>Cape Verdean: $30 per hour</li>
+                        <li>French: $35 per hour</li>
+                        <li>Mandarin: $40 per hour</li>
+                        <li>Rare Languages: $45 per hour</li>
                         {% endif %}
                     </ul>
-                    
-                    <p>Each appointment is scheduled for a minimum of two (2) hours. The Interpreter will be compensated for the full two-hour duration even if the appointment ends earlier. Additionally, if the Interpreter is already on-site or in route to the location and the appointment results in a no-show, they will still be paid for the full two-hour minimum.</p>
+
+                    <p>Each appointment is scheduled for a minimum of two (2) hours. The Interpreter will be compensated
+                        for the full two-hour duration even if the appointment ends earlier. Additionally, if the
+                        Interpreter is already on-site or in route to the location and the appointment results in a
+                        no-show, they will still be paid for the full two-hour minimum.</p>
                 </div>
             </div>
-            
+
             <div class="section">
                 <h2 class="section-title">4. Scheduling and Cancellations</h2>
                 <div class="section-content">
-                    <p>Interpreters are required to arrive on-site at least fifteen (15) minutes before the scheduled start time of their appointment. If the Interpreter needs to cancel an appointment, they must provide at least forty-eight (48) hours' notice before the appointment date. Failure to provide timely notice may result in penalties or impact future assignments.</p>
+                    <p>Interpreters are required to arrive on-site at least fifteen (15) minutes before the scheduled
+                        start time of their appointment. If the Interpreter needs to cancel an appointment, they must
+                        provide at least forty-eight (48) hours' notice before the appointment date. Failure to provide
+                        timely notice may result in penalties or impact future assignments.</p>
                 </div>
             </div>
-            
+
             <div class="section">
                 <h2 class="section-title">5. Confidentiality</h2>
                 <div class="section-content">
-                    <p>The Interpreter agrees to maintain the confidentiality of all client and company information and not to disclose any proprietary or sensitive information obtained in the course of their services.</p>
+                    <p>The Interpreter agrees to maintain the confidentiality of all client and company information and
+                        not to disclose any proprietary or sensitive information obtained in the course of their
+                        services.</p>
                 </div>
             </div>
-            
+
             <div class="section">
                 <h2 class="section-title">6. Code of Conduct</h2>
                 <div class="section-content">
-                    <p>The Interpreter shall uphold professional ethics, including accuracy, impartiality, and neutrality, and shall not engage in any conduct that may harm the Company's reputation.</p>
+                    <p>The Interpreter shall uphold professional ethics, including accuracy, impartiality, and
+                        neutrality, and shall not engage in any conduct that may harm the Company's reputation.</p>
                 </div>
             </div>
-            
+
             <div class="section">
                 <h2 class="section-title">7. Term and Termination</h2>
                 <div class="section-content">
-                    <p>This Agreement shall commence on {{ contract_date }} and continue until terminated by either party with 30 Days written notice. The Company may terminate this Agreement immediately in the event of breach of contract or misconduct.</p>
+                    <p>This Agreement shall commence on {{ contract_date }} and continue until terminated by either
+                        party with 30 Days written notice. The Company may terminate this Agreement immediately in the
+                        event of breach of contract or misconduct.</p>
                 </div>
             </div>
-            
+
             <div class="section">
                 <h2 class="section-title">8. Indemnification</h2>
                 <div class="section-content">
-                    <p>The Interpreter agrees to indemnify and hold harmless the Company from any claims, damages, or liabilities arising from their interpretation services.</p>
+                    <p>The Interpreter agrees to indemnify and hold harmless the Company from any claims, damages, or
+                        liabilities arising from their interpretation services.</p>
                 </div>
             </div>
-            
+
             <div class="section">
                 <h2 class="section-title">9. Governing Law</h2>
                 <div class="section-content">
-                    <p>This Agreement shall be governed by and construed in accordance with the laws of Massachusetts.</p>
+                    <p>This Agreement shall be governed by and construed in accordance with the laws of Massachusetts.
+                    </p>
                 </div>
             </div>
-            
+
             <div class="section">
                 <h2 class="section-title">10. Entire Agreement</h2>
                 <div class="section-content">
-                    <p>This Agreement constitutes the entire understanding between the parties and supersedes any prior agreements or understandings, whether written or oral.</p>
+                    <p>This Agreement constitutes the entire understanding between the parties and supersedes any prior
+                        agreements or understandings, whether written or oral.</p>
                 </div>
             </div>
-            
+
             <!-- Zone de témoin (IN WITNESS WHEREOF) -->
             <div class="section witness-section">
-                <p>IN WITNESS WHEREOF, the parties hereto have executed this Agreement as of the date first written above.</p>
+                <p>IN WITNESS WHEREOF, the parties hereto have executed this Agreement as of the date first written
+                    above.</p>
             </div>
-            
+
             <!-- Zone de signature -->
             <div class="signature-area">
                 <!-- Signature du représentant de l'entreprise -->
                 <div class="signature-box company-signature-box">
                     <p class="signature-title">Company Representative:</p>
                     <p class="signature-name">Name: Marc-Henry Valme</p>
-                    <div id="company-signature" class="company-signature" data-company-representative="Marc-Henry Valme"></div>
+                    <div id="company-signature" class="company-signature"
+                        data-company-representative="Marc-Henry Valme"></div>
                     <p class="signature-date">Date: {{ contract_date }}</p>
                 </div>
-                
+
                 <!-- Signature de l'interprète -->
                 <div class="signature-box interpreter-signature-box">
                     <p class="signature-title">Interpreter:</p>
                     <p class="signature-name">Name: {{ interpreter_name }}</p>
-                    
+
                     <!-- Conteneur de signature dynamique -->
                     <div id="interpreter-signature" class="interpreter-signature"></div>
-                    
+
                     <!-- Attributs de données pour la signature -->
-                    <div class="signature-data" 
-                         data-signature-type="{{ signature_type }}"
-                         {% if signature_type == 'type' %}
-                         data-signature-text="{{ signature_typography_text }}"
-                         data-signature-font="{{ signature_typography_font }}"
-                         {% elif signature_type == 'draw' %}
-                         data-signature-drawn-data="{{ signature_manual_data }}"
-                         {% elif signature_type == 'upload' %}
-                         data-signature-image-url="{{ signature_image_url }}"
-                         {% endif %}>
+                    <div class="signature-data" data-signature-type="{{ signature_type }}" {% if signature_type=='type'
+                        %} data-signature-text="{{ signature_typography_text }}"
+                        data-signature-font="{{ signature_typography_font }}" {% elif signature_type=='draw' %}
+                        data-signature-drawn-data="{{ signature_manual_data }}" {% elif signature_type=='upload' %}
+                        data-signature-image-url="{{ signature_image_url }}" {% endif %}>
                     </div>
-                    
+
                     <p class="signature-date">Date: {{ signature_date }}</p>
                 </div>
             </div>
-            
+
             <!-- Formulaire d'informations bancaires -->
             <div class="payment-info">
                 <h3 class="payment-info-title">Interpreter Payment Information</h3>
-                
+
                 <div class="payment-info-field">
                     <label>Bank Name:</label>
                     <div>{{ bank_name }}</div>
                 </div>
-                
+
                 <div class="payment-info-field">
                     <label>Account Type:</label>
                     <div>{{ account_type }}</div>
                 </div>
-                
+
                 <div class="payment-info-field">
                     <label>Account Number:</label>
                     <div class="masked-field">{{ masked_account_number }}</div>
                 </div>
-                
+
                 <div class="payment-info-field">
                     <label>Routing Number:</label>
                     <div class="masked-field">{{ masked_routing_number }}</div>
                 </div>
-                
+
                 {% if masked_swift_code %}
                 <div class="payment-info-field">
                     <label>SWIFT Code:</label>
                     <div class="masked-field">{{ masked_swift_code }}</div>
                 </div>
                 {% endif %}
-                
+
                 <div class="payment-info-field">
                     <label>Authorization:</label>
-                    <p>I hereby authorize JHBridge Translation Services to deposit payments directly into my bank account as provided above. I understand that it is my responsibility to ensure that the information provided is correct. I agree to notify the Company of any changes to my banking details.</p>
+                    <p>I hereby authorize JHBridge Translation Services to deposit payments directly into my bank
+                        account as provided above. I understand that it is my responsibility to ensure that the
+                        information provided is correct. I agree to notify the Company of any changes to my banking
+                        details.</p>
                 </div>
             </div>
-            
+
         </div>
-        
+
         <!-- Pied de page avec vagues -->
         <div class="footer">
             <div class="footer-wave"></div>
-            <img src="https://jhbridgetranslation.com/assets/two-CrMBXFPQ.png" alt="JH Bridge Logo" class="footer-logo">
+            <img src="https://jhbridgetranslation.com/images/logo.png" alt="JH Bridge Logo" class="footer-logo">
         </div>
     </div>
-    
+
     <!-- Bouton de génération PDF (uniquement visible en mode web) -->
     <div class="contract-actions no-print" style="text-align: center; margin: 20px 0;">
         <button id="generate-pdf-button" class="action-button">Télécharger PDF</button>
     </div>
-    
+
     <!-- Scripts JavaScript -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="{% static 'js/signature-handler.js' %}"></script>
     <script src="{% static 'js/pdf-generator.js' %}"></script>
 </body>
+
 </html>

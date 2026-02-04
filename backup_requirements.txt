@@ -1,0 +1,6 @@
+# Dependencies for AWS S3 Database Backup Script
+# Install with: pip install -r backup_requirements.txt
+
+boto3>=1.34.0           # AWS SDK for Python
+python-dotenv>=1.0.0    # Load .env variables
+tqdm>=4.66.0            # Progress bars

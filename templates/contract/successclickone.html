@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agreement Confirmed - JHBridge</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@600;700&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --deep-blue: #1d3557;
+            --action-blue: #2b50a1;
+            --growth-green: #76b041;
+            --white: #ffffff;
+            --bg-gray: #f8f9fa;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 600px;
+            background: var(--white);
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+            padding: 60px 40px;
+            text-align: center;
+            animation: fadeIn 0.6s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .logo {
+            height: 60px;
+            margin-bottom: 30px;
+        }
+
+        .success-icon {
+            width: 80px;
+            height: 80px;
+            background: var(--growth-green);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 30px;
+            animation: scaleIn 0.5s ease 0.2s both;
+        }
+
+        @keyframes scaleIn {
+            from {
+                transform: scale(0);
+            }
+
+            to {
+                transform: scale(1);
+            }
+        }
+
+        .success-icon svg {
+            width: 40px;
+            height: 40px;
+            stroke: white;
+            stroke-width: 3;
+            fill: none;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        h1 {
+            font-family: 'Outfit', sans-serif;
+            color: var(--deep-blue);
+            font-size: 28px;
+            margin-bottom: 20px;
+        }
+
+        p {
+            color: #555555;
+            font-size: 16px;
+            line-height: 1.6;
+            margin-bottom: 30px;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 14px 32px;
+            background-color: var(--action-blue);
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
+
+        .btn:hover {
+            background-color: var(--deep-blue);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(43, 80, 161, 0.3);
+        }
+
+        .footer {
+            margin-top: 40px;
+            color: #999999;
+            font-size: 14px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <img src="https://jhbridgetranslation.com/images/logo.png" alt="JHBridge Logo" class="logo">
+
+        <div class="success-icon">
+            <svg viewBox="0 0 24 24">
+                <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+        </div>
+
+        <h1>Congratulations, Everything is in Order!</h1>
+
+        <p>Thank you for confirming your agreement. Your account status has been updated and you now have full access to
+            all features.</p>
+
+        <a href="{% url 'dbdint:interpreter_dashboard' %}" class="btn">Go to Dashboard</a>
+
+        <div class="footer">
+            © 2026 JHBridge Translation Services
+        </div>
+    </div>
+</body>
+
+</html>

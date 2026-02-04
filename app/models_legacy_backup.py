@@ -167,6 +167,12 @@ class Interpreter(models.Model):
     w9_on_file = models.BooleanField(default=False)
     active = models.BooleanField(default=True)
     
+    # Contract & Dashboard Access
+    contract_acceptance_date = models.DateTimeField(null=True, blank=True)
+    contract_rejection_reason = models.TextField(null=True, blank=True)
+    has_accepted_contract = models.BooleanField(default=False)
+    is_dashboard_enabled = models.BooleanField(default=False)
+    
     def __str__(self):
         """Retourne une représentation lisible de l'interprète"""
         if self.user:
@@ -1045,6 +1051,12 @@ class InterpreterContractSignature(models.Model):
     # Contract status
     is_fully_signed = models.BooleanField(default=False)
     is_active = models.BooleanField(default=False)
+    
+    # Notifications & Reminders
+    email_sent_at = models.DateTimeField(null=True, blank=True)
+    last_reminder_sent_at = models.DateTimeField(null=True, blank=True)
+    modal_viewed_at = models.DateTimeField(null=True, blank=True)
+    reminder_count = models.IntegerField(default=0)
     
     def __str__(self):
         return f"Interpreter contract for {self.interpreter_name} ({self.status})"

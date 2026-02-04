@@ -29,6 +29,7 @@ ENCRYPTION_KEY=os.getenv('ENCRYPTION_KEY')
 DEBUG = os.getenv('DEBUG', 'True') == 'True'
 
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '').split(',') if os.getenv('ALLOWED_HOSTS') else []
+SITE_URL = os.getenv('SITE_URL', 'https://jhbridgetranslation.com')
 
 # Configuration pour l'authentification par clé API
 API_KEY_HEADER = os.environ.get('API_KEY_HEADER', 'X-API-Key')
@@ -367,37 +368,29 @@ IMAGE_MAX_SIZE = 5 * 1024 * 1024   # 5MB pour les images
 
 
 
-# Configuration Backblaze B2 depuis les variables d'environnement
-AWS_ACCESS_KEY_ID = os.getenv('B2_ACCESS_KEY_ID')
-AWS_SECRET_ACCESS_KEY = os.getenv('B2_SECRET_ACCESS_KEY')
-AWS_STORAGE_BUCKET_NAME = os.getenv('B2_BUCKET_NAME')
-AWS_S3_ENDPOINT_URL = os.getenv('B2_ENDPOINT_URL')  # Gardé pour compatibilité
-AWS_S3_REGION_NAME = os.getenv('B2_REGION_NAME')
-
-# Configuration S3/B2
-AWS_DEFAULT_ACL = None
-AWS_BUCKET_ACL = None
-AWS_QUERYSTRING_AUTH = False  # False pour URLs publiques, True pour URLs présignées
-AWS_S3_FILE_OVERWRITE = False
-AWS_LOCATION = 'media'
-AWS_S3_SIGNATURE_VERSION = 's3v4'  # Gardé pour compatibilité
-
-# Configuration URL publique
-# Note: Le custom domain n'est utilisé que si AWS_QUERYSTRING_AUTH = False
-AWS_S3_CUSTOM_DOMAIN = f'{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.backblazeb2.com'
-MEDIA_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/{AWS_LOCATION}/'
+# Configuration AWS S3 pour django-storages
+AWS_ACCESS_KEY_ID = os.getenv('AWS_KEY_ID') or os.getenv('AWS_ACCESS_KEY_ID')
+AWS_SECRET_ACCESS_KEY = os.getenv('AWS_KEY_SECRET') or os.getenv('AWS_SECRET_ACCESS_KEY')
+AWS_S3_REGION_NAME = os.getenv('AWS_S3_REGION_NAME', 'us-east-1')
+AWS_S3_SIGNATURE_VERSION = 's3v4'
+AWS_QUERYSTRING_AUTH = True  # Par défaut, liens signés (sécurité)
 
 # Configuration moderne des storages
-# Utilise maintenant le storage B2 natif qui évite les problèmes de compatibilité
 STORAGES = {
     "default": {
-        "BACKEND": "custom_storages.MediaStorage",  # Pointe vers le nouveau storage B2 natif
+        "BACKEND": "custom_storages.MediaStorage", 
     },
     "staticfiles": {
         "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+        # Si vous vouliez servir les static files depuis S3 'jhbridge-assets', changez ici:
+        # "BACKEND": "custom_storages.AssetStorage",
     }
 }
+
+# Configuration Legacy (pour compatibilité)
+DEFAULT_FILE_STORAGE = "custom_storages.MediaStorage"
 
 MASTER_KEY = os.environ.get('MASTER_KEY', '')
 PDF_GENERATOR_API_KEY = os.getenv('PDF_GENERATOR_API_KEY')
 API_URL_PDF_GENERATOR=os.getenv('API_URL_PDF_GENERATOR')
+

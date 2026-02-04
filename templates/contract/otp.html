@@ -1,0 +1,293 @@
+    <!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verify Your Identity - JHBridge</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@600;700&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --deep-blue: #1d3557;
+            --action-blue: #2b50a1;
+            --growth-green: #76b041;
+            --white: #ffffff;
+            --bg-gray: #f8f9fa;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 500px;
+            background: var(--white);
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+            padding: 50px 40px;
+            animation: fadeIn 0.6s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .logo {
+            height: 60px;
+            display: block;
+            margin: 0 auto 40px;
+        }
+
+        h1 {
+            font-family: 'Outfit', sans-serif;
+            color: var(--deep-blue);
+            font-size: 26px;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        .subtitle {
+            color: #666666;
+            font-size: 14px;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .otp-info {
+            background: #f0f7ff;
+            border-left: 4px solid var(--action-blue);
+            padding: 15px;
+            margin-bottom: 30px;
+            border-radius: 0 8px 8px 0;
+            font-size: 14px;
+            color: #555555;
+        }
+
+        .otp-container {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-bottom: 30px;
+        }
+
+        .otp-input {
+            width: 60px;
+            height: 70px;
+            text-align: center;
+            font-size: 28px;
+            font-weight: 600;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            font-family: 'Courier New', monospace;
+        }
+
+        .otp-input:focus {
+            outline: none;
+            border-color: var(--action-blue);
+            box-shadow: 0 0 0 3px rgba(43, 80, 161, 0.1);
+        }
+
+        .btn {
+            width: 100%;
+            padding: 16px;
+            background-color: var(--action-blue);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn:hover {
+            background-color: var(--deep-blue);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(43, 80, 161, 0.3);
+        }
+
+        .btn:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .error-message {
+            color: #dc3545;
+            font-size: 14px;
+            text-align: center;
+            margin-top: 15px;
+            display: none;
+        }
+
+        .error-message.show {
+            display: block;
+        }
+
+        .resend-link {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 14px;
+            color: #666666;
+        }
+
+        .resend-link a {
+            color: var(--action-blue);
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .resend-link a:hover {
+            text-decoration: underline;
+        }
+
+        .footer {
+            margin-top: 40px;
+            text-align: center;
+            color: #999999;
+            font-size: 13px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <img src="https://jhbridgetranslation.com/images/logo.png" alt="JHBridge Logo" class="logo">
+
+        <h1>Verify Your Identity</h1>
+        <p class="subtitle">We've sent a 6-digit code to your email</p>
+
+        <div class="otp-info">
+            <strong>📧 Check your email</strong><br>
+            Enter the verification code we sent to {{ email|default:"your registered email" }}
+        </div>
+
+        <form method="POST" id="otp-form">
+            {% csrf_token %}
+            <div class="otp-container">
+                <input type="text" class="otp-input" maxlength="1" pattern="[0-9]" inputmode="numeric" required>
+                <input type="text" class="otp-input" maxlength="1" pattern="[0-9]" inputmode="numeric" required>
+                <input type="text" class="otp-input" maxlength="1" pattern="[0-9]" inputmode="numeric" required>
+                <input type="text" class="otp-input" maxlength="1" pattern="[0-9]" inputmode="numeric" required>
+                <input type="text" class="otp-input" maxlength="1" pattern="[0-9]" inputmode="numeric" required>
+                <input type="text" class="otp-input" maxlength="1" pattern="[0-9]" inputmode="numeric" required>
+            </div>
+
+            <input type="hidden" name="otp_code" id="otp_code">
+
+            <button type="submit" class="btn" id="verify-btn">Verify Code</button>
+
+            <div class="error-message" id="error-message">
+                Invalid code. Please try again.
+            </div>
+        </form>
+
+        <div class="resend-link">
+            Didn't receive the code? <a href="#" id="resend">Resend</a>
+        </div>
+
+        <div class="footer">
+            © 2026 JHBridge Translation Services
+        </div>
+    </div>
+
+    <script>
+        const inputs = document.querySelectorAll('.otp-input');
+        const form = document.getElementById('otp-form');
+        const hiddenInput = document.getElementById('otp_code');
+        const errorMessage = document.getElementById('error-message');
+
+        inputs.forEach((input, index) => {
+            input.addEventListener('input', (e) => {
+                const value = e.target.value;
+
+                // Only allow numbers
+                if (!/^\d*$/.test(value)) {
+                    e.target.value = '';
+                    return;
+                }
+
+                // Move to next input
+                if (value && index < inputs.length - 1) {
+                    inputs[index + 1].focus();
+                }
+
+                // Update hidden input
+                updateOTPValue();
+            });
+
+            input.addEventListener('keydown', (e) => {
+                // Move to previous input on backspace
+                if (e.key === 'Backspace' && !e.target.value && index > 0) {
+                    inputs[index - 1].focus();
+                }
+            });
+
+            input.addEventListener('paste', (e) => {
+                e.preventDefault();
+                const pastedData = e.clipboardData.getData('text').slice(0, 6);
+
+                if (/^\d+$/.test(pastedData)) {
+                    pastedData.split('').forEach((char, i) => {
+                        if (inputs[i]) {
+                            inputs[i].value = char;
+                        }
+                    });
+                    updateOTPValue();
+                    if (pastedData.length === 6) {
+                        inputs[5].focus();
+                    }
+                }
+            });
+        });
+
+        function updateOTPValue() {
+            const otp = Array.from(inputs).map(input => input.value).join('');
+            hiddenInput.value = otp;
+            errorMessage.classList.remove('show');
+        }
+
+        form.addEventListener('submit', (e) => {
+            const otp = hiddenInput.value;
+            if (otp.length !== 6) {
+                e.preventDefault();
+                errorMessage.textContent = 'Please enter all 6 digits';
+                errorMessage.classList.add('show');
+            }
+        });
+
+        // Auto-focus first input
+        inputs[0].focus();
+
+        // Resend functionality (placeholder)
+        document.getElementById('resend').addEventListener('click', (e) => {
+            e.preventDefault();
+            alert('A new code has been sent to your email.');
+        });
+    </script>
+</body>
+
+</html>

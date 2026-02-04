@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -19,7 +20,7 @@
       background: #fff;
       border-radius: 8px;
       overflow: hidden;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
     }
 
     .header {
@@ -112,10 +113,11 @@
     }
   </style>
 </head>
+
 <body>
   <div class="container">
     <div class="header">
-      <img src="https://jhbridgetranslation.com/assets/two-CrMBXFPQ.png" alt="JHBRIDGE Logo" class="logo">
+      <img src="https://jhbridgetranslation.com/images/logo.png" alt="JHBRIDGE Logo" class="logo">
       <h2>Assignment {{ action|title }} by Interpreter</h2>
     </div>
 
@@ -125,39 +127,42 @@
         <div class="detail-row"><strong>Client:</strong> {{ assignment.client.company_name }}</div>
         <div class="detail-row"><strong>Service:</strong> {{ assignment.service_type.name }}</div>
         <div class="detail-row"><strong>Date:</strong> {{ assignment.start_time|date:"m/d/Y" }}</div>
-        <div class="detail-row"><strong>Time:</strong> {{ assignment.start_time|time:"g:i A" }} - {{ assignment.end_time|time:"g:i A" }}</div>
-        <div class="detail-row"><strong>Location:</strong> {{ assignment.location }}, {{ assignment.city }}, {{ assignment.state }}</div>
-        <div class="detail-row"><strong>Languages:</strong> {{ assignment.source_language.name }} → {{ assignment.target_language.name }}</div>
+        <div class="detail-row"><strong>Time:</strong> {{ assignment.start_time|time:"g:i A" }} - {{
+          assignment.end_time|time:"g:i A" }}</div>
+        <div class="detail-row"><strong>Location:</strong> {{ assignment.location }}, {{ assignment.city }}, {{
+          assignment.state }}</div>
+        <div class="detail-row"><strong>Languages:</strong> {{ assignment.source_language.name }} → {{
+          assignment.target_language.name }}</div>
       </div>
 
       {% if action == 'accepted' %}
-        <div class="next-steps">
-          <h3>Next Steps:</h3>
-          <ul>
-            <li>The interpreter has been automatically notified with assignment details</li>
-            <li>Calendar invitation has been sent</li>
-            <li>Assignment status has been updated to CONFIRMED</li>
-          </ul>
-        </div>
-        <div style="text-align: center;">
-          <a href="{{ admin_url }}" class="action-button">View Assignment Details</a>
-        </div>
+      <div class="next-steps">
+        <h3>Next Steps:</h3>
+        <ul>
+          <li>The interpreter has been automatically notified with assignment details</li>
+          <li>Calendar invitation has been sent</li>
+          <li>Assignment status has been updated to CONFIRMED</li>
+        </ul>
+      </div>
+      <div style="text-align: center;">
+        <a href="{{ admin_url }}" class="action-button">View Assignment Details</a>
+      </div>
       {% else %}
-        <div class="notice-box">
-          <h3>⚠️ Urgent Action Required</h3>
-          <p>This assignment needs to be reassigned to a new interpreter.</p>
-        </div>
-        <div class="next-steps">
-          <h3>Next Steps:</h3>
-          <ul>
-            <li>Assignment status has been automatically set to CANCELLED</li>
-            <li>Previous interpreter has been removed from the assignment</li>
-            <li>Click below to reassign this assignment to a new interpreter</li>
-          </ul>
-        </div>
-        <div style="text-align: center;">
-          <a href="{{ admin_url }}" class="action-button">Reassign Assignment</a>
-        </div>
+      <div class="notice-box">
+        <h3>⚠️ Urgent Action Required</h3>
+        <p>This assignment needs to be reassigned to a new interpreter.</p>
+      </div>
+      <div class="next-steps">
+        <h3>Next Steps:</h3>
+        <ul>
+          <li>Assignment status has been automatically set to CANCELLED</li>
+          <li>Previous interpreter has been removed from the assignment</li>
+          <li>Click below to reassign this assignment to a new interpreter</li>
+        </ul>
+      </div>
+      <div style="text-align: center;">
+        <a href="{{ admin_url }}" class="action-button">Reassign Assignment</a>
+      </div>
       {% endif %}
     </div>
 
@@ -166,4 +171,5 @@
     </div>
   </div>
 </body>
+
 </html>

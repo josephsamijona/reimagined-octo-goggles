@@ -10,14 +10,4 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RenameIndex(
-            model_name="assignmentnotification",
-            new_name="app_assignm_interpr_0de326_idx",
-            old_name="app_assignm_interpr_idx",
-        ),
-        migrations.RenameIndex(
-            model_name="assignmentnotification",
-            new_name="app_assignm_created_6849c4_idx",
-            old_name="app_assignm_created_idx",
-        ),
     ]

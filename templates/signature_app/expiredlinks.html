@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -16,14 +17,14 @@
             --error-color: #ff6b6b;
             --error-bg: rgba(255, 107, 107, 0.1);
         }
-        
+
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
-        
+
         body {
             background-color: var(--background-color);
             color: var(--text-color);
@@ -31,7 +32,7 @@
             display: flex;
             flex-direction: column;
         }
-        
+
         header {
             background-color: var(--primary-color);
             padding: 1rem;
@@ -39,11 +40,11 @@
             align-items: center;
             justify-content: space-between;
         }
-        
+
         .logo {
             height: 40px;
         }
-        
+
         main {
             flex: 1;
             padding: 2rem 1rem;
@@ -52,7 +53,7 @@
             align-items: center;
             justify-content: center;
         }
-        
+
         .error-container {
             background-color: var(--card-background);
             border-radius: 8px;
@@ -61,66 +62,66 @@
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
             overflow: hidden;
         }
-        
+
         .error-header {
             background-color: var(--error-bg);
             padding: 2rem 1.5rem;
             text-align: center;
             border-bottom: 1px solid var(--border-color);
         }
-        
+
         .error-icon {
             font-size: 4rem;
             color: var(--error-color);
             margin-bottom: 1rem;
         }
-        
+
         h1 {
             font-size: 1.5rem;
             margin-bottom: 1rem;
             color: var(--error-color);
         }
-        
+
         .error-message {
             padding: 2rem 1.5rem;
             line-height: 1.6;
         }
-        
+
         .error-details {
             margin-bottom: 1.5rem;
         }
-        
+
         .contact-section {
             background-color: rgba(255, 255, 255, 0.05);
             padding: 1.5rem;
             border-radius: 8px;
             margin-bottom: 1.5rem;
         }
-        
+
         .contact-title {
             font-weight: 600;
             margin-bottom: 1rem;
             font-size: 1.1rem;
         }
-        
+
         .contact-item {
             display: flex;
             align-items: center;
             margin-bottom: 0.75rem;
         }
-        
+
         .contact-icon {
             margin-right: 0.75rem;
             font-size: 1.2rem;
             min-width: 1.5rem;
             text-align: center;
         }
-        
+
         .btn-container {
             text-align: center;
             margin-top: 1rem;
         }
-        
+
         .btn {
             display: inline-block;
             padding: 1rem 2rem;
@@ -134,26 +135,27 @@
             transition: background-color 0.3s;
             text-decoration: none;
         }
-        
+
         .btn:hover {
             background-color: #3da63d;
         }
-        
+
         .btn-secondary {
             background-color: rgba(255, 255, 255, 0.1);
             margin-left: 1rem;
         }
-        
+
         .btn-secondary:hover {
             background-color: rgba(255, 255, 255, 0.2);
         }
     </style>
 </head>
+
 <body>
     <header>
-        <img src="https://jhbridgetranslation.com/assets/two-CrMBXFPQ.png" alt="JH Bridge Logo" class="logo">
+        <img src="https://jhbridgetranslation.com/images/logo.png" alt="JH Bridge Logo" class="logo">
     </header>
-    
+
     <main>
         <div class="error-container">
             <div class="error-header">
@@ -161,13 +163,15 @@
                 <h1>Verification Link Expired</h1>
                 <p>We're sorry, but this verification link is no longer valid.</p>
             </div>
-            
+
             <div class="error-message">
                 <div class="error-details">
-                    <p>For security reasons, verification links are only valid for 24 hours after they are sent. Your link has expired.</p>
-                    <p>Please contact our support team to receive a new verification link and continue with your interpreter agreement process.</p>
+                    <p>For security reasons, verification links are only valid for 24 hours after they are sent. Your
+                        link has expired.</p>
+                    <p>Please contact our support team to receive a new verification link and continue with your
+                        interpreter agreement process.</p>
                 </div>
-                
+
                 <div class="contact-section">
                     <div class="contact-title">Contact Information</div>
                     <div class="contact-item">
@@ -183,7 +187,7 @@
                         <span>Monday - Friday, 9:00 AM - 5:00 PM EST</span>
                     </div>
                 </div>
-                
+
                 <div class="btn-container">
                     <a href="#" class="btn">Request New Link</a>
                     <a href="#" class="btn btn-secondary">Return to Home</a>
@@ -192,4 +196,5 @@
         </div>
     </main>
 </body>
+
 </html>

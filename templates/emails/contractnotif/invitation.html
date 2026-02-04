@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+            line-height: 1.6;
+            color: #333333;
+            margin: 0;
+            padding: 0;
+            background-color: #f8f9fa;
+        }
+
+        .wrapper {
+            width: 100%;
+            table-layout: fixed;
+            background-color: #f8f9fa;
+            padding-bottom: 40px;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+            margin-top: 40px;
+        }
+
+        .header {
+            background-color: #ffffff;
+            padding: 30px;
+            text-align: center;
+            border-bottom: 1px solid #eeeeee;
+        }
+
+        .logo {
+            height: 50px;
+            width: auto;
+        }
+
+        .content {
+            padding: 40px;
+        }
+
+        h1 {
+            color: #1d3557;
+            font-size: 24px;
+            margin-top: 0;
+            margin-bottom: 20px;
+            font-weight: 700;
+        }
+
+        p {
+            margin-bottom: 20px;
+            font-size: 16px;
+            color: #555555;
+        }
+
+        .cta-container {
+            text-align: center;
+            margin: 30px 0;
+        }
+
+        .button {
+            display: inline-block;
+            padding: 14px 30px;
+            background-color: #2b50a1;
+            color: #ffffff !important;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 16px;
+            transition: background-color 0.3s ease;
+        }
+
+        .highlight-box {
+            background-color: #f0f7ff;
+            border-left: 4px solid #2b50a1;
+            padding: 20px;
+            margin-bottom: 30px;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .highlight-box h2 {
+            font-size: 18px;
+            color: #1d3557;
+            margin-top: 0;
+            margin-bottom: 10px;
+        }
+
+        .benefit-list {
+            margin: 0;
+            padding-left: 20px;
+        }
+
+        .benefit-list li {
+            margin-bottom: 8px;
+            font-size: 14px;
+            color: #444444;
+        }
+
+        .footer {
+            padding: 30px;
+            text-align: center;
+            font-size: 13px;
+            color: #888888;
+            background-color: #ffffff;
+            border-top: 1px solid #eeeeee;
+        }
+
+        .action-needed {
+            color: #d90429;
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 12px;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+            display: block;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="wrapper">
+        <div class="container">
+            <div class="header">
+                <img src="https://jhbridgetranslation.com/images/logo.png" alt="JHBridge Logo" class="logo">
+            </div>
+
+            <div class="content">
+                <span class="action-needed">Action Required</span>
+                <h1>2026 Partner Agreement Update</h1>
+
+                <p>Dear {{ interpreter_name|default:"Samuel" }},</p>
+
+                <p>As part of our commitment to excellence and compliance for the upcoming year, <strong>JHBridge
+                        Translation Services</strong> has updated its Independent Contractor Agreement.</p>
+
+                <p>This update is <strong>mandatory for all active interpreters</strong>. To continue receiving
+                    assignment offers and accessing your dashboard, please review and sign the new agreement.</p>
+
+                <div class="cta-container">
+                    <a href="{{ accept_url }}" class="button"
+                        style="background-color: #76b041; margin-right: 15px;">Accept Agreement</a>
+                    <a href="{{ review_url }}" class="button" style="background-color: #2b50a1;">Review Agreement</a>
+                </div>
+
+                <!-- Tracking Pixel -->
+                <img src="{{ tracking_pixel_url }}" width="1" height="1" style="display:none;" alt="" />
+
+                <div class="highlight-box">
+                    <h2>Key Updates in the 2026 Agreement:</h2>
+                    <ul class="benefit-list">
+                        <li><strong>Scope of Services & Compensation:</strong> Clarified definitions for on-site and
+                            remote assignments, including updated payment processing cycles and reimbursement policies.
+                        </li>
+                        <li><strong>Scheduling & Cancellations:</strong> Refined protocols for late cancellations and
+                            "no-show" scenarios to ensure fair compensation for your time and availability.</li>
+                        <li><strong>Confidentiality & Compliance:</strong> Enhanced data security measures and updated
+                            privacy standards to ensure continued alignment with HIPAA and client requirements.</li>
+                        <li><strong>Professional Standards:</strong> Modernized code of ethics and conduct expectations
+                            to maintain the highest quality of service for our clients.</li>
+                        <li><strong>Agreement Terms:</strong> Simplified language across all 16 sections to provide
+                            better transparency regarding mutual obligations and the term of our partnership.</li>
+                    </ul>
+                </div>
+
+                <p>If you have any questions regarding these updates, please don't hesitate to reach out to our support
+                    team.</p>
+            </div>
+
+            <div class="footer">
+                <p>Best regards,<br><strong>The JHBridge Team</strong></p>
+                <p style="margin-top: 20px;">© 2026 JHBridge Translation Services. All rights reserved.</p>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>

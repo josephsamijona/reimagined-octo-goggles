@@ -1,0 +1,461 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contract Setup Wizard - JHBridge</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --deep-blue: #1d3557;
+            --action-blue: #2b50a1;
+            --growth-green: #76b041;
+            --white: #ffffff;
+            --bg-gray: #f8f9fa;
+            --text-dark: #333333;
+            --text-light: #666666;
+            --border-color: #e0e0e0;
+            --border-radius: 12px;
+            --shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            --transition: all 0.3s ease;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-gray);
+            color: var(--text-dark);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        h1, h2, h3 {
+            font-family: 'Outfit', sans-serif;
+            color: var(--deep-blue);
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 2rem 1rem;
+        }
+
+        /* Header */
+        header {
+            background-color: var(--white);
+            padding: 1.5rem 0;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+
+        .logo {
+            height: 50px;
+        }
+
+        /* Stepper */
+        .stepper {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 3rem;
+            position: relative;
+            padding: 0 10%;
+        }
+
+        .stepper::before {
+            content: '';
+            position: absolute;
+            top: 20px;
+            left: 10%;
+            right: 10%;
+            height: 2px;
+            background-color: var(--border-color);
+            z-index: 1;
+        }
+
+        .step {
+            width: 40px;
+            height: 40px;
+            background-color: var(--white);
+            border: 2px solid var(--border-color);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            z-index: 2;
+            transition: var(--transition);
+            position: relative;
+        }
+
+        .step.active {
+            border-color: var(--action-blue);
+            background-color: var(--action-blue);
+            color: var(--white);
+            transform: scale(1.1);
+        }
+
+        .step.completed {
+            border-color: var(--growth-green);
+            background-color: var(--growth-green);
+            color: var(--white);
+        }
+
+        .step-label {
+            position: absolute;
+            top: 50px;
+            font-size: 11px;
+            white-space: nowrap;
+            color: var(--text-light);
+            font-weight: 500;
+        }
+
+        /* Wizard Card */
+        .wizard-card {
+            background-color: var(--white);
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            padding: 3rem;
+            min-height: 500px;
+            display: flex;
+            flex-direction: column;
+            transition: var(--transition);
+        }
+
+        .wizard-step {
+            display: none;
+            animation: fadeIn 0.5s ease;
+        }
+
+        .wizard-step.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .step-title {
+            margin-bottom: 1.5rem;
+            font-size: 1.8rem;
+            border-bottom: 2px solid var(--bg-gray);
+            padding-bottom: 0.5rem;
+        }
+
+        .step-content {
+            font-size: 1.1rem;
+            color: var(--text-dark);
+            margin-bottom: 2rem;
+        }
+
+        .step-content p {
+            margin-bottom: 1.2rem;
+        }
+
+        .step-content ul {
+            margin-left: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .step-content li {
+            margin-bottom: 0.5rem;
+        }
+
+        /* Buttons */
+        .actions {
+            margin-top: auto;
+            display: flex;
+            justify-content: space-between;
+            gap: 1rem;
+        }
+
+        .btn {
+            padding: 0.8rem 2rem;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            font-size: 1rem;
+            border: none;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-prev {
+            background-color: var(--bg-gray);
+            color: var(--text-dark);
+        }
+
+        .btn-prev:hover {
+            background-color: #e9ecef;
+        }
+
+        .btn-next {
+            background-color: var(--action-blue);
+            color: var(--white);
+        }
+
+        .btn-next:hover {
+            background-color: var(--deep-blue);
+            transform: translateY(-2px);
+        }
+
+        .btn-finish {
+            background-color: var(--growth-green);
+            color: var(--white);
+        }
+
+        .btn-finish:hover {
+            background-color: #5f8d34;
+            transform: translateY(-2px);
+        }
+
+        /* Final Agreement */
+        .agreement-box {
+            margin-top: 2rem;
+            padding: 1.5rem;
+            background-color: rgba(118, 176, 65, 0.1);
+            border-radius: 8px;
+            border: 1px solid var(--growth-green);
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .agreement-box input[type="radio"] {
+            width: 25px;
+            height: 25px;
+            accent-color: var(--growth-green);
+            cursor: pointer;
+        }
+
+        .agreement-box label {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--deep-blue);
+            cursor: pointer;
+        }
+
+        /* Mobile Adjustments */
+        @media (max-width: 600px) {
+            .stepper {
+                padding: 0 5%;
+            }
+            .step-label {
+                display: none;
+            }
+            .wizard-card {
+                padding: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="container" style="padding: 0;">
+            <img src="https://jhbridgetranslation.com/images/logo.png" alt="JHBridge Logo" class="logo">
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="stepper">
+            <div class="step active" data-step="1">1<span class="step-label">Relationship</span></div>
+            <div class="step" data-step="2">2<span class="step-label">Compensation</span></div>
+            <div class="step" data-step="3">3<span class="step-label">Performance</span></div>
+            <div class="step" data-step="4">4<span class="step-label">Confidentiality</span></div>
+            <div class="step" data-step="5">5<span class="step-label">Compliance</span></div>
+            <div class="step" data-step="6">6<span class="step-label">Legal</span></div>
+            <div class="step" data-step="7">7<span class="step-label">Agreement</span></div>
+        </div>
+
+        <form method="POST" id="wizard-form">
+            {% csrf_token %}
+            <div class="wizard-card" id="wizard-card">
+                
+                <!-- Step 1: Independent Contractor Relationship & Scope -->
+                <div class="wizard-step active" data-step="1">
+                    <h2 class="step-title">1. Independent Contractor Relationship</h2>
+                    <div class="step-content">
+                        <p><strong>Relationship:</strong> Interpreter is engaged as an independent contractor and not as an employee of the Company. Nothing in this Agreement shall be construed to create an employer-employee relationship, partnership, or joint venture.</p>
+                        <p><strong>Responsibility:</strong> Interpreter is responsible for all federal, state, and local taxes, insurance, licenses, and expenses related to services provided.</p>
+                        <h3 style="margin-top: 1.5rem;">2. Scope of Services</h3>
+                        <p>Interpreter agrees to provide professional interpretation and/or translation services as requested, including on-site and remote assignments for courts, hospitals, and legal offices.</p>
+                    </div>
+                </div>
+
+                <!-- Step 2: Compensation & Scheduling -->
+                <div class="wizard-step" data-step="2">
+                    <h2 class="step-title">3. Compensation</h2>
+                    <div class="step-content">
+                        <p>Interpreter shall be compensated according to rates agreed upon per assignment. Compensation is issued only for completed assignments and approved no-shows.</p>
+                        <h3 style="margin-top: 1.5rem;">4. Scheduling, Cancellations, and No-Shows</h3>
+                        <p>Interpreters are required to arrive on-site at least <strong>fifteen (15) minutes prior</strong> to the scheduled start time.</p>
+                        <p>If a no-show occurs, it must be reported no earlier than 15 minutes after the start time. Failure to report correctly results in no compensation owed.</p>
+                    </div>
+                </div>
+
+                <!-- Step 3: Attendance & Punctuality -->
+                <div class="wizard-step" data-step="3">
+                    <h2 class="step-title">5. Attendance & Reliability</h2>
+                    <div class="step-content">
+                        <p>Interpreters are expected to maintain professional reliability. Performance issues include:</p>
+                        <ul>
+                            <li><strong>Late cancellations:</strong> Made less than 48 hours prior.</li>
+                            <li><strong>Tardiness:</strong> Failure to arrive 15 minutes early.</li>
+                        </ul>
+                        <p>Corrective actions may include verbal/written warnings, reduced assignment priority, or removal from the active roster.</p>
+                    </div>
+                </div>
+
+                <!-- Step 4: Confidentiality & Term -->
+                <div class="wizard-step" data-step="4">
+                    <h2 class="step-title">6. Confidentiality</h2>
+                    <div class="step-content">
+                        <p>Interpreter agrees to maintain strict confidentiality regarding all client information, medical information (HIPAA), and legal matters. This obligation <strong>survives termination</strong> of this Agreement.</p>
+                        <h3 style="margin-top: 1.5rem;">7. Term and Termination</h3>
+                        <p>Agreement continues until terminated by either party with 30 days' written notice. Immediate termination may occur for breach of contract or misconduct.</p>
+                    </div>
+                </div>
+
+                <!-- Step 5: Compliance & Equipment -->
+                <div class="wizard-step" data-step="5">
+                    <h2 class="step-title">8. Compliance with Laws</h2>
+                    <div class="step-content">
+                        <p>Interpreter agrees to comply with all applicable federal, state, and local laws, and professional interpretation standards.</p>
+                        <h3 style="margin-top: 1.5rem;">9. Equipment and Expenses</h3>
+                        <p>Interpreter is responsible for providing their own transportation, equipment, internet access, and tools required to perform services.</p>
+                        <h3 style="margin-top: 1.5rem;">10. Assignment Acceptance</h3>
+                        <p>Acceptance of assignments is voluntary; however, repeated declines may affect future availability.</p>
+                    </div>
+                </div>
+
+                <!-- Step 6: Non-Solicitation & Disputes -->
+                <div class="wizard-step" data-step="6">
+                    <h2 class="step-title">11. Non-Solicitation of Clients</h2>
+                    <div class="step-content">
+                        <p>During the term and for <strong>24 months</strong> following, Interpreter agrees not to solicit or contract directly with any client introduced through the Company.</p>
+                        <h3 style="margin-top: 1.5rem;">12. Dispute Resolution</h3>
+                        <p>Disputes shall first be addressed through good-faith mediation, then binding arbitration in the Commonwealth of Massachusetts.</p>
+                        <h3 style="margin-top: 1.5rem;">13. Governing Law</h3>
+                        <p>This Agreement is governed by the laws of the Commonwealth of Massachusetts.</p>
+                    </div>
+                </div>
+
+                <!-- Step 7: Final Agreement -->
+                <div class="wizard-step" data-step="7">
+                    <h2 class="step-title">Acknowledgment & Agreement</h2>
+                    <div class="step-content">
+                        <p><strong>14. Entire Agreement:</strong> This constitutes the entire agreement and supersedes all prior understandings.</p>
+                        <p><strong>15. Severability:</strong> If any provision is invalid, others remain in full force.</p>
+                        <p><strong>16. Acknowledgment:</strong> By selecting "YES" below, you acknowledge that you have read, understood, and agree to be bound by the terms of this Independent Contractor Interpreter Agreement.</p>
+                        
+                        <div class="agreement-box">
+                            <input type="radio" id="agree-yes" name="agreement" value="yes" required>
+                            <label for="agree-yes">YES, I AGREE</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="actions">
+                    <button type="button" class="btn btn-prev" id="btn-prev" style="visibility: hidden;">
+                        <i class="fas fa-arrow-left"></i> Previous
+                    </button>
+                    <button type="button" class="btn btn-next" id="btn-next">
+                        Next <i class="fas fa-arrow-right"></i>
+                    </button>
+                    <button type="submit" class="btn btn-finish" id="btn-finish" style="display: none;">
+                        Complete Setup <i class="fas fa-check"></i>
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            let currentStep = 1;
+            const totalSteps = 7;
+            
+            const btnNext = document.getElementById('btn-next');
+            const btnPrev = document.getElementById('btn-prev');
+            const btnFinish = document.getElementById('btn-finish');
+            const steps = document.querySelectorAll('.wizard-step');
+            const stepperIcons = document.querySelectorAll('.step');
+
+            function updateWizard() {
+                // Update Steps visibility
+                steps.forEach(step => {
+                    step.classList.remove('active');
+                    if (parseInt(step.dataset.step) === currentStep) {
+                        step.classList.add('active');
+                    }
+                });
+
+                // Update Stepper icons
+                stepperIcons.forEach(icon => {
+                    const stepNum = parseInt(icon.dataset.step);
+                    icon.classList.remove('active', 'completed');
+                    if (stepNum === currentStep) {
+                        icon.classList.add('active');
+                    } else if (stepNum < currentStep) {
+                        icon.classList.add('completed');
+                    }
+                });
+
+                // Update Buttons
+                if (currentStep === 1) {
+                    btnPrev.style.visibility = 'hidden';
+                } else {
+                    btnPrev.style.visibility = 'visible';
+                }
+
+                if (currentStep === totalSteps) {
+                    btnNext.style.display = 'none';
+                    btnFinish.style.display = 'flex';
+                } else {
+                    btnNext.style.display = 'flex';
+                    btnFinish.style.display = 'none';
+                }
+
+                // Scroll to top of card on step change
+                document.getElementById('wizard-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+
+            btnNext.addEventListener('click', () => {
+                if (currentStep < totalSteps) {
+                    currentStep++;
+                    updateWizard();
+                }
+            });
+
+            btnPrev.addEventListener('click', () => {
+                if (currentStep > 1) {
+                    currentStep--;
+                    updateWizard();
+                }
+            });
+
+            // Prevent form submission if YES is not checked (redundant due to required)
+            document.getElementById('wizard-form').addEventListener('submit', function(e) {
+                const agreeYes = document.getElementById('agree-yes');
+                if (!agreeYes.checked) {
+                    e.preventDefault();
+                    alert("Please select YES to agree to the terms.");
+                }
+            });
+        });
+    </script>
+</body>
+</html>

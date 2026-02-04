@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -16,14 +17,14 @@
             --input-background: rgba(255, 255, 255, 0.05);
             --highlight-color: rgba(75, 183, 75, 0.1);
         }
-        
+
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
-        
+
         body {
             background-color: var(--background-color);
             color: var(--text-color);
@@ -31,7 +32,7 @@
             display: flex;
             flex-direction: column;
         }
-        
+
         header {
             background-color: var(--primary-color);
             padding: 1rem;
@@ -39,16 +40,16 @@
             align-items: center;
             justify-content: space-between;
         }
-        
+
         .logo {
             height: 40px;
         }
-        
+
         .header-info {
             font-size: 0.9rem;
             text-align: right;
         }
-        
+
         main {
             flex: 1;
             padding: 2rem 1rem;
@@ -56,7 +57,7 @@
             flex-direction: column;
             align-items: center;
         }
-        
+
         .progress-container {
             width: 100%;
             max-width: 800px;
@@ -64,13 +65,13 @@
             display: flex;
             justify-content: space-between;
         }
-        
+
         .progress-step {
             flex: 1;
             text-align: center;
             position: relative;
         }
-        
+
         .progress-step::before {
             content: '';
             position: absolute;
@@ -81,15 +82,15 @@
             background-color: var(--secondary-color);
             z-index: 1;
         }
-        
+
         .progress-step:first-child::before {
             left: 50%;
         }
-        
+
         .progress-step:last-child::before {
             right: 50%;
         }
-        
+
         .step-number {
             display: inline-flex;
             align-items: center;
@@ -103,26 +104,26 @@
             position: relative;
             z-index: 2;
         }
-        
+
         .active .step-number {
             background-color: var(--accent-color);
         }
-        
+
         .completed .step-number {
             background-color: var(--accent-color);
         }
-        
+
         .step-label {
             margin-top: 0.5rem;
             font-size: 0.8rem;
             color: rgba(255, 255, 255, 0.7);
         }
-        
+
         .active .step-label {
             color: var(--text-color);
             font-weight: 500;
         }
-        
+
         .signature-container {
             background-color: var(--card-background);
             border-radius: 8px;
@@ -131,40 +132,40 @@
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
             margin-bottom: 2rem;
         }
-        
+
         .signature-header {
             padding: 1.5rem;
             border-bottom: 1px solid var(--border-color);
         }
-        
+
         h1 {
             font-size: 1.5rem;
             margin-bottom: 0.5rem;
         }
-        
+
         .authorization-section {
             padding: 1.5rem;
             border-bottom: 1px solid var(--border-color);
             background-color: var(--highlight-color);
         }
-        
+
         .authorization-text {
             margin-bottom: 1.5rem;
             line-height: 1.6;
         }
-        
+
         .signature-section {
             padding: 1.5rem;
             border-bottom: 1px solid var(--border-color);
         }
-        
+
         .signature-options {
             display: flex;
             margin-bottom: 1.5rem;
             border-bottom: 1px dotted var(--border-color);
             padding-bottom: 1rem;
         }
-        
+
         .signature-option {
             flex: 1;
             text-align: center;
@@ -173,30 +174,30 @@
             border-bottom: 3px solid transparent;
             transition: all 0.3s ease;
         }
-        
+
         .signature-option.active {
             border-bottom: 3px solid var(--accent-color);
             font-weight: 500;
         }
-        
+
         .signature-option:hover:not(.active) {
             background-color: rgba(255, 255, 255, 0.05);
         }
-        
+
         .signature-method {
             display: none;
             margin-top: 1.5rem;
         }
-        
+
         .signature-method.active {
             display: block;
         }
-        
+
         .signature-label {
             font-weight: 500;
             margin-bottom: 1rem;
         }
-        
+
         .signature-pad {
             border: 2px dashed var(--secondary-color);
             background-color: rgba(0, 0, 0, 0.2);
@@ -206,7 +207,7 @@
             margin-bottom: 0.5rem;
             position: relative;
         }
-        
+
         canvas {
             position: absolute;
             top: 0;
@@ -215,13 +216,13 @@
             height: 100%;
             cursor: crosshair;
         }
-        
+
         .signature-controls {
             display: flex;
             justify-content: flex-end;
             margin-bottom: 1.5rem;
         }
-        
+
         .clear-btn {
             background: none;
             border: none;
@@ -231,11 +232,11 @@
             padding: 0.25rem;
             text-decoration: underline;
         }
-        
+
         .clear-btn:hover {
             color: var(--text-color);
         }
-        
+
         .type-signature {
             width: 100%;
             padding: 0.75rem;
@@ -246,13 +247,13 @@
             font-size: 1rem;
             margin-bottom: 1rem;
         }
-        
+
         .type-signature:focus {
             outline: none;
             border-color: var(--accent-color);
             background-color: rgba(255, 255, 255, 0.1);
         }
-        
+
         .font-selector {
             width: 100%;
             padding: 0.75rem;
@@ -269,20 +270,20 @@
             background-size: 12px;
             padding-right: 2rem;
         }
-        
+
         .font-selector:focus {
             outline: none;
             border-color: var(--accent-color);
             background-color: rgba(255, 255, 255, 0.1);
         }
-        
+
         .font-preview {
             margin-top: 0.5rem;
             margin-bottom: 0.5rem;
             font-size: 0.9rem;
             color: rgba(255, 255, 255, 0.7);
         }
-        
+
         .signature-preview {
             font-size: 2rem;
             padding: 0.5rem;
@@ -292,42 +293,42 @@
             align-items: center;
             justify-content: center;
         }
-        
+
         /* Font classes for preview */
         .font-brush-script {
             font-family: 'Brush Script MT', cursive;
         }
-        
+
         .font-dancing-script {
             font-family: 'Dancing Script', 'Brush Script MT', cursive;
         }
-        
+
         .font-pacifico {
             font-family: 'Pacifico', 'Brush Script MT', cursive;
         }
-        
+
         .font-satisfy {
             font-family: 'Satisfy', 'Brush Script MT', cursive;
         }
-        
+
         .font-caveat {
             font-family: 'Caveat', 'Brush Script MT', cursive;
         }
-        
+
         .font-sacramento {
             font-family: 'Sacramento', 'Brush Script MT', cursive;
         }
-        
+
         .font-great-vibes {
             font-family: 'Great Vibes', 'Brush Script MT', cursive;
         }
-        
+
         .upload-signature {
             display: flex;
             flex-direction: column;
             align-items: center;
         }
-        
+
         .upload-area {
             border: 2px dashed var(--secondary-color);
             background-color: rgba(0, 0, 0, 0.2);
@@ -338,61 +339,61 @@
             text-align: center;
             cursor: pointer;
         }
-        
+
         .upload-area:hover {
             background-color: rgba(255, 255, 255, 0.05);
         }
-        
+
         .upload-icon {
             font-size: 2rem;
             margin-bottom: 0.5rem;
         }
-        
+
         .file-input {
             display: none;
         }
-        
+
         .uploaded-image {
             max-width: 100%;
             max-height: 100px;
             margin-top: 1rem;
             display: none;
         }
-        
+
         .upload-instructions {
             font-size: 0.9rem;
             color: rgba(255, 255, 255, 0.7);
             margin-top: 0.5rem;
         }
-        
+
         .checkbox-container {
             display: flex;
             align-items: flex-start;
             margin: 1.5rem 0;
         }
-        
+
         .checkbox-container input {
             margin-top: 0.3rem;
             margin-right: 0.75rem;
         }
-        
+
         .date-display {
             margin-top: 1rem;
             font-size: 0.9rem;
             color: rgba(255, 255, 255, 0.7);
         }
-        
+
         .signature-display {
             margin-top: 2rem;
             border-top: 1px dotted var(--border-color);
             padding-top: 1.5rem;
         }
-        
+
         .signature-title {
             font-weight: 500;
             margin-bottom: 0.5rem;
         }
-        
+
         .signature-result {
             min-height: 70px;
             border: 1px solid var(--secondary-color);
@@ -403,13 +404,13 @@
             justify-content: center;
             margin-bottom: 1rem;
         }
-        
+
         .btn-container {
             padding: 1.5rem;
             display: flex;
             justify-content: space-between;
         }
-        
+
         .btn {
             padding: 1rem 2rem;
             background-color: var(--accent-color);
@@ -421,52 +422,53 @@
             cursor: pointer;
             transition: background-color 0.3s;
         }
-        
+
         .btn:hover {
             background-color: #3da63d;
         }
-        
+
         .btn:disabled {
             background-color: #808080;
             cursor: not-allowed;
         }
-        
+
         .btn-secondary {
             background-color: rgba(255, 255, 255, 0.1);
         }
-        
+
         .btn-secondary:hover {
             background-color: rgba(255, 255, 255, 0.2);
         }
-        
+
         .status-message {
             margin-top: 1rem;
             text-align: center;
             min-height: 1.5rem;
             font-weight: 500;
         }
-        
+
         .success-message {
             color: var(--accent-color);
         }
-        
+
         .error-message {
             color: #ff6b6b;
         }
-        
+
         /* Google Fonts for signature */
         @import url('https://fonts.googleapis.com/css2?family=Caveat&family=Dancing+Script&family=Great+Vibes&family=Pacifico&family=Sacramento&family=Satisfy&display=swap');
     </style>
 </head>
+
 <body>
     <header>
-        <img src="https://jhbridgetranslation.com/assets/two-CrMBXFPQ.png" alt="JH Bridge Logo" class="logo">
+        <img src="https://jhbridgetranslation.com/images/logo.png" alt="JH Bridge Logo" class="logo">
         <div class="header-info">
             <div>Agreement #: <span id="agreement-number">{{ agreement_number }}</span></div>
             <div>Contract ID: <span id="contract-id">{{ contract.id }}</span></div>
         </div>
     </header>
-    
+
     <main>
         <div class="progress-container">
             <div class="progress-step completed">
@@ -490,54 +492,59 @@
                 <div class="step-label">Confirmation</div>
             </div>
         </div>
-        
+
         <div class="signature-container">
             <div class="signature-header">
                 <h1>Sign Agreement</h1>
                 <p>Please review the authorization and provide your signature to complete the agreement</p>
             </div>
-            
+
             <div class="authorization-section">
                 <div class="authorization-text">
-                    <strong>Authorization:</strong> I hereby authorize JHBridge Translation Services to deposit payments directly into my bank account as provided. I understand that it is my responsibility to ensure that the information provided is correct. I agree to notify the Company of any changes to my banking details and I confirm that I have read and understood the Interpreter Service Agreement and agree to all terms and conditions outlined in this document.
+                    <strong>Authorization:</strong> I hereby authorize JHBridge Translation Services to deposit payments
+                    directly into my bank account as provided. I understand that it is my responsibility to ensure that
+                    the information provided is correct. I agree to notify the Company of any changes to my banking
+                    details and I confirm that I have read and understood the Interpreter Service Agreement and agree to
+                    all terms and conditions outlined in this document.
                 </div>
             </div>
-            
+
             <div class="signature-section">
                 <div class="signature-options">
                     <div class="signature-option active" data-method="draw">Draw Signature</div>
                     <div class="signature-option" data-method="type">Type Signature</div>
                     <div class="signature-option" data-method="upload">Upload Signature</div>
                 </div>
-                
+
                 {% if messages %}
-                    <div class="status-message error-message">
-                        {% for message in messages %}
-                            {{ message }}
-                        {% endfor %}
-                    </div>
+                <div class="status-message error-message">
+                    {% for message in messages %}
+                    {{ message }}
+                    {% endfor %}
+                </div>
                 {% endif %}
-                
+
                 {% if error_code %}
-                    <div class="status-message error-message">
-                        {% if error_code == 'incomplete_form' %}
-                            Please complete all required fields and confirm the agreement.
-                        {% elif error_code == 'missing_signature' %}
-                            Please provide your signature to complete the agreement.
-                        {% elif error_code == 'invalid_file' %}
-                            Please upload a valid image file for your signature.
-                        {% elif error_code == 'file_too_large' %}
-                            The signature file is too large. Maximum size is 2MB.
-                        {% else %}
-                            An error occurred. Please try again.
-                        {% endif %}
-                    </div>
+                <div class="status-message error-message">
+                    {% if error_code == 'incomplete_form' %}
+                    Please complete all required fields and confirm the agreement.
+                    {% elif error_code == 'missing_signature' %}
+                    Please provide your signature to complete the agreement.
+                    {% elif error_code == 'invalid_file' %}
+                    Please upload a valid image file for your signature.
+                    {% elif error_code == 'file_too_large' %}
+                    The signature file is too large. Maximum size is 2MB.
+                    {% else %}
+                    An error occurred. Please try again.
+                    {% endif %}
+                </div>
                 {% endif %}
-                
-                <form id="signature-form" method="post" enctype="multipart/form-data" action="{% url 'dbdint:contract_signature' %}">
+
+                <form id="signature-form" method="post" enctype="multipart/form-data"
+                    action="{% url 'dbdint:contract_signature' %}">
                     {% csrf_token %}
                     <input type="hidden" name="signature_method" id="signature_method" value="draw">
-                    
+
                     <!-- Draw Signature Method -->
                     <div class="signature-method active" id="draw-method">
                         <div class="signature-label">Draw your signature below:</div>
@@ -549,12 +556,13 @@
                         </div>
                         <input type="hidden" name="drawn_signature_data" id="drawn_signature_data">
                     </div>
-                    
+
                     <!-- Type Signature Method -->
                     <div class="signature-method" id="type-method">
                         <div class="signature-label">Type your full name below:</div>
-                        <input type="text" class="type-signature" id="typed-signature" name="typed_signature" placeholder="Your full name">
-                        
+                        <input type="text" class="type-signature" id="typed-signature" name="typed_signature"
+                            placeholder="Your full name">
+
                         <div class="font-preview">Select signature font:</div>
                         <select class="font-selector" id="font-selector" name="font_selector">
                             <option value="font-brush-script">Brush Script</option>
@@ -565,10 +573,10 @@
                             <option value="font-sacramento">Sacramento</option>
                             <option value="font-great-vibes">Great Vibes</option>
                         </select>
-                        
+
                         <div class="signature-preview font-brush-script" id="signature-preview"></div>
                     </div>
-                    
+
                     <!-- Upload Signature Method -->
                     <div class="signature-method" id="upload-method">
                         <div class="signature-label">Upload your signature image:</div>
@@ -578,29 +586,31 @@
                                 <div>Click to upload signature image</div>
                                 <div class="upload-instructions">Supported formats: JPG, PNG, GIF (Max 2MB)</div>
                             </label>
-                            <input type="file" id="signature-file" name="signature_file" class="file-input" accept="image/*">
+                            <input type="file" id="signature-file" name="signature_file" class="file-input"
+                                accept="image/*">
                             <img src="" id="uploaded-signature" class="uploaded-image">
                         </div>
                     </div>
-                    
+
                     <div class="checkbox-container">
                         <input type="checkbox" id="agreement-checkbox" name="agreement_checkbox" required>
                         <label for="agreement-checkbox">
-                            I have read and understood the Interpreter Service Agreement and agree to all terms and conditions outlined in this document.
+                            I have read and understood the Interpreter Service Agreement and agree to all terms and
+                            conditions outlined in this document.
                         </label>
                     </div>
-                    
+
                     <div class="date-display">
                         Date: <span id="signature-date">{{ current_date }}</span>
                     </div>
-                    
+
                     <div class="signature-display">
                         <div class="signature-title">Interpreter Signature:</div>
                         <div class="signature-result" id="signature-result"></div>
                     </div>
-                    
+
                     <div class="status-message" id="status-message"></div>
-                    
+
                     <div class="btn-container">
                         <button type="button" class="btn btn-secondary" id="back-btn">Back</button>
                         <button type="submit" class="btn" id="submit-btn" disabled>Complete Agreement</button>
@@ -609,9 +619,9 @@
             </div>
         </div>
     </main>
-    
+
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', function () {
             // Éléments
             const signatureOptions = document.querySelectorAll('.signature-option');
             const signatureMethods = document.querySelectorAll('.signature-method');
@@ -622,28 +632,28 @@
             const backBtn = document.getElementById('back-btn');
             const signatureResult = document.getElementById('signature-result');
             const signatureForm = document.getElementById('signature-form');
-            
+
             // Variables pour la signature
             let currentMethod = 'draw';
             let hasSignature = false;
-            
+
             // Method 1: Draw Signature
             const canvas = document.getElementById('signature-canvas');
             const ctx = canvas.getContext('2d');
             const drawnSignatureDataInput = document.getElementById('drawn_signature_data');
             let isDrawing = false;
             const clearSignatureBtn = document.getElementById('clear-signature');
-            
+
             // Method 2: Type Signature
             const typedSignature = document.getElementById('typed-signature');
             const signaturePreview = document.getElementById('signature-preview');
             const fontSelector = document.getElementById('font-selector');
-            
+
             // Method 3: Upload Signature
             const signatureFile = document.getElementById('signature-file');
             const uploadedSignature = document.getElementById('uploaded-signature');
             const uploadArea = document.getElementById('upload-area');
-            
+
             // Configuration du canvas
             function resizeCanvas() {
                 const container = canvas.parentElement;
@@ -653,31 +663,31 @@
                 ctx.lineCap = 'round';
                 ctx.strokeStyle = '#000000';
             }
-            
+
             // Initialisation du canvas
             resizeCanvas();
             window.addEventListener('resize', resizeCanvas);
-            
+
             // Fonctions de dessin
             function startDrawing(e) {
                 e.preventDefault();
                 isDrawing = true;
                 draw(e);
             }
-            
+
             function stopDrawing() {
                 isDrawing = false;
                 ctx.beginPath();
                 updateSignatureStatus();
             }
-            
+
             function draw(e) {
                 if (!isDrawing) return;
-                
+
                 // Obtenir la position de la souris/du toucher
                 const rect = canvas.getBoundingClientRect();
                 let x, y;
-                
+
                 if (e.type.includes('touch')) {
                     x = e.touches[0].clientX - rect.left;
                     y = e.touches[0].clientY - rect.top;
@@ -685,19 +695,19 @@
                     x = e.clientX - rect.left;
                     y = e.clientY - rect.top;
                 }
-                
+
                 ctx.lineTo(x, y);
                 ctx.stroke();
                 ctx.beginPath();
                 ctx.moveTo(x, y);
             }
-            
+
             // Effacer la signature
             function clearSignature() {
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
                 updateSignatureStatus();
             }
-            
+
             // Vérifier si le canvas contient une signature
             function hasDrawnSignature() {
                 const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
@@ -708,7 +718,7 @@
                 }
                 return false;
             }
-            
+
             // Fonctions de mise à jour spécifiques pour chaque type de signature
             function updateDrawnSignature() {
                 hasSignature = hasDrawnSignature();
@@ -722,15 +732,15 @@
                     signatureResult.innerHTML = '';
                 }
             }
-            
+
             function updateTypedSignature() {
                 const typedText = typedSignature.value.trim();
                 hasSignature = typedText !== '';
-                
+
                 if (hasSignature) {
                     const fontClass = fontSelector.value;
                     signatureResult.innerHTML = `<span class="${fontClass}" style="font-size: 1.8rem; color: #fff;">${typedText}</span>`;
-                    
+
                     // Créer/mettre à jour le champ caché pour les données de signature typée
                     let typeDataInput = document.getElementById('type_signature_data');
                     if (!typeDataInput) {
@@ -740,17 +750,17 @@
                         typeDataInput.name = 'type_signature_data';
                         signatureForm.appendChild(typeDataInput);
                     }
-                    
+
                     const typeSignatureData = {
                         text: typedText,
                         font: fontClass
                     };
-                    
+
                     typeDataInput.value = JSON.stringify(typeSignatureData);
                     console.log("Signature typée mise à jour:", JSON.stringify(typeSignatureData));
                 } else {
                     signatureResult.innerHTML = '';
-                    
+
                     // Supprimer les données de signature typée si elles existent
                     const typeDataInput = document.getElementById('type_signature_data');
                     if (typeDataInput) {
@@ -758,13 +768,13 @@
                     }
                 }
             }
-            
+
             function updateUploadedSignature() {
                 hasSignature = uploadedSignature.style.display === 'block';
-                
+
                 if (hasSignature) {
                     signatureResult.innerHTML = `<img src="${uploadedSignature.src}" alt="Uploaded Signature" style="max-height: 60px;">`;
-                    
+
                     // Créer/mettre à jour le champ caché pour les métadonnées du fichier
                     const file = signatureFile.files[0];
                     if (file) {
@@ -776,20 +786,20 @@
                             uploadDataInput.name = 'upload_signature_data';
                             signatureForm.appendChild(uploadDataInput);
                         }
-                        
+
                         const uploadMetadata = {
                             name: file.name,
                             type: file.type,
                             size: file.size,
                             lastModified: file.lastModified
                         };
-                        
+
                         uploadDataInput.value = JSON.stringify(uploadMetadata);
                         console.log("Métadonnées de signature téléchargée:", JSON.stringify(uploadMetadata));
                     }
                 } else {
                     signatureResult.innerHTML = '';
-                    
+
                     // Supprimer les métadonnées si elles existent
                     const uploadDataInput = document.getElementById('upload_signature_data');
                     if (uploadDataInput) {
@@ -797,38 +807,38 @@
                     }
                 }
             }
-            
+
             // Ajouter les écouteurs d'événements pour le dessin
             canvas.addEventListener('mousedown', startDrawing);
             canvas.addEventListener('mousemove', draw);
             canvas.addEventListener('mouseup', stopDrawing);
             canvas.addEventListener('mouseout', stopDrawing);
-            
+
             // Événements tactiles pour mobile
             canvas.addEventListener('touchstart', startDrawing);
             canvas.addEventListener('touchmove', draw);
             canvas.addEventListener('touchend', stopDrawing);
-            
+
             // Bouton pour effacer la signature
             clearSignatureBtn.addEventListener('click', clearSignature);
-            
+
             // Événement de saisie de signature
-            typedSignature.addEventListener('input', function() {
+            typedSignature.addEventListener('input', function () {
                 signaturePreview.textContent = this.value;
                 updateSignatureStatus();
             });
-            
+
             // Événement de sélection de police
-            fontSelector.addEventListener('change', function() {
+            fontSelector.addEventListener('change', function () {
                 // Supprimer toutes les classes de police
                 signaturePreview.className = 'signature-preview';
                 // Ajouter la classe de police sélectionnée
                 signaturePreview.classList.add(this.value);
                 updateSignatureStatus();
             });
-            
+
             // Événement de téléchargement de signature
-            signatureFile.addEventListener('change', function() {
+            signatureFile.addEventListener('change', function () {
                 const file = this.files[0];
                 if (file) {
                     if (file.size > 2 * 1024 * 1024) {
@@ -836,9 +846,9 @@
                         this.value = '';
                         return;
                     }
-                    
+
                     const reader = new FileReader();
-                    reader.onload = function(e) {
+                    reader.onload = function (e) {
                         uploadedSignature.src = e.target.result;
                         uploadedSignature.style.display = 'block';
                         updateSignatureStatus();
@@ -846,54 +856,54 @@
                     reader.readAsDataURL(file);
                 }
             });
-            
+
             // Cliquer sur la zone de téléchargement pour déclencher l'input de fichier
-            uploadArea.addEventListener('click', function() {
+            uploadArea.addEventListener('click', function () {
                 signatureFile.click();
             });
-            
+
             // Effacer toutes les signatures
             function clearAllSignatures() {
                 // Effacer la signature dessinée
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
                 drawnSignatureDataInput.value = '';
-                
+
                 // Effacer la signature tapée
                 typedSignature.value = '';
                 signaturePreview.textContent = '';
-                
+
                 // Réinitialiser le sélecteur de police à la valeur par défaut
                 fontSelector.value = 'font-brush-script';
                 signaturePreview.className = 'signature-preview font-brush-script';
-                
+
                 // Effacer la signature téléchargée
                 uploadedSignature.src = '';
                 uploadedSignature.style.display = 'none';
                 signatureFile.value = '';
-                
+
                 // Effacer le résultat de la signature
                 signatureResult.innerHTML = '';
-                
+
                 // Effacer les champs cachés
                 const typeDataInput = document.getElementById('type_signature_data');
                 if (typeDataInput) typeDataInput.value = '';
-                
+
                 const uploadDataInput = document.getElementById('upload_signature_data');
                 if (uploadDataInput) uploadDataInput.value = '';
-                
+
                 // Réinitialiser le drapeau hasSignature
                 hasSignature = false;
-                
+
                 // Mettre à jour l'état du bouton
                 checkFormValidity();
             }
-            
+
             // Mettre à jour le statut de la signature en fonction de la méthode actuelle
             function updateSignatureStatus() {
                 // S'assurer que la méthode de signature est correctement définie
                 signatureMethodInput.value = currentMethod;
                 console.log("Méthode de signature actuelle:", currentMethod);
-                
+
                 // Mettre à jour selon la méthode choisie
                 switch (currentMethod) {
                     case 'draw':
@@ -906,42 +916,42 @@
                         updateUploadedSignature();
                         break;
                 }
-                
+
                 // Mettre à jour l'état du bouton
                 checkFormValidity();
             }
-            
+
             // Changer entre les méthodes de signature
             signatureOptions.forEach(option => {
-                option.addEventListener('click', function() {
+                option.addEventListener('click', function () {
                     const method = this.getAttribute('data-method');
-                    
+
                     // Si on passe à une méthode différente, effacer la signature précédente
                     if (method !== currentMethod) {
                         clearAllSignatures();
                     }
-                    
+
                     // Mettre à jour l'option active
                     signatureOptions.forEach(opt => opt.classList.remove('active'));
                     this.classList.add('active');
-                    
+
                     // Mettre à jour la méthode active
                     signatureMethods.forEach(m => m.classList.remove('active'));
                     document.getElementById(`${method}-method`).classList.add('active');
-                    
+
                     // Mettre à jour la méthode actuelle
                     currentMethod = method;
                     signatureMethodInput.value = method;
                     console.log("Changement de méthode de signature vers:", method);
-                    
+
                     // Vérifier le statut de la signature
                     updateSignatureStatus();
                 });
             });
-            
+
             // Case à cocher pour l'accord
             agreementCheckbox.addEventListener('change', checkFormValidity);
-            
+
             // Validation du formulaire
             function checkFormValidity() {
                 const isValid = hasSignature && agreementCheckbox.checked;
@@ -949,16 +959,16 @@
                 console.log("Formulaire valide:", isValid, "- Signature présente:", hasSignature, "- Accord coché:", agreementCheckbox.checked);
                 return isValid;
             }
-            
+
             // Bouton de retour
-            backBtn.addEventListener('click', function() {
+            backBtn.addEventListener('click', function () {
                 if (confirm('Are you sure you want to go back? Your signature progress will be lost.')) {
                     window.location.href = "{% url 'dbdint:contract_payment_info' %}";
                 }
             });
-            
+
             // Soumission du formulaire
-            signatureForm.addEventListener('submit', function(e) {
+            signatureForm.addEventListener('submit', function (e) {
                 if (!checkFormValidity()) {
                     e.preventDefault();
                     statusMessage.textContent = 'Please complete all required fields.';
@@ -966,16 +976,16 @@
                     console.log("Soumission bloquée - formulaire invalide");
                     return;
                 }
-                
+
                 // Vérifier que la méthode est correctement définie
                 if (!signatureMethodInput.value) {
                     signatureMethodInput.value = currentMethod;
                 }
-                
+
                 // Afficher des informations de débogage
                 console.log("========= SOUMISSION DU FORMULAIRE =========");
                 console.log("Méthode de signature:", signatureMethodInput.value);
-                
+
                 switch (currentMethod) {
                     case 'draw':
                         console.log("Données de signature dessinée présentes:", drawnSignatureDataInput.value ? "Oui" : "Non");
@@ -993,19 +1003,20 @@
                         console.log("Métadonnées du fichier:", uploadData ? uploadData.value : "Non défini");
                         break;
                 }
-                
+
                 // Afficher un message de traitement
                 statusMessage.textContent = 'Processing your signature...';
                 statusMessage.className = 'status-message';
                 console.log("Formulaire soumis avec succès");
             });
-            
+
             // Validation initiale
             updateSignatureStatus();
-            
+
             // Journaliser l'état initial
             console.log("Page de signature initialisée - Méthode par défaut:", currentMethod);
         });
     </script>
 </body>
+
 </html>

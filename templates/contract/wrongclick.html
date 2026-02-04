@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Error - JHBridge</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@600;700&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --deep-blue: #1d3557;
+            --action-blue: #2b50a1;
+            --error-red: #dc3545;
+            --white: #ffffff;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 600px;
+            background: var(--white);
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+            padding: 60px 40px;
+            text-align: center;
+            animation: fadeIn 0.6s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .logo {
+            height: 60px;
+            margin-bottom: 30px;
+        }
+
+        .error-icon {
+            width: 80px;
+            height: 80px;
+            background: var(--error-red);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 30px;
+            animation: scaleIn 0.5s ease 0.2s both;
+        }
+
+        @keyframes scaleIn {
+            from {
+                transform: scale(0);
+            }
+
+            to {
+                transform: scale(1);
+            }
+        }
+
+        .error-icon svg {
+            width: 40px;
+            height: 40px;
+            stroke: white;
+            stroke-width: 3;
+            fill: none;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        h1 {
+            font-family: 'Outfit', sans-serif;
+            color: var(--deep-blue);
+            font-size: 28px;
+            margin-bottom: 20px;
+        }
+
+        p {
+            color: #555555;
+            font-size: 16px;
+            line-height: 1.6;
+            margin-bottom: 30px;
+        }
+
+        .contact-box {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+
+        .contact-box a {
+            color: var(--action-blue);
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .contact-box a:hover {
+            text-decoration: underline;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 14px 32px;
+            background-color: var(--action-blue);
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
+
+        .btn:hover {
+            background-color: var(--deep-blue);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(43, 80, 161, 0.3);
+        }
+
+        .footer {
+            margin-top: 40px;
+            color: #999999;
+            font-size: 14px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <img src="https://jhbridgetranslation.com/images/logo.png" alt="JHBridge Logo" class="logo">
+
+        <div class="error-icon">
+            <svg viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="15" y1="9" x2="9" y2="15"></line>
+                <line x1="9" y1="9" x2="15" y2="15"></line>
+            </svg>
+        </div>
+
+        <h1>Something Went Wrong</h1>
+
+        <p>We encountered an issue while processing your request. This may be due to an expired link or an invalid
+            token.</p>
+
+        <div class="contact-box">
+            <p style="margin-bottom: 10px;"><strong>Need Help?</strong></p>
+            <p>Please contact us at <a href="mailto:jhbridgetranslation@gmail.com">jhbridgetranslation@gmail.com</a><br>
+                or call <a href="tel:7742238771">(774) 223-8771</a></p>
+        </div>
+
+        <a href="{% url 'dbdint:home' %}" class="btn">Return Home</a>
+
+        <div class="footer">
+            © 2026 JHBridge Translation Services
+        </div>
+    </div>
+</body>
+
+</html>

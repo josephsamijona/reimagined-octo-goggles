@@ -1,7 +1,6 @@
 from django.urls import path
 from django.contrib.auth import views as auth_views
 from . import views
-from .assignment_views import AssignmentAcceptView, AssignmentDeclineView
 
 app_name = 'dbdint'
 
@@ -137,10 +136,10 @@ urlpatterns = [
          name='mark_assignments_read'),
     
      path('assignments/accept/<str:assignment_token>/', 
-         AssignmentAcceptView.as_view(), 
+         views.AssignmentAcceptView.as_view(), 
          name='assignment-accept'),
     path('assignments/decline/<str:assignment_token>/', 
-         AssignmentDeclineView.as_view(), 
+         views.AssignmentDeclineView.as_view(), 
          name='assignment-decline'),
     ##########################update
     path('earnings/', views.PaymentListView.as_view(), name='interpreter_payments'),
@@ -169,6 +168,11 @@ urlpatterns = [
     path('contract/verify/<str:token>/', views.ContractVerificationView.as_view(), name='contract_verification'),
     path('contract/verify-otp/', views.ContractOTPVerificationView.as_view(), name='contract_otp_verification'),
     path('contract/review/', views.ContractReviewView.as_view(), name='contract_review'),
+    path('contract/wizard/', views.ContractWizardView.as_view(), name='contract_wizard'),
+    path('contract/success/', views.ContractSuccessView.as_view(), name='contract_success'),
+    path('contract/already-confirmed/', views.ContractAlreadyConfirmedView.as_view(), name='contract_already_confirmed'),
+    path('contract/error/', views.ContractErrorView.as_view(), name='contract_error'),
+    path('contract/otp/', views.ContractOTPView.as_view(), name='contract_otp'),
     path('contract/payment-info/', views.ContractPaymentInfoView.as_view(), name='contract_payment_info'),
     path('contract/signature/', views.ContractSignatureView.as_view(), name='contract_signature'),
     path('contract/confirmation/', views.ContractConfirmationView.as_view(), name='confirmation'),
@@ -177,4 +181,11 @@ urlpatterns = [
     
     
 
+    # Contract Tracking
+    path('contracts/track/<str:token>/pixel.png', views.EmailTrackingPixelView.as_view(), name='contract_tracking_pixel'),
+    path('contracts/accept/<str:accept_token>/', views.DirectAcceptView.as_view(), name='contract_direct_accept'),
+    path('contracts/review/<str:review_token>/', views.ReviewLinkView.as_view(), name='contract_review_link'),
+    path('contracts/download/<uuid:invitation_id>/', views.ContractPDFDownloadView.as_view(), name='contract_pdf_download'),
+    path('verify/<str:invitation_number>/', views.ContractPublicVerifyView.as_view(), name='contract_public_verify'),
+    
 ]
