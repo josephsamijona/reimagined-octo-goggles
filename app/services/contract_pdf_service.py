@@ -223,7 +223,7 @@ class ContractPDFGenerator:
         
         c.setFont("Helvetica", 8)
         c.drawString(company_x, text_y - 30, "Name: Marc-Henry Valme")
-        c.drawString(company_x, text_y - 40, "Title: CEO")
+        c.drawString(company_x, text_y - 40, "JHBridge representative")
         
         # --- FOOTER & QR CODE ---
         try:
