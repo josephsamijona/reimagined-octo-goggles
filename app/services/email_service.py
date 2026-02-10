@@ -3,7 +3,7 @@ from django.template.loader import render_to_string
 from django.core.mail import send_mail, EmailMultiAlternatives
 from django.conf import settings
 from django.urls import reverse
-from app.models import ContractTrackingEvent
+from app.models import ContractTrackingEvent, ContractReminder
 from custom_storages import ContractStorage
 
 logger = logging.getLogger(__name__)
@@ -143,3 +143,128 @@ class ContractEmailService:
             logger.error("------------------------")
             # Re-raise to alert caller if needed
             raise e
+
+class ContractReminderService:
+    """
+    Service to handle sending tiered contract reminders.
+    Supports 3 levels of urgency.
+    """
+    
+    @classmethod
+    def send_level_1(cls, interpreter, invitation, triggered_by=None):
+        """Send Level 1 Reminder (Gentle nudge - Day 3)"""
+        return cls._send_reminder(
+            interpreter, 
+            invitation, 
+            level=1, 
+            subject="Reminder: Please Sign Your JHBridge Agreement", 
+            template="emails/contractnotif/reminder_level_1.html",
+            triggered_by=triggered_by
+        )
+
+    @classmethod
+    def send_level_2(cls, interpreter, invitation, triggered_by=None):
+        """Send Level 2 Reminder (Warning - Day 7)"""
+        return cls._send_reminder(
+            interpreter, 
+            invitation, 
+            level=2, 
+            subject="Urgent: Your JHBridge Agreement is Pending", 
+            template="emails/contractnotif/reminder_level_2.html",
+            triggered_by=triggered_by
+        )
+
+    @classmethod
+    def send_level_3(cls, interpreter, invitation, triggered_by=None):
+        """Send Level 3 Reminder (Final Notice & Block - Day 14)"""
+        return cls._send_reminder(
+            interpreter, 
+            invitation, 
+            level=3, 
+            subject="Final Notice: Account Blocked Due to Missing Agreement", 
+            template="emails/contractnotif/reminder_level_3.html",
+            triggered_by=triggered_by
+        )
+
+    @classmethod
+    def _send_reminder(cls, interpreter, invitation, level, subject, template, triggered_by=None):
+        try:
+            user = interpreter.user
+            
+            # Use invitation context if available, otherwise fallback
+            contract_url = "https://jhbridgetranslation.com/dashboard/" # Default fallback
+            if invitation:
+                 # TODO: Ideally should pass request object here for absolute URI, 
+                 # but for background tasks or admin actions, we might need SITE_URL
+                 # For now, simplistic approach using dashboard or direct link if possible
+                 pass 
+
+            context = {
+                'interpreter_name': user.get_full_name(),
+                'contract_url': contract_url, # Template should handle the precise link logic or updated later
+                'days_pending': [3, 7, 14][level-1]
+            }
+            
+            html_message = render_to_string(template, context)
+            
+            send_mail(
+                subject=subject,
+                message='',
+                html_message=html_message,
+                from_email='JHBridge Compliance <contracts@jhbridgetranslation.com>',
+                recipient_list=[user.email],
+                fail_silently=False,
+            )
+            
+            # Log the reminder
+            ContractReminder.objects.create(
+                interpreter=interpreter,
+                invitation=invitation,
+                level=level,
+                sent_by=triggered_by
+            )
+            
+            logger.info(f"Level {level} reminder sent to {user.email}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to send reminder level {level}: {e}")
+            return False
+
+class ContractViolationService:
+    """
+    Service to handle contract violations and suspensions.
+    """
+    
+    @classmethod
+    def send_suspension_email(cls, interpreter, reason, triggered_by=None):
+        """Send account suspension email due to contract violation"""
+        try:
+            user = interpreter.user
+            
+            context = {
+                'interpreter_name': user.get_full_name(),
+                'reason': reason,
+                'support_email': 'support@jhbridgetranslation.com'
+            }
+            
+            html_message = render_to_string('emails/contractnotif/account_suspended.html', context)
+            
+            send_mail(
+                subject='Important: Your JHBridge Account Has Been Suspended',
+                message='',
+                html_message=html_message,
+                from_email='JHBridge Legal <legal@jhbridgetranslation.com>',
+                recipient_list=[user.email],
+                fail_silently=False,
+            )
+            
+            # Log event (using ContractTrackingEvent if invitation exists, or custom log)
+            # For now just log to file
+            logger.info(f"Suspension email sent to {user.email} for reason: {reason}")
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to send suspension email: {e}")
+            return False

@@ -61,6 +61,20 @@ class InterpreterContractSignature(models.Model):
         ('type', 'Typography signature'),
         ('draw', 'Manual signature'),
     ]
+
+    # Signature Method (New Flow vs Old)
+    SIGNATURE_METHOD_CHOICES = [
+        ('WIZARD', 'Wizard Checkbox'),
+        ('LEGACY', 'Legacy OTP/Draw'),
+        ('UPLOAD', 'Manual Upload'),
+        ('DIGITAL_CHECKBOX', 'Digital Checkbox (Wizard)'),
+    ]
+    signature_method = models.CharField(
+        max_length=20, 
+        choices=SIGNATURE_METHOD_CHOICES, 
+        default='LEGACY',
+        help_text="Method used to sign the contract"
+    )
     
     # Identifiers
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

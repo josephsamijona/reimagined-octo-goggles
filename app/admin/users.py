@@ -65,12 +65,14 @@ class InterpreterAdmin(admin.ModelAdmin):
         'city', 
         'state',
         'active',
+        'is_manually_blocked',  # Added
         'w9_on_file',
         'background_check_status',
         'hourly_rate'
     )
     list_filter = (
         'active',
+        'is_manually_blocked',  # Added
         'state',
         'w9_on_file',
         'background_check_status',
@@ -82,7 +84,8 @@ class InterpreterAdmin(admin.ModelAdmin):
         'user__last_name',
         'city',
         'state',
-        'zip_code'
+        'zip_code',
+        'blocked_reason'  # Added
     )
     inlines = [InterpreterLanguageInline]
     fieldsets = (
@@ -124,7 +127,17 @@ class InterpreterAdmin(admin.ModelAdmin):
                 if field in form.base_fields:
                     form.base_fields[field].disabled = True
         return form
-    actions = ['activate_interpreters', 'deactivate_interpreters', 'send_contract_invitation']
+    actions = [
+        'activate_interpreters', 
+        'deactivate_interpreters', 
+        'send_contract_invitation',
+        'block_interpreters',
+        'unblock_interpreters',
+        'send_reminder_level_1',
+        'send_reminder_level_2',
+        'send_reminder_level_3',
+        'suspend_for_violation'
+    ]
     
     def activate_interpreters(self, request, queryset):
         updated = queryset.update(active=True)
@@ -213,4 +226,75 @@ class InterpreterAdmin(admin.ModelAdmin):
         else:
             self.message_user(request, msg, level=messages.SUCCESS)
     send_contract_invitation.short_description = "Send 2026 Contract Invitation"
+
+    def block_interpreters(self, request, queryset):
+        from django.utils import timezone
+        updated = queryset.update(
+            is_manually_blocked=True,
+            blocked_at=timezone.now(),
+            blocked_by=request.user,
+            blocked_reason="Manual block via Admin"
+        )
+        self.message_user(request, f'{updated} interpreter(s) have been manually blocked.')
+    block_interpreters.short_description = "Block selected interpreters (Manual)"
+
+    def unblock_interpreters(self, request, queryset):
+        updated = queryset.update(
+            is_manually_blocked=False,
+            blocked_at=None,
+            blocked_by=None,
+            blocked_reason=None
+        )
+        self.message_user(request, f'{updated} interpreter(s) have been unblocked.')
+    unblock_interpreters.short_description = "Unblock selected interpreters"
+
+    def send_reminder_level_1(self, request, queryset):
+        self._send_bulk_reminder(request, queryset, 1)
+    send_reminder_level_1.short_description = "Send Level 1 Reminder (Day 3)"
+
+    def send_reminder_level_2(self, request, queryset):
+        self._send_bulk_reminder(request, queryset, 2)
+    send_reminder_level_2.short_description = "Send Level 2 Reminder (Day 7)"
+
+    def send_reminder_level_3(self, request, queryset):
+        self._send_bulk_reminder(request, queryset, 3)
+    send_reminder_level_3.short_description = "Send Level 3 Reminder (Block)"
+
+    def suspend_for_violation(self, request, queryset):
+        from app.services.email_service import ContractViolationService
+        from django.contrib import messages
+        from django.utils import timezone
+        
+        count = 0
+        for interpreter in queryset:
+            if ContractViolationService.send_suspension_email(interpreter, "Administrative Decision", triggered_by=request.user):
+                interpreter.is_manually_blocked = True
+                interpreter.blocked_reason = "Administrative Suspension"
+                interpreter.blocked_by = request.user
+                interpreter.blocked_at = timezone.now()
+                interpreter.save()
+                count += 1
+        
+        self.message_user(request, f'Suspension email sent to {count} interpreter(s) and accounts blocked.', level=messages.SUCCESS)
+    suspend_for_violation.short_description = "Suspend Account (Violation)"
+
+    def _send_bulk_reminder(self, request, queryset, level):
+        from app.services.email_service import ContractReminderService
+        from app.models import ContractInvitation
+        from django.contrib import messages
+
+        sent_count = 0
+        for interpreter in queryset:
+            # Try to find active invitation
+            invitation = ContractInvitation.objects.filter(
+                interpreter=interpreter,
+                status__in=['SENT', 'OPENED', 'REVIEWING']
+            ).last()
+            
+            # Send using service
+            method = getattr(ContractReminderService, f"send_level_{level}")
+            if method(interpreter, invitation, triggered_by=request.user):
+                sent_count += 1
+        
+        self.message_user(request, f'Level {level} reminder sent to {sent_count} interpreter(s).', level=messages.SUCCESS)
 

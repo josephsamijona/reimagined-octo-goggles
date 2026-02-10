@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <style>
+        body {
+            font-family: sans-serif;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .btn {
+            background-color: #c53030;
+            color: white;
+            padding: 10px 20px;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+
+        .footer {
+            font-size: 12px;
+            color: #777;
+            margin-top: 30px;
+            border-top: 1px solid #ddd;
+            padding-top: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h2 style="color: #c53030;">Urgent: Action Required</h2>
+        <p>Dear {{ interpreter_name }},</p>
+
+        <p>This is your second notice regarding the <strong>2026 Independent Contractor Agreement</strong>.</p>
+
+        <p>Please be advised that your account may be temporarily suspended if we do not receive your signed agreement
+            within <strong>7 days</strong>.</p>
+
+        <p>To avoid any disruption to your assignments and payments, please complete the signing process immediately.
+        </p>
+
+        <p style="text-align: center; margin: 30px 0;">
+            <a href="{{ contract_url }}" class="btn">Sign Agreement Now</a>
+        </p>
+
+        <p>Best regards,<br>The JHBridge Team</p>
+
+        <div class="footer">
+            <p>You are receiving this email because you are a registered interpreter with JHBridge.</p>
+        </div>
+    </div>
+</body>
+
+</html>

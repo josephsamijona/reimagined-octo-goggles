@@ -1,6 +1,7 @@
 {% load static %}
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -49,6 +50,7 @@
         }
     </style>
 </head>
+
 <body>
     <div class="registration-container">
         <!-- Progress Steps -->
@@ -111,7 +113,7 @@
                         <select name="state" id="state" class="state-select" required>
                             <option value="">Select a State</option>
                             {% for state_code, state_name in states.items %}
-                            <option value="{{ state_code }}" {% if form.state.value == state_code %}selected{% endif %}>
+                            <option value="{{ state_code }}" {% if form.state.value==state_code %}selected{% endif %}>
                                 {{ state_name }}
                             </option>
                             {% endfor %}
@@ -135,7 +137,7 @@
                 <div class="checkbox-container">
                     {{ form.w9_on_file }}
                     <label for="{{ form.w9_on_file.id_for_label }}" class="checkbox-label">
-                        I confirm that I will provide a completed 1099 form for tax purposes. I understand that this is required before I can receive any payments.
+                        I understand that I am responsible for managing my own taxes as an independent contractor.
                     </label>
                 </div>
                 {% if form.w9_on_file.errors %}
@@ -156,10 +158,10 @@
     </div>
 
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', function () {
             // Validation du code ZIP
             const zipInput = document.querySelector('input[name="zip_code"]');
-            zipInput.addEventListener('input', function() {
+            zipInput.addEventListener('input', function () {
                 this.value = this.value.replace(/[^0-9]/g, '');
                 if (this.value.length > 5) {
                     this.value = this.value.slice(0, 5);
@@ -171,11 +173,11 @@
             const inputs = form.querySelectorAll('input, textarea, select');
 
             inputs.forEach(input => {
-                input.addEventListener('focus', function() {
+                input.addEventListener('focus', function () {
                     this.parentElement.classList.add('focused');
                 });
 
-                input.addEventListener('blur', function() {
+                input.addEventListener('blur', function () {
                     if (!this.value && input.type !== 'checkbox') {
                         this.parentElement.classList.remove('focused');
                     }
@@ -183,7 +185,7 @@
             });
 
             // Validation du formulaire
-            form.addEventListener('submit', function(e) {
+            form.addEventListener('submit', function (e) {
                 const requiredFields = form.querySelectorAll('[required]');
                 let isValid = true;
 
@@ -207,4 +209,5 @@
         });
     </script>
 </body>
+
 </html>

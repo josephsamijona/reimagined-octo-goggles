@@ -1,0 +1,114 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Action Required - JHBridge</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8f9fa;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            color: #333;
+        }
+
+        .container {
+            background: white;
+            padding: 3rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            max-width: 550px;
+            text-align: center;
+            border-top: 5px solid #2b50a1;
+        }
+
+        .icon {
+            font-size: 3.5rem;
+            color: #2b50a1;
+            margin-bottom: 1.5rem;
+            background: #e6f0ff;
+            padding: 1.5rem;
+            border-radius: 50%;
+            width: 100px;
+            height: 100px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        h1 {
+            font-family: 'Outfit', sans-serif;
+            color: #1d3557;
+            margin-bottom: 1rem;
+        }
+
+        p {
+            margin-bottom: 1.5rem;
+            line-height: 1.6;
+            color: #555;
+        }
+
+        .btn {
+            background-color: #76b041;
+            color: white;
+            padding: 1rem 2rem;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            display: inline-block;
+            font-size: 1.1rem;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px rgba(118, 176, 65, 0.2);
+        }
+
+        .btn:hover {
+            background-color: #5f8d34;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 8px rgba(118, 176, 65, 0.3);
+        }
+
+        .footer {
+            margin-top: 2rem;
+            font-size: 0.9rem;
+            color: #888;
+        }
+
+        .footer a {
+            color: #2b50a1;
+            text-decoration: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="icon">
+            <i class="fas fa-file-signature"></i>
+        </div>
+        <h1>Action Required: New Agreement</h1>
+        <p>To continue accessing your interpreter dashboard and receiving assignments, we require all interpreters to
+            review and sign our updated <strong>2026 Independent Contractor Agreement</strong>.</p>
+
+        <p>This ensures compliance with new regulations and protects our professional relationship. The process takes
+            less than 2 minutes.</p>
+
+        <a href="{{ contract_link }}" class="btn">Review & Sign Agreement</a>
+
+        <div class="footer">
+            <p>Having trouble? <a href="mailto:support@jhbridgetranslation.com">Contact Support</a></p>
+        </div>
+    </div>
+</body>
+
+</html>

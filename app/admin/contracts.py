@@ -4,7 +4,7 @@ from django.utils import timezone
 from django.contrib import messages
 from django.shortcuts import render, redirect
 from django.urls import path
-from app.models import ContractInvitation, ContractTrackingEvent
+from app.models import ContractInvitation, ContractTrackingEvent, ContractReminder
 from django.utils.translation import gettext_lazy as _
 import datetime
 
@@ -34,7 +34,7 @@ class ContractInvitationAdmin(admin.ModelAdmin):
         'signed_at',
         'created_by'
     )
-    list_filter = ('status', 'version', 'created_at')
+    list_filter = ('status', 'version', 'created_at', 'contract_signature__signature_method')
     search_fields = (
         'invitation_number', 
         'interpreter__user__email', 
@@ -198,5 +198,26 @@ class ContractInvitationAdmin(admin.ModelAdmin):
             sent_count += 1
             
         self.message_user(request, f"{sent_count} invitations regenerated and sent.")
+
+
+@admin.register(ContractReminder)
+class ContractReminderAdmin(admin.ModelAdmin):
+    list_display = ('interpreter_name', 'level', 'sent_at', 'sent_by', 'invitation_link')
+    list_filter = ('level', 'sent_at', 'sent_by')
+    search_fields = ('interpreter__user__email', 'interpreter__user__last_name', 'interpreter__user__first_name')
+    readonly_fields = ('sent_at',)
+    
+    def interpreter_name(self, obj):
+        return obj.interpreter.user.get_full_name()
+    interpreter_name.short_description = "Interpreter"
+    interpreter_name.admin_order_field = 'interpreter__user__last_name'
+
+    def invitation_link(self, obj):
+        if obj.invitation:
+            from django.urls import reverse
+            url = reverse('admin:app_contractinvitation_change', args=[obj.invitation.id])
+            return mark_safe(f'<a href="{url}">{obj.invitation.invitation_number}</a>')
+        return "-"
+    invitation_link.short_description = "Invitation"
     
 

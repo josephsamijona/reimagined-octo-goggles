@@ -111,6 +111,18 @@ class Interpreter(models.Model):
     has_accepted_contract = models.BooleanField(default=False)
     is_dashboard_enabled = models.BooleanField(default=False)
     
+    # Manual Blocking & Sanctions
+    is_manually_blocked = models.BooleanField(default=False, help_text="Bloqué manuellement par un administrateur")
+    blocked_reason = models.TextField(null=True, blank=True, help_text="Raison du blocage")
+    blocked_at = models.DateTimeField(null=True, blank=True)
+    blocked_by = models.ForeignKey(
+        'User', 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name='blocked_interpreters'
+    )
+    
     class Meta:
         db_table = 'app_interpreter'
     

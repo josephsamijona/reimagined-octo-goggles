@@ -5,7 +5,7 @@ import uuid
 
 from django.contrib import messages
 from django.contrib.auth import login
-from django.contrib.auth.models import User
+from ...models import User  # Use custom User model
 from django.core.mail import EmailMultiAlternatives
 from django.shortcuts import redirect
 from django.template.loader import render_to_string
@@ -224,26 +224,44 @@ class InterpreterRegistrationStep3View(FormView):
             interpreter.user = user
             interpreter.save()
             
+            
             for language_id in step2_data['languages']:
                 interpreter.languages.add(language_id)
             
-            # Création du contrat
-            otp_code = ''.join([str(random.randint(0, 9)) for _ in range(6)])
-            contract = InterpreterContractSignature(
-                user=user,
-                interpreter=interpreter,
-                interpreter_name=f"{user.first_name} {user.last_name}",
-                interpreter_email=user.email,
-                interpreter_phone=user.phone,
-                interpreter_address=f"{interpreter.address}, {interpreter.city}, {interpreter.state} {interpreter.zip_code}",
-                token=str(uuid.uuid4()),
-                otp_code=otp_code,
-            )
-            contract.save()
-            logger.info(f"Contract created for interpreter: {interpreter.id}, token: {contract.token}")
+            # Create contract invitation using new unified system
+            from ...models import ContractInvitation, ContractTrackingEvent
+            from ...services.email_service import ContractEmailService
+            from datetime import timedelta
+            from django.utils import timezone
             
-            # Envoi de l'email avec le contrat
-            self.send_contract_email(user, interpreter, contract)
+            try:
+                # Create invitation
+                invitation = ContractInvitation.objects.create(
+                    interpreter=interpreter,
+                    created_by=None,  # System-generated during registration
+                    expires_at=timezone.now() + timedelta(days=30)
+                )
+                
+                # Create tracking event
+                ContractTrackingEvent.objects.create(
+                    invitation=invitation,
+                    event_type='EMAIL_SENT',
+                    performed_by=None,  # System action
+                    metadata={'source': 'interpreter_registration'}
+                )
+                
+                # Send invitation email using new service
+                email_sent = ContractEmailService.send_invitation_email(invitation, self.request)
+                
+                if email_sent:
+                    invitation.email_sent_at = timezone.now()
+                    invitation.save(update_fields=['email_sent_at'])
+                    logger.info(f"Contract invitation sent to: {user.email}")
+                else:
+                    logger.error(f"Failed to send contract invitation email to {user.email}")
+                    
+            except Exception as email_error:
+                logger.error(f"Error creating contract invitation: {str(email_error)}", exc_info=True)
             
             del self.request.session['dbdint:interpreter_registration_step1']
             del self.request.session['dbdint:interpreter_registration_step2']
@@ -256,70 +274,6 @@ class InterpreterRegistrationStep3View(FormView):
             logger.error(f"Registration error: {str(e)}", exc_info=True)
             messages.error(self.request, 'An error occurred while creating your account.')
             return redirect('dbdint:interpreter_registration_step1')
-
-    def send_contract_email(self, user, interpreter, contract):
-         """Sends the contract email to the interpreter with anti-spam optimization."""
-         try:
-             # Création d'un identifiant unique pour ce message
-             message_id = f"<contract-{contract.id}-{uuid.uuid4()}@{socket.gethostname()}>"
-             
-             # Construction de l'URL absolue pour le lien de vérification
-             verification_url = self.request.build_absolute_uri(
-                 reverse('dbdint:contract_verification', kwargs={'token': contract.token})
-             )
-             
-             # Préparation des données pour le template
-             context = {
-                 'interpreter_name': f"{user.first_name} {user.last_name}",
-                 'token': contract.token,
-                 'otp_code': contract.otp_code,
-                 'verification_url': verification_url,  # Passez l'URL complète au template
-                 'email': user.email  # Pour le lien de désabonnement
-             }
-             
-             # Rendu du template HTML
-             html_message = render_to_string('notifmail/esign_notif.html', context)
-             plain_message = strip_tags(html_message)
-             
-             # Ligne d'objet en anglais - éviter les formulations qui déclenchent les filtres anti-spam
-             subject = f"Your JH Bridge Interpreter Agreement - Signature Required"
-             
-             # Format professionnel pour l'adresse expéditeur
-             from_email = f"JH Bridge Contracts <contracts@jhbridgetranslation.com>"
-             
-             # Création de l'email avec du texte brut comme corps principal
-             email = EmailMultiAlternatives(
-                 subject=subject,
-                 body=plain_message,
-                 from_email=from_email,
-                 to=[user.email],
-                 reply_to=['support@jhbridgetranslation.com']
-             )
-             
-             # Ajout de la version HTML comme alternative
-             email.attach_alternative(html_message, "text/html")
-             
-             # En-têtes optimisés pour la délivrabilité
-             email.extra_headers = {
-                 # En-têtes d'avant
-                 'Message-ID': message_id,
-                 'X-Entity-Ref-ID': str(contract.token),
-                 'X-Mailer': 'JHBridge-ContractMailer/1.0',
-                 'X-Contact-ID': str(user.id),
-                 'List-Unsubscribe': f'<mailto:unsubscribe@jhbridgetranslation.com?subject=Unsubscribe-{user.email}>',
-                 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
-                 'Precedence': 'bulk',
-                 'Auto-Submitted': 'auto-generated',
-                 'Feedback-ID': f'contract-{contract.id}:{user.id}:jhbridge:{int(time.time())}'
-             }
-             
-             # Envoi de l'email
-             email.send(fail_silently=False)
-             
-             logger.info(f"Contract agreement email sent to: {user.email} with Message-ID: {message_id}")
-             
-         except Exception as e:
-             logger.error(f"Error sending contract email: {str(e)}", exc_info=True)
 
     def form_invalid(self, form):
         logger.warning(f"Form validation failed: {form.errors}")

@@ -1,8 +1,8 @@
-from .verification import (
-    ContractVerificationView,
-    ContractOTPVerificationView,
-    ContractReviewView
-)
+# Legacy modules deprecated
+# from .verification import ...
+# from .signature import ...
+# from .confirmation import ...
+
 from .wizard import (
     ContractWizardView,
     ContractSuccessView,
@@ -10,14 +10,7 @@ from .wizard import (
     ContractErrorView,
     ContractOTPView
 )
-from .signature import (
-    ContractPaymentInfoView,
-    ContractSignatureView
-)
-from .confirmation import (
-    ContractConfirmationView,
-    contract_render_view
-)
+
 from .tracking import (
     EmailTrackingPixelView,
     DirectAcceptView,

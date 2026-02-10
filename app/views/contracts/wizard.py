@@ -103,9 +103,9 @@ class ContractWizardView(View):
                 messages.error(request, 'You must agree to the terms to proceed.')
                 return self.get(request)
             
-            # Sign the contract using the same logic as DirectAcceptView
+            # Sign the contract using helper
             from .tracking import create_and_sign_contract
-            create_and_sign_contract(invitation, request)
+            create_and_sign_contract(invitation, request, signature_method='DIGITAL_CHECKBOX')
             
             # Clear session data
             request.session.pop('invitation_id', None)

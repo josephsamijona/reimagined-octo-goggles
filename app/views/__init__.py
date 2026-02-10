@@ -110,21 +110,14 @@ from .earnings import (
 )
 
 from .contracts import (
-    ContractVerificationView,
-    ContractOTPVerificationView,
-    ContractReviewView,
+    ContractPDFDownloadView,
+    ContractPublicVerifyView,
     ContractWizardView,
     ContractSuccessView,
     ContractAlreadyConfirmedView,
     ContractErrorView,
     ContractOTPView,
-    ContractPaymentInfoView,
-    ContractSignatureView,
-    ContractConfirmationView,
-    contract_render_view,
     EmailTrackingPixelView,
     DirectAcceptView,
-    ReviewLinkView,
-    ContractPDFDownloadView,
-    ContractPublicVerifyView
+    ReviewLinkView
 )

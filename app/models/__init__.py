@@ -9,6 +9,7 @@ from .documents import (
     get_expiration_time, signature_upload_path, pdf_upload_path
 )
 from .contracts import ContractInvitation, ContractTrackingEvent
+from .reminders import ContractReminder
 
 __all__ = [
     # Users & Profiles
@@ -27,6 +28,7 @@ __all__ = [
     'Document', 'SignedDocument', 'InterpreterContractSignature',
     # Contracts
     'ContractInvitation', 'ContractTrackingEvent',
+    'ContractReminder',
     # Utils (for migrations)
     'get_expiration_time', 'signature_upload_path', 'pdf_upload_path',
 ]

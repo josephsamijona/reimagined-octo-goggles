@@ -16,20 +16,9 @@ def get_client_ip(request):
         ip = request.META.get('REMOTE_ADDR')
     return ip
 
-def create_and_sign_contract(invitation, request):
+def create_and_sign_contract(invitation, request, signature_method='LEGACY'):
     """
     Creates and auto-signs a contract for the direct accept flow.
-    
-    This function:
-    1. Creates or retrieves the contract signature record
-    2. Marks the contract as signed
-    3. Creates tracking events
-    4. Generates PDF and uploads to S3
-    5. Sends confirmation email to interpreter
-    
-    Args:
-        invitation: ContractInvitation instance
-        request: HttpRequest object for URL generation
     """
     # Create or get contract signature model
     if not invitation.contract_signature:
@@ -42,7 +31,8 @@ def create_and_sign_contract(invitation, request):
             signature_typography_text=invitation.interpreter.user.get_full_name(),
             signed_at=timezone.now(),
             ip_address=get_client_ip(request),
-            is_fully_signed=False # Wait for company signature
+            is_fully_signed=False, # Wait for company signature
+            signature_method=signature_method
         )
         invitation.contract_signature = contract
     else:
@@ -54,12 +44,18 @@ def create_and_sign_contract(invitation, request):
     invitation.status = 'SIGNED'
     invitation.signed_at = timezone.now()
     invitation.save()
+
+    # Update user registration status
+    user = invitation.interpreter.user
+    if not user.registration_complete:
+        user.registration_complete = True
+        user.save()
     
     # Create tracking event
     ContractTrackingEvent.objects.create(
         invitation=invitation,
         event_type='CONTRACT_SIGNED',
-        metadata={'method': 'direct_accept', 'ip': get_client_ip(request)}
+        metadata={'method': signature_method, 'ip': get_client_ip(request)}
     )
     
     # Trigger PDF generation & Upload

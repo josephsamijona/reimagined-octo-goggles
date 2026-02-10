@@ -8,6 +8,7 @@ from django.views.decorators.http import require_POST
 
 from ...mixins.assignment_mixins import AssignmentAdminMixin
 from ...models import Assignment
+from ...utils.contract_helpers import has_signed_contract, get_contract_wizard_link
 from ..utils import BOSTON_TZ
 
 @login_required
@@ -31,6 +32,23 @@ def dashboard_view(request):
         })
 
     interpreter = request.user.interpreter_profile
+
+    # 1. Vérification si le compte est bloqué manuellement
+    if interpreter.is_manually_blocked:
+        return render(request, 'interpreter/account_blocked.html', {
+            'reason': interpreter.blocked_reason,
+            'blocked_at': interpreter.blocked_at,
+            'blocked_by': interpreter.blocked_by,
+            'support_email': 'support@jhbridgetranslation.com'
+        })
+        
+    # 2. Vérification si le contrat est signé
+    if not has_signed_contract(request.user):
+        contract_link = get_contract_wizard_link(request.user)
+        return render(request, 'interpreter/contract_required.html', {
+            'user': request.user,
+            'contract_link': contract_link
+        })
 
     try:
         # Calcul des statistiques
