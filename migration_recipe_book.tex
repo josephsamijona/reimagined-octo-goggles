@@ -1,0 +1,2669 @@
+\documentclass[12pt,a4paper]{report}
+
+% ============================================================
+% PACKAGES
+% ============================================================
+\usepackage[margin=1in]{geometry}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{longtable}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{tocloft}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{parskip}
+
+% ============================================================
+% COLORS & STYLE
+% ============================================================
+\definecolor{jhblue}{RGB}{20,60,120}
+\definecolor{jhgray}{RGB}{100,100,100}
+\definecolor{codebg}{RGB}{245,245,245}
+\definecolor{codegreen}{RGB}{0,128,0}
+\definecolor{codepurple}{RGB}{128,0,128}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=jhblue,
+    urlcolor=jhblue,
+    citecolor=jhblue
+}
+
+\lstset{
+    backgroundcolor=\color{codebg},
+    basicstyle=\ttfamily\small,
+    breaklines=true,
+    captionpos=b,
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{jhblue}\bfseries,
+    stringstyle=\color{codepurple},
+    frame=single,
+    framerule=0.5pt,
+    rulecolor=\color{jhgray},
+    numbers=left,
+    numberstyle=\tiny\color{jhgray},
+    showstringspaces=false,
+    tabsize=4,
+    xleftmargin=2em,
+    framexleftmargin=1.5em
+}
+
+\lstdefinelanguage{Python3}{
+    morekeywords={async,await,def,class,return,from,import,if,else,elif,for,in,not,and,or,True,False,None,self,cls,try,except,finally,with,as,raise,yield,lambda,pass,break,continue},
+    sensitive=true,
+    morecomment=[l]{\#},
+    morestring=[b]",
+    morestring=[b]',
+}
+
+% ============================================================
+% HEADERS & FOOTERS
+% ============================================================
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\textcolor{jhgray}{JHBridge Migration Recipe Book}}
+\fancyhead[R]{\small\textcolor{jhgray}{\leftmark}}
+\fancyfoot[C]{\small\textcolor{jhgray}{\thepage}}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0.4pt}
+
+\titleformat{\chapter}[display]
+  {\normalfont\huge\bfseries\color{jhblue}}
+  {\chaptertitlename\ \thechapter}{20pt}{\Huge}
+
+% ============================================================
+% TITLE PAGE
+% ============================================================
+\begin{document}
+
+\begin{titlepage}
+\centering
+\vspace*{2cm}
+{\Huge\bfseries\color{jhblue} Master Migration\\[0.3cm] Recipe Information Book\par}
+\vspace{1.5cm}
+{\LARGE JHBridge Legacy $\rightarrow$ FastAPI + React\par}
+\vspace{1cm}
+{\large\textcolor{jhgray}{Complete Technical Migration Guide}\par}
+\vspace{2cm}
+\rule{\textwidth}{1pt}
+\vspace{0.5cm}
+{\large
+\begin{tabular}{ll}
+\textbf{Legacy Stack:} & Django 5.1.4 / MySQL / Celery / Redis \\
+\textbf{Target Stack:} & FastAPI / SQLAlchemy 2.0 / React 18 / TypeScript \\
+\textbf{Database:} & MySQL (Schema Preserved) \\
+\textbf{Frontend:} & Tailwind CSS v4 + Shadcn/ui \\
+\end{tabular}
+}
+\vspace{0.5cm}
+\rule{\textwidth}{1pt}
+\vfill
+{\large Version 1.0\par}
+{\large \today\par}
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+% ============================================================
+% CHAPTER 1: EXECUTIVE SUMMARY
+% ============================================================
+\chapter{Executive Summary}
+
+\section{Current System Overview}
+
+JHBridge Translation is a Django-based interpretation and translation services platform that connects clients with interpreters. The system manages the full service lifecycle including quote requests, assignment management, contract e-signing, payroll generation, and payments.
+
+The legacy system is built on:
+\begin{itemize}[nosep]
+    \item \textbf{Backend:} Django 5.1.4 with Django REST Framework
+    \item \textbf{Database:} MySQL accessed via \texttt{dj-database-url}
+    \item \textbf{Task Queue:} Celery with Redis broker for asynchronous email notifications
+    \item \textbf{Email:} Resend API via custom email backend (\texttt{app/backends/resend\_backend.py})
+    \item \textbf{Storage:} Backblaze B2 (S3-compatible) via \texttt{django-storages} for media, contracts, signatures
+    \item \textbf{Authentication:} Django sessions + SimpleJWT + custom API key auth
+    \item \textbf{Deployment:} Railway with Gunicorn and WhiteNoise for static files
+\end{itemize}
+
+The application serves three user roles: \textbf{CLIENT}, \textbf{INTERPRETER}, and \textbf{ADMIN}, each with dedicated dashboards, registration flows, and business logic.
+
+\section{Target Architecture}
+
+The migration target is a decoupled architecture:
+\begin{itemize}[nosep]
+    \item \textbf{Backend:} FastAPI (Python 3.10+) in Docker containers
+    \item \textbf{ORM:} SQLAlchemy 2.0 (Async) with Pydantic v2 for validation
+    \item \textbf{Frontend:} React 18+ with Vite, TypeScript, Tailwind CSS v4, and Shadcn/ui
+    \item \textbf{Auth:} OAuth2 Password Flow with JWT (\texttt{python-jose}) + Google OAuth2
+    \item \textbf{Hosting:} Frontend on AWS S3 (static), Backend containerized
+    \item \textbf{Storage:} AWS S3 for file storage (contracts, signatures, documents)
+    \item \textbf{Task Scheduling:} APScheduler replacing Celery Beat
+\end{itemize}
+
+\section{Migration Strategy}
+
+The migration follows a five-phase approach:
+\begin{enumerate}
+    \item \textbf{Foundation \& Database:} Reverse-engineer existing MySQL schema into SQLAlchemy models, set up async database connectivity.
+    \item \textbf{Authentication \& Security:} Implement JWT-based auth with RBAC, migrate Fernet encryption for banking data.
+    \item \textbf{Backend Logic:} Port all Django views to FastAPI REST endpoints, preserving 100\% of business logic.
+    \item \textbf{Frontend:} Build React SPA with role-based dashboards and real-time updates.
+    \item \textbf{Automation:} Replace Celery tasks with APScheduler jobs and an internal event bus.
+\end{enumerate}
+
+\section{Risk Assessment}
+
+\begin{longtable}{p{4cm}p{3cm}p{6cm}}
+\toprule
+\textbf{Risk} & \textbf{Severity} & \textbf{Mitigation} \\
+\midrule
+\endhead
+Schema drift during migration & High & Freeze schema changes; use \texttt{sqlacodegen} to generate models from live DB \\
+Encryption key compatibility & High & Test Fernet decrypt/encrypt with existing data before cutover \\
+Contract wizard complexity & Medium & Port step-by-step with integration tests for each wizard step \\
+Session-based flows & Medium & Replace with JWT stateless tokens and Redis-backed temporary state \\
+Email delivery continuity & Low & Keep Resend API; only change the HTTP client layer \\
+S3 storage paths & Medium & Map all 5 storage buckets to equivalent S3 configurations \\
+\bottomrule
+\end{longtable}
+
+\section{Key Constraints}
+
+\begin{itemize}[nosep]
+    \item The MySQL database schema \textbf{must remain untouched}. No column renames, no type changes.
+    \item All existing data must remain accessible through the new system.
+    \item The contract e-signing flow must preserve legal validity (signatures, timestamps, PGP signing).
+    \item Encrypted banking data must be decryptable with existing keys.
+\end{itemize}
+
+
+% ============================================================
+% CHAPTER 2: LEGACY SYSTEM AUDIT
+% ============================================================
+\chapter{Legacy System Audit}
+
+\section{Project Structure Overview}
+
+The Django project uses a single-app architecture with the project configuration in \texttt{config/} and all application code in \texttt{app/}. The Django settings module is \texttt{config.settings} (single file, no environment splits). Environment detection uses the \texttt{RAILWAY\_ENVIRONMENT} variable.
+
+\begin{lstlisting}[language={},title={Top-Level Directory Structure}]
+config/
+    settings.py          # Single settings file
+    urls.py              # Root URL configuration
+    celery.py            # Celery app configuration
+    wsgi.py / asgi.py
+app/
+    models/              # Managed Django models (primary)
+    models_v2/           # Unmanaged mirror models (read-only)
+    views/               # View modules organized by domain
+    forms.py             # All Django forms
+    signals.py           # Signal handlers -> Celery tasks
+    tasks.py             # Celery task definitions
+    apps.py              # App configuration
+    api_auth/            # Custom API key authentication
+    backends/            # Custom email backend (Resend)
+    utils/               # Utility modules
+templates/               # Django templates
+static/                  # Static assets
+custom_storages.py       # S3 storage class definitions
+manage.py
+requirements.txt
+entrypoint.sh            # Production entrypoint
+Procfile                 # Railway process definitions
+\end{lstlisting}
+
+\section{Complete View File Inventory}
+
+Every view file in the legacy system is listed below. Each must be audited and its functionality ported to the new API.
+
+\begin{longtable}{p{6.5cm}p{7cm}}
+\toprule
+\textbf{File Path} & \textbf{Responsibility} \\
+\midrule
+\endhead
+\texttt{app/views/\_\_init\_\_.py} & Re-exports all views \\
+\texttt{app/views/public.py} & Home page, public quote request, contact form \\
+\texttt{app/views/auth.py} & Login (email-based), logout, password reset \\
+\texttt{app/views/assignments.py} & Admin assignment management (accept/reject/start/complete) \\
+\texttt{app/views/assignment\_responses.py} & Token-based public accept/decline from email links \\
+\texttt{app/views/earnings.py} & Interpreter earnings and payment tracking \\
+\texttt{app/views/payroll.py} & Payroll document creation and PDF export \\
+\texttt{app/views/notifications.py} & Notification list and management \\
+\texttt{app/views/utils.py} & Shared view utilities \\
+\texttt{app/views/client/\_\_init\_\_.py} & Client view exports \\
+\texttt{app/views/client/registration.py} & 2-step client registration \\
+\texttt{app/views/client/dashboard.py} & Client dashboard, assignment detail/history \\
+\texttt{app/views/client/quotes.py} & Quote CRUD, accept/reject, feedback \\
+\texttt{app/views/client/profile.py} & Profile edit, notification prefs, password \\
+\texttt{app/views/interpreter/\_\_init\_\_.py} & Interpreter view exports \\
+\texttt{app/views/interpreter/registration.py} & 3-step interpreter registration \\
+\texttt{app/views/interpreter/dashboard.py} & Interpreter dashboard with stats \\
+\texttt{app/views/interpreter/schedule.py} & Calendar and schedule views \\
+\texttt{app/views/interpreter/settings.py} & Profile and notification settings \\
+\texttt{app/views/contracts/\_\_init\_\_.py} & Contract view exports \\
+\texttt{app/views/contracts/wizard.py} & New contract signing wizard \\
+\texttt{app/views/contracts/tracking.py} & Email tracking pixel, direct accept, PDF download, public verification \\
+\texttt{app/views/contracts/verification.py} & Legacy token/OTP verification \\
+\texttt{app/views/contracts/signature.py} & Legacy draw/type/upload signature \\
+\texttt{app/views/contracts/confirmation.py} & Legacy PDF generation and confirmation \\
+\bottomrule
+\end{longtable}
+
+\section{Complete URL Route Mapping}
+
+\begin{longtable}{p{5.5cm}p{2cm}p{5.5cm}}
+\toprule
+\textbf{Legacy URL} & \textbf{Method} & \textbf{New API Endpoint} \\
+\midrule
+\endhead
+\texttt{/} & GET & \texttt{GET /api/v1/public/home} \\
+\texttt{/quote-request/} & GET/POST & \texttt{POST /api/v1/public/quotes} \\
+\texttt{/contact/} & GET/POST & \texttt{POST /api/v1/public/contact} \\
+\texttt{/login/} & POST & \texttt{POST /api/v1/auth/login} \\
+\texttt{/logout/} & POST & \texttt{POST /api/v1/auth/logout} \\
+\texttt{/register/client/step1/} & POST & \texttt{POST /api/v1/auth/register/client} \\
+\texttt{/register/client/step2/} & POST & (merged into single endpoint) \\
+\texttt{/client/dashboard/} & GET & \texttt{GET /api/v1/client/dashboard} \\
+\texttt{/client/assignment/\{id\}/} & GET & \texttt{GET /api/v1/client/assignments/\{id\}} \\
+\texttt{/client/assignments/history/} & GET & \texttt{GET /api/v1/client/assignments} \\
+\texttt{/client/quotes/request/} & POST & \texttt{POST /api/v1/client/quotes} \\
+\texttt{/client/quotes/} & GET & \texttt{GET /api/v1/client/quotes} \\
+\texttt{/client/quotes/\{id\}/} & GET & \texttt{GET /api/v1/client/quotes/\{id\}} \\
+\texttt{/client/quotes/\{id\}/respond/} & POST & \texttt{POST /api/v1/client/quotes/\{id\}/respond} \\
+\texttt{/client/quotes/\{id\}/feedback/} & POST & \texttt{POST /api/v1/client/assignments/\{id\}/feedback} \\
+\texttt{/client/profile/} & GET/PUT & \texttt{GET/PUT /api/v1/client/profile} \\
+\texttt{/client/notifications/} & GET/PUT & \texttt{GET/PUT /api/v1/client/notifications/preferences} \\
+\texttt{/interpreter/register/step1/} & POST & \texttt{POST /api/v1/auth/register/interpreter} \\
+\texttt{/interpreter/register/step2/} & POST & (merged into single endpoint) \\
+\texttt{/interpreter/register/step3/} & POST & (merged into single endpoint) \\
+\texttt{/interpreter/dashboard/} & GET & \texttt{GET /api/v1/interpreter/dashboard} \\
+\texttt{/interpreter/schedule/} & GET & \texttt{GET /api/v1/interpreter/schedule} \\
+\texttt{/interpreter/settings/} & GET/PUT & \texttt{GET/PUT /api/v1/interpreter/settings} \\
+\texttt{/assignments/accept/\{token\}/} & GET & \texttt{POST /api/v1/assignments/\{token\}/accept} \\
+\texttt{/assignments/decline/\{token\}/} & GET & \texttt{POST /api/v1/assignments/\{token\}/decline} \\
+\texttt{/contract/wizard/} & GET/POST & \texttt{GET/POST /api/v1/contracts/wizard} \\
+\texttt{/contract/otp/} & POST & \texttt{POST /api/v1/contracts/otp/verify} \\
+\texttt{/contracts/track/\{token\}/pixel.png} & GET & \texttt{GET /api/v1/contracts/track/\{token\}/pixel} \\
+\texttt{/contracts/accept/\{token\}/} & GET & \texttt{POST /api/v1/contracts/\{token\}/accept} \\
+\texttt{/contracts/review/\{token\}/} & GET & \texttt{GET /api/v1/contracts/\{token\}/review} \\
+\texttt{/contracts/download/\{id\}/} & GET & \texttt{GET /api/v1/contracts/\{id\}/pdf} \\
+\texttt{/verify/\{inv\_number\}/} & GET & \texttt{GET /api/v1/contracts/verify/\{number\}} \\
+\bottomrule
+\end{longtable}
+
+\section{Model File Inventory}
+
+\subsection{Primary Models (\texttt{app/models/} --- Managed)}
+
+\begin{longtable}{p{5cm}p{5cm}p{3cm}}
+\toprule
+\textbf{File} & \textbf{Models} & \textbf{Table Count} \\
+\midrule
+\endhead
+\texttt{users.py} & User, Client, Interpreter & 3 \\
+\texttt{languages.py} & Language, InterpreterLanguage & 2 \\
+\texttt{services.py} & ServiceType, QuoteRequest, Quote, Assignment, PublicQuoteRequest & 5 \\
+\texttt{communication.py} & ContactMessage, Notification, NotificationPreference, AssignmentNotification, AssignmentFeedback & 5 \\
+\texttt{finance.py} & FinancialTransaction, ClientPayment, InterpreterPayment, Payment, Expense, PayrollDocument, Service, Reimbursement, Deduction & 9 \\
+\texttt{security.py} & AuditLog, APIKey, PGPKey & 3 \\
+\texttt{documents.py} & Document, SignedDocument, InterpreterContractSignature & 3 \\
+\texttt{contracts.py} & ContractInvitation, ContractTrackingEvent & 2 \\
+\texttt{reminders.py} & ContractReminder & 1 \\
+\midrule
+\textbf{Total} & & \textbf{33 models} \\
+\bottomrule
+\end{longtable}
+
+\subsection{Mirror Models (\texttt{app/models\_v2/} --- Unmanaged)}
+
+The \texttt{models\_v2} directory contains \textbf{unmanaged} (\texttt{managed = False}) mirror models prefixed with \texttt{App} (e.g., \texttt{AppUser}, \texttt{AppAssignment}). These map to the \textbf{same database tables} and are used for separate read contexts. In the new architecture, these are unnecessary---a single set of SQLAlchemy models will suffice.
+
+\section{Third-Party Service Dependencies}
+
+\begin{longtable}{p{4cm}p{4cm}p{5cm}}
+\toprule
+\textbf{Service} & \textbf{Purpose} & \textbf{Migration Action} \\
+\midrule
+\endhead
+Resend API & Email delivery & Keep; use \texttt{httpx} async client \\
+Backblaze B2 (S3) & File storage (5 buckets) & Migrate to AWS S3 with same bucket structure \\
+Redis & Celery broker + result backend & Keep for caching; replace Celery with APScheduler \\
+Stripe & Payment processing & Keep; use \texttt{stripe} Python SDK \\
+Railway & Deployment platform & Replace with Docker on AWS/GCP \\
+External PDF API & Contract PDF generation & Port to local ReportLab or WeasyPrint \\
+\bottomrule
+\end{longtable}
+
+
+% ============================================================
+% CHAPTER 3: DATABASE SCHEMA & MIGRATION
+% ============================================================
+\chapter{Database Schema \& Migration}
+
+\section{Reverse Engineering Instructions}
+
+\subsection{Step 1: Generate SQLAlchemy Models}
+
+Use \texttt{sqlacodegen} to reverse-engineer the existing MySQL database:
+
+\begin{lstlisting}[language=bash,title={Generate SQLAlchemy models from MySQL}]
+pip install sqlacodegen pymysql
+sqlacodegen mysql+pymysql://user:pass@host:3306/dbname \
+    --outfile models_generated.py
+\end{lstlisting}
+
+\subsection{Step 2: Validate Generated Models}
+
+After generation, manually verify:
+\begin{enumerate}[nosep]
+    \item Every \texttt{db\_table} name matches the Django model's \texttt{Meta.db\_table}
+    \item Column types are preserved exactly (no implicit conversions)
+    \item Foreign key relationships and \texttt{on\_delete} behavior match
+    \item JSON columns use \texttt{sqlalchemy.JSON} type
+    \item Binary columns (\texttt{encrypted\_*}) use \texttt{LargeBinary}
+    \item UUID primary keys use \texttt{sqlalchemy.dialects.mysql.CHAR(36)}
+\end{enumerate}
+
+\subsection{Step 3: Async Database Setup}
+
+\begin{lstlisting}[language=Python3,title={database.py --- Async MySQL connection}]
+from sqlalchemy.ext.asyncio import (
+    create_async_engine,
+    AsyncSession,
+    async_sessionmaker
+)
+from sqlalchemy.orm import DeclarativeBase
+
+DATABASE_URL = "mysql+asyncmy://user:pass@host:3306/dbname"
+
+engine = create_async_engine(
+    DATABASE_URL,
+    pool_size=20,
+    max_overflow=10,
+    pool_recycle=3600,
+    echo=False
+)
+
+AsyncSessionLocal = async_sessionmaker(
+    engine,
+    class_=AsyncSession,
+    expire_on_commit=False
+)
+
+class Base(DeclarativeBase):
+    pass
+
+async def get_db():
+    async with AsyncSessionLocal() as session:
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+        finally:
+            await session.close()
+\end{lstlisting}
+
+\section{Complete Table Schema Reference}
+
+Below is every table with all columns, types, and constraints. This is the \textbf{source of truth} for SQLAlchemy model generation.
+
+\subsection{app\_user}
+
+\begin{longtable}{p{4.5cm}p{4cm}p{4.5cm}}
+\toprule
+\textbf{Column} & \textbf{Type} & \textbf{Constraints} \\
+\midrule
+\endhead
+id & INTEGER & PK, AUTO\_INCREMENT \\
+password & VARCHAR(128) & NOT NULL \\
+last\_login & DATETIME & NULLABLE \\
+is\_superuser & BOOLEAN & NOT NULL, DEFAULT FALSE \\
+username & VARCHAR(150) & NOT NULL, UNIQUE \\
+first\_name & VARCHAR(150) & NOT NULL \\
+last\_name & VARCHAR(150) & NOT NULL \\
+is\_staff & BOOLEAN & NOT NULL, DEFAULT FALSE \\
+date\_joined & DATETIME & NOT NULL \\
+email & VARCHAR(254) & NOT NULL, UNIQUE \\
+phone & VARCHAR(20) & NULLABLE \\
+role & VARCHAR(20) & NOT NULL [CLIENT|INTERPRETER|ADMIN] \\
+is\_active & BOOLEAN & NOT NULL, DEFAULT TRUE \\
+created\_at & DATETIME & NOT NULL, AUTO \\
+updated\_at & DATETIME & NOT NULL, AUTO \\
+last\_login\_ip & VARCHAR(39) & NULLABLE (GenericIPAddress) \\
+registration\_complete & BOOLEAN & NOT NULL, DEFAULT FALSE \\
+contract\_acceptance\_date & DATETIME & NULLABLE \\
+is\_dashboard\_enabled & BOOLEAN & NOT NULL, DEFAULT FALSE \\
+\bottomrule
+\end{longtable}
+
+\subsection{app\_client}
+
+\begin{longtable}{p{4.5cm}p{4cm}p{4.5cm}}
+\toprule
+\textbf{Column} & \textbf{Type} & \textbf{Constraints} \\
+\midrule
+\endhead
+id & INTEGER & PK, AUTO\_INCREMENT \\
+user\_id & INTEGER & FK $\rightarrow$ app\_user.id, UNIQUE, CASCADE \\
+company\_name & VARCHAR(100) & NOT NULL \\
+address & TEXT & NOT NULL \\
+city & VARCHAR(100) & NOT NULL \\
+state & VARCHAR(50) & NOT NULL \\
+zip\_code & VARCHAR(20) & NOT NULL \\
+phone & VARCHAR(20) & NULLABLE \\
+email & VARCHAR(254) & NULLABLE \\
+billing\_address & TEXT & NULLABLE \\
+billing\_city & VARCHAR(100) & NULLABLE \\
+billing\_state & VARCHAR(50) & NULLABLE \\
+billing\_zip\_code & VARCHAR(20) & NULLABLE \\
+tax\_id & VARCHAR(50) & NULLABLE \\
+preferred\_language\_id & INTEGER & FK $\rightarrow$ app\_language.id, NULLABLE, SET\_NULL \\
+notes & TEXT & NULLABLE \\
+credit\_limit & DECIMAL(10,2) & NOT NULL, DEFAULT 0 \\
+active & BOOLEAN & NOT NULL, DEFAULT TRUE \\
+\bottomrule
+\end{longtable}
+
+\subsection{app\_interpreter}
+
+\begin{longtable}{p{4.8cm}p{3.7cm}p{4.5cm}}
+\toprule
+\textbf{Column} & \textbf{Type} & \textbf{Constraints} \\
+\midrule
+\endhead
+id & INTEGER & PK, AUTO\_INCREMENT \\
+user\_id & INTEGER & FK $\rightarrow$ app\_user.id, UNIQUE, CASCADE \\
+profile\_image & VARCHAR(100) & NULLABLE \\
+bio & TEXT & NULLABLE \\
+address & TEXT & NOT NULL \\
+city & VARCHAR(100) & NOT NULL \\
+state & VARCHAR(50) & NOT NULL \\
+zip\_code & VARCHAR(20) & NOT NULL \\
+certifications & JSON & NULLABLE \\
+specialties & JSON & NULLABLE \\
+availability & JSON & NULLABLE \\
+radius\_of\_service & INTEGER & NULLABLE \\
+hourly\_rate & DECIMAL(10,2) & NULLABLE \\
+bank\_name & VARCHAR(100) & NULLABLE \\
+account\_holder\_name & VARCHAR(100) & NULLABLE \\
+routing\_number & VARCHAR(100) & NULLABLE \\
+account\_number & VARCHAR(100) & NULLABLE \\
+account\_type & VARCHAR(10) & NULLABLE [checking|savings] \\
+background\_check\_date & DATE & NULLABLE \\
+background\_check\_status & BOOLEAN & DEFAULT FALSE \\
+w9\_on\_file & BOOLEAN & DEFAULT FALSE \\
+active & BOOLEAN & DEFAULT TRUE \\
+contract\_acceptance\_date & DATETIME & NULLABLE \\
+contract\_rejection\_reason & TEXT & NULLABLE \\
+has\_accepted\_contract & BOOLEAN & DEFAULT FALSE \\
+is\_dashboard\_enabled & BOOLEAN & DEFAULT FALSE \\
+is\_manually\_blocked & BOOLEAN & DEFAULT FALSE \\
+blocked\_reason & TEXT & NULLABLE \\
+blocked\_at & DATETIME & NULLABLE \\
+blocked\_by\_id & INTEGER & FK $\rightarrow$ app\_user.id, NULLABLE \\
+\bottomrule
+\end{longtable}
+
+\subsection{app\_assignment}
+
+\begin{longtable}{p{4.8cm}p{3.5cm}p{4.7cm}}
+\toprule
+\textbf{Column} & \textbf{Type} & \textbf{Constraints} \\
+\midrule
+\endhead
+id & INTEGER & PK, AUTO\_INCREMENT \\
+quote\_id & INTEGER & FK $\rightarrow$ app\_quote.id, NULLABLE, UNIQUE \\
+interpreter\_id & INTEGER & FK $\rightarrow$ app\_interpreter.id, NULLABLE, SET\_NULL \\
+client\_id & INTEGER & FK $\rightarrow$ app\_client.id, NULLABLE, PROTECT \\
+client\_name & VARCHAR(255) & NULLABLE \\
+client\_email & VARCHAR(254) & NULLABLE \\
+client\_phone & VARCHAR(20) & NULLABLE \\
+service\_type\_id & INTEGER & FK $\rightarrow$ app\_servicetype.id, PROTECT \\
+source\_language\_id & INTEGER & FK $\rightarrow$ app\_language.id, PROTECT \\
+target\_language\_id & INTEGER & FK $\rightarrow$ app\_language.id, PROTECT \\
+start\_time & DATETIME & NOT NULL \\
+end\_time & DATETIME & NOT NULL \\
+location & VARCHAR(255) & NOT NULL \\
+city & VARCHAR(100) & NOT NULL \\
+state & VARCHAR(50) & NOT NULL \\
+zip\_code & VARCHAR(20) & NOT NULL \\
+status & VARCHAR(20) & NOT NULL \\
+is\_paid & BOOLEAN & NULLABLE \\
+interpreter\_rate & DECIMAL(10,2) & NOT NULL \\
+minimum\_hours & INTEGER & DEFAULT 2 \\
+total\_interpreter\_payment & DECIMAL(10,2) & NULLABLE \\
+notes & TEXT & NULLABLE \\
+special\_requirements & TEXT & NULLABLE \\
+created\_at & DATETIME & NOT NULL, AUTO \\
+updated\_at & DATETIME & NOT NULL, AUTO \\
+completed\_at & DATETIME & NULLABLE \\
+\bottomrule
+\end{longtable}
+
+\textbf{Status values:} PENDING, CONFIRMED, IN\_PROGRESS, COMPLETED, CANCELLED, NO\_SHOW.
+
+\textbf{New states to add:} EN\_ROUTE, ARRIVED (with geolocation fields).
+
+\subsection{app\_interpretercontractsignature}
+
+\begin{longtable}{p{5.2cm}p{3cm}p{4.8cm}}
+\toprule
+\textbf{Column} & \textbf{Type} & \textbf{Constraints} \\
+\midrule
+\endhead
+id & CHAR(36) & PK, UUID \\
+signature\_method & VARCHAR(20) & DEFAULT 'LEGACY' \\
+token & VARCHAR(100) & UNIQUE, INDEXED, NULLABLE \\
+otp\_code & VARCHAR(6) & NULLABLE \\
+created\_at & DATETIME & NOT NULL \\
+expires\_at & DATETIME & NOT NULL \\
+status & VARCHAR(20) & DEFAULT 'PENDING' \\
+user\_id & INTEGER & FK, NULLABLE, SET\_NULL \\
+interpreter\_id & INTEGER & FK, NULLABLE, CASCADE \\
+interpreter\_name & VARCHAR(255) & NOT NULL \\
+interpreter\_email & VARCHAR(254) & NOT NULL \\
+interpreter\_phone & VARCHAR(20) & NOT NULL \\
+interpreter\_address & TEXT & NOT NULL \\
+bank\_name & VARCHAR(255) & NULLABLE \\
+account\_holder\_name & VARCHAR(255) & NULLABLE \\
+account\_type & VARCHAR(20) & NULLABLE \\
+encrypted\_account\_number & BLOB & NULLABLE \\
+encrypted\_routing\_number & BLOB & NULLABLE \\
+encrypted\_swift\_code & BLOB & NULLABLE \\
+contract\_document & VARCHAR(100) & NULLABLE \\
+contract\_version & VARCHAR(20) & DEFAULT '1.0' \\
+signature\_type & VARCHAR(20) & NULLABLE [upload|type|draw] \\
+signature\_image & VARCHAR(100) & NULLABLE \\
+signature\_converted\_url & VARCHAR(500) & NULLABLE \\
+signature\_typography\_text & VARCHAR(100) & NULLABLE \\
+signature\_typography\_font & VARCHAR(50) & NULLABLE \\
+signature\_manual\_data & TEXT & NULLABLE \\
+signed\_at & DATETIME & NULLABLE \\
+ip\_address & VARCHAR(39) & NULLABLE \\
+signature\_hash & VARCHAR(64) & NULLABLE \\
+company\_representative\_name & VARCHAR(255) & DEFAULT 'Marc-Henry Valme' \\
+company\_representative\_signature & TEXT & NULLABLE \\
+company\_signed\_at & DATETIME & NULLABLE \\
+is\_fully\_signed & BOOLEAN & DEFAULT FALSE \\
+is\_active & BOOLEAN & DEFAULT FALSE \\
+email\_sent\_at & DATETIME & NULLABLE \\
+last\_reminder\_sent\_at & DATETIME & NULLABLE \\
+modal\_viewed\_at & DATETIME & NULLABLE \\
+reminder\_count & INTEGER & DEFAULT 0 \\
+\bottomrule
+\end{longtable}
+
+\subsection{app\_contract\_invitation}
+
+\begin{longtable}{p{4.5cm}p{3.5cm}p{5cm}}
+\toprule
+\textbf{Column} & \textbf{Type} & \textbf{Constraints} \\
+\midrule
+\endhead
+id & CHAR(36) & PK, UUID \\
+invitation\_number & VARCHAR(50) & UNIQUE [INV-YYYY-XXXXX] \\
+interpreter\_id & INTEGER & FK $\rightarrow$ app\_interpreter.id, CASCADE \\
+contract\_signature\_id & CHAR(36) & FK, NULLABLE, UNIQUE, SET\_NULL \\
+created\_by\_id & INTEGER & FK, NULLABLE, SET\_NULL \\
+voided\_by\_id & INTEGER & FK, NULLABLE, SET\_NULL \\
+status & VARCHAR(20) & DEFAULT 'SENT' \\
+version & INTEGER & DEFAULT 1 \\
+token & VARCHAR(100) & UNIQUE, INDEXED \\
+accept\_token & VARCHAR(100) & UNIQUE, INDEXED \\
+review\_token & VARCHAR(100) & UNIQUE, INDEXED \\
+created\_at & DATETIME & AUTO \\
+email\_sent\_at & DATETIME & AUTO \\
+email\_opened\_at & DATETIME & NULLABLE \\
+link\_clicked\_at & DATETIME & NULLABLE \\
+link\_clicked\_type & VARCHAR(20) & NULLABLE [ACCEPT|REVIEW] \\
+signed\_at & DATETIME & NULLABLE \\
+voided\_at & DATETIME & NULLABLE \\
+expires\_at & DATETIME & NOT NULL (30 days default) \\
+void\_reason & TEXT & NULLABLE \\
+pdf\_s3\_key & VARCHAR(500) & NULLABLE \\
+\bottomrule
+\end{longtable}
+
+\textbf{Status values:} SENT, OPENED, REVIEWING, SIGNED, VOIDED, EXPIRED.
+
+\subsection{Remaining Tables (Summary)}
+
+The following tables follow similar patterns and must also be generated:
+
+\begin{itemize}[nosep]
+    \item \texttt{app\_language} --- name, code, is\_active
+    \item \texttt{app\_interpreterlanguage} --- interpreter\_id FK, language\_id FK, certification\_level, is\_primary
+    \item \texttt{app\_servicetype} --- name, description, base\_rate, minimum\_hours, cancellation\_policy, requires\_certification, active
+    \item \texttt{app\_quoterequest} --- 12 columns including client FK, status enum, language FKs
+    \item \texttt{app\_quote} --- 9 columns including reference\_number (unique), status enum
+    \item \texttt{app\_publicquoterequest} --- 16 columns for anonymous quote requests
+    \item \texttt{app\_contactmessage} --- 8 columns for contact form submissions
+    \item \texttt{app\_notification} --- 7 columns with type enum
+    \item \texttt{app\_notificationpreference} --- 11 columns for user notification settings
+    \item \texttt{app\_assignmentnotification} --- 4 columns linking assignments to interpreters
+    \item \texttt{app\_assignmentfeedback} --- 5 columns with 1--5 rating
+    \item \texttt{app\_financialtransaction} --- 7 columns with UUID transaction\_id
+    \item \texttt{app\_clientpayment} --- 14 columns with 30+ payment method choices
+    \item \texttt{app\_interpreterpayment} --- 13 columns with status workflow
+    \item \texttt{app\_payment} --- 9 columns generic payment record
+    \item \texttt{app\_expense} --- 10 columns with expense type enum
+    \item \texttt{app\_payrolldocument} --- 12 columns for payroll generation
+    \item \texttt{app\_service} --- 7 columns (amount is computed: duration * rate)
+    \item \texttt{app\_reimbursement} --- 6 columns with 10 reimbursement types
+    \item \texttt{app\_deduction} --- 5 columns with 9 deduction types
+    \item \texttt{app\_auditlog} --- 7 columns with JSON changes field
+    \item \texttt{app\_apikey} --- 8 columns with 64-char key
+    \item \texttt{app\_pgpkey} --- 12 columns for PGP key management
+    \item \texttt{app\_document} --- 14 columns with UUID PK and metadata JSON
+    \item \texttt{app\_signeddocument} --- 7 columns for signed document storage
+    \item \texttt{app\_contract\_tracking\_event} --- 5 columns with 11 event types
+    \item \texttt{app\_contractreminder} --- 4 columns (invitation FK, reminder\_type, sent\_at, email\_sent)
+\end{itemize}
+
+\section{Schema Validation Checklist}
+
+Before proceeding to Phase 2, verify:
+
+\begin{enumerate}[nosep]
+    \item All 33 tables have corresponding SQLAlchemy models
+    \item Every column name matches exactly (case-sensitive)
+    \item No \texttt{DECIMAL} columns were silently converted to \texttt{FLOAT}
+    \item \texttt{JSON} columns use \texttt{sqlalchemy.JSON}, not \texttt{Text}
+    \item \texttt{BinaryField} (encrypted data) maps to \texttt{LargeBinary}
+    \item UUID primary keys use \texttt{CHAR(36)} not native UUID type
+    \item All indexes from Django \texttt{Meta.indexes} are replicated
+    \item \texttt{on\_delete} behavior matches: CASCADE, SET\_NULL, PROTECT $\rightarrow$ RESTRICT
+    \item M2M through table \texttt{app\_interpreterlanguage} has explicit model
+    \item Default values match Django model defaults
+\end{enumerate}
+
+
+% ============================================================
+% CHAPTER 4: AUTHENTICATION & SECURITY
+% ============================================================
+\chapter{Authentication \& Security}
+
+\section{JWT Authentication System}
+
+Replace Django's session-based authentication with stateless JWT tokens using \texttt{python-jose}.
+
+\subsection{Token Configuration}
+
+\begin{lstlisting}[language=Python3,title={auth/config.py}]
+from datetime import timedelta
+
+AUTH_CONFIG = {
+    "SECRET_KEY": "from-env-JWT_SECRET_KEY",
+    "ALGORITHM": "HS256",
+    "ACCESS_TOKEN_EXPIRE": timedelta(minutes=30),
+    "REFRESH_TOKEN_EXPIRE": timedelta(days=7),
+}
+\end{lstlisting}
+
+\subsection{Login Endpoint}
+
+The legacy system uses email-based login (the \texttt{LoginForm} looks up the \texttt{username} from the \texttt{email} field). Replicate this behavior:
+
+\begin{lstlisting}[language=Python3,title={POST /api/v1/auth/login}]
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy.ext.asyncio import AsyncSession
+from jose import jwt
+from passlib.context import CryptContext
+
+router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
+pwd_context = CryptContext(schemes=["django_pbkdf2_sha256"])
+
+@router.post("/login")
+async def login(
+    form: OAuth2PasswordRequestForm = Depends(),
+    db: AsyncSession = Depends(get_db)
+):
+    # Legacy: LoginForm looks up user by email
+    user = await db.execute(
+        select(User).where(User.email == form.username)
+    )
+    user = user.scalar_one_or_none()
+    if not user or not pwd_context.verify(
+        form.password, user.password
+    ):
+        raise HTTPException(401, "Invalid email or password")
+
+    access_token = create_access_token(
+        data={"sub": str(user.id), "role": user.role}
+    )
+    refresh_token = create_refresh_token(
+        data={"sub": str(user.id)}
+    )
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "bearer",
+        "role": user.role
+    }
+\end{lstlisting}
+
+\textbf{Critical:} Django uses PBKDF2-SHA256 for password hashing. Use \texttt{passlib} with scheme \texttt{django\_pbkdf2\_sha256} to verify existing passwords without requiring users to reset.
+
+\subsection{Password Hashing Compatibility}
+
+Django stores passwords in the format: \texttt{pbkdf2\_sha256\$iterations\$salt\$hash}. The \texttt{passlib} library's \texttt{django\_pbkdf2\_sha256} handler reads this format natively.
+
+\begin{lstlisting}[language=Python3,title={Password verification}]
+from passlib.hash import django_pbkdf2_sha256
+
+# Verify existing Django password
+is_valid = django_pbkdf2_sha256.verify(
+    "user_password",
+    "pbkdf2_sha256$720000$salt$hash_value"
+)
+
+# Hash new passwords in same format for compatibility
+new_hash = django_pbkdf2_sha256.hash("new_password")
+\end{lstlisting}
+
+\section{Google OAuth2 Integration}
+
+\begin{lstlisting}[language=Python3,title={POST /api/v1/auth/google}]
+from authlib.integrations.starlette_client import OAuth
+
+oauth = OAuth()
+oauth.register(
+    name="google",
+    client_id="GOOGLE_CLIENT_ID",
+    client_secret="GOOGLE_CLIENT_SECRET",
+    server_metadata_url=(
+        "https://accounts.google.com/"
+        ".well-known/openid-configuration"
+    ),
+    client_kwargs={"scope": "openid email profile"},
+)
+
+@router.post("/google")
+async def google_auth(
+    token: str,
+    db: AsyncSession = Depends(get_db)
+):
+    # Verify Google ID token
+    idinfo = id_token.verify_oauth2_token(
+        token, requests.Request(), GOOGLE_CLIENT_ID
+    )
+    email = idinfo["email"]
+
+    # Find or create user
+    user = await get_user_by_email(db, email)
+    if not user:
+        raise HTTPException(404, "No account found")
+
+    return create_token_response(user)
+\end{lstlisting}
+
+\section{Role-Based Access Control (RBAC)}
+
+The legacy system has three roles: \texttt{CLIENT}, \texttt{INTERPRETER}, \texttt{ADMIN}. Implement as FastAPI dependencies:
+
+\begin{lstlisting}[language=Python3,title={auth/dependencies.py}]
+from fastapi import Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer
+
+oauth2_scheme = OAuth2PasswordBearer(
+    tokenUrl="/api/v1/auth/login"
+)
+
+async def get_current_user(
+    token: str = Depends(oauth2_scheme),
+    db: AsyncSession = Depends(get_db)
+):
+    payload = jwt.decode(
+        token, SECRET_KEY, algorithms=[ALGORITHM]
+    )
+    user_id = payload.get("sub")
+    user = await db.get(User, int(user_id))
+    if not user or not user.is_active:
+        raise HTTPException(401, "Invalid credentials")
+    return user
+
+def require_role(*roles):
+    async def role_checker(
+        user = Depends(get_current_user)
+    ):
+        if user.role not in roles:
+            raise HTTPException(403, "Insufficient permissions")
+        return user
+    return role_checker
+
+# Usage in routes:
+require_admin = require_role("ADMIN")
+require_client = require_role("CLIENT")
+require_interpreter = require_role("INTERPRETER")
+require_staff = require_role("ADMIN", "INTERPRETER")
+\end{lstlisting}
+
+\section{Fernet Encryption Migration}
+
+The legacy system encrypts banking data using \texttt{cryptography.fernet.Fernet}. The encryption key is stored in \texttt{settings.ENCRYPTION\_KEY} as hex, converted to base64 for Fernet.
+
+\begin{lstlisting}[language=Python3,title={encryption.py --- Port of Django encryption}]
+import binascii, base64
+from cryptography.fernet import Fernet, InvalidToken
+
+def get_fernet_key(hex_key: str) -> bytes:
+    """Convert hex key to Fernet-compatible base64 key.
+    Mirrors InterpreterContractSignature.get_encryption_key()
+    """
+    key_bytes = binascii.unhexlify(hex_key)
+    return base64.urlsafe_b64encode(key_bytes[:32])
+
+class FieldEncryptor:
+    def __init__(self, hex_key: str):
+        self.fernet = Fernet(get_fernet_key(hex_key))
+
+    def encrypt(self, plaintext: str) -> bytes:
+        if not plaintext:
+            return None
+        return self.fernet.encrypt(plaintext.encode())
+
+    def decrypt(self, ciphertext: bytes) -> str:
+        if not ciphertext:
+            return None
+        try:
+            return self.fernet.decrypt(ciphertext).decode()
+        except (TypeError, ValueError, InvalidToken):
+            return None
+
+# Usage:
+encryptor = FieldEncryptor(os.getenv("ENCRYPTION_KEY"))
+encrypted = encryptor.encrypt("123456789")
+decrypted = encryptor.decrypt(encrypted)
+\end{lstlisting}
+
+\textbf{Critical validation:} Before migration, test that existing encrypted values in \texttt{encrypted\_account\_number}, \texttt{encrypted\_routing\_number}, and \texttt{encrypted\_swift\_code} columns can be decrypted with the same key using the new code.
+
+\section{API Key Authentication}
+
+Port the custom API key auth from \texttt{app/api\_auth/authentication.py}:
+
+\begin{lstlisting}[language=Python3,title={auth/api\_key.py}]
+from fastapi import Security
+from fastapi.security import APIKeyHeader
+
+api_key_header = APIKeyHeader(name="X-API-Key")
+
+async def verify_api_key(
+    key: str = Security(api_key_header),
+    db: AsyncSession = Depends(get_db)
+):
+    api_key = await db.execute(
+        select(APIKey).where(
+            APIKey.key == key,
+            APIKey.is_active == True
+        )
+    )
+    api_key = api_key.scalar_one_or_none()
+    if not api_key or not api_key.is_valid():
+        raise HTTPException(403, "Invalid API key")
+
+    # Update last_used timestamp
+    api_key.last_used = datetime.utcnow()
+    await db.commit()
+    return api_key.user
+\end{lstlisting}
+
+
+% ============================================================
+% CHAPTER 5: BACKEND API --- ADMIN OPERATIONS
+% ============================================================
+\chapter{Backend API --- Admin Operations}
+
+\section{Assignment Management}
+
+\subsection{Create Assignment}
+
+\begin{lstlisting}[language=Python3,title={POST /api/v1/admin/assignments}]
+class AssignmentCreate(BaseModel):
+    interpreter_id: int | None = None
+    client_id: int | None = None
+    client_name: str | None = None
+    client_email: str | None = None
+    client_phone: str | None = None
+    service_type_id: int
+    source_language_id: int
+    target_language_id: int
+    start_time: datetime
+    end_time: datetime
+    location: str
+    city: str
+    state: str
+    zip_code: str
+    status: str = "PENDING"
+    interpreter_rate: Decimal
+    minimum_hours: int = 2
+    notes: str | None = None
+    special_requirements: str | None = None
+
+@router.post("/assignments")
+async def create_assignment(
+    data: AssignmentCreate,
+    user=Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    # Legacy logic: if client_id set, clear manual fields
+    assignment = Assignment(**data.model_dump())
+    if assignment.client_id:
+        assignment.client_name = None
+        assignment.client_email = None
+        assignment.client_phone = None
+    db.add(assignment)
+    await db.commit()
+
+    # Trigger notification (replaces Django signal)
+    await event_bus.emit("assignment.created", assignment)
+    return assignment
+\end{lstlisting}
+
+\subsection{Assignment Status Transitions}
+
+Port the Django model methods that enforce status transitions:
+
+\begin{lstlisting}[language=Python3,title={Assignment status machine}]
+VALID_TRANSITIONS = {
+    "PENDING": ["CONFIRMED", "CANCELLED"],
+    "CONFIRMED": ["IN_PROGRESS", "EN_ROUTE", "CANCELLED"],
+    "EN_ROUTE": ["ARRIVED"],
+    "ARRIVED": ["IN_PROGRESS"],
+    "IN_PROGRESS": ["COMPLETED"],
+    "COMPLETED": [],
+    "CANCELLED": [],
+    "NO_SHOW": [],
+}
+
+@router.patch("/assignments/{id}/status")
+async def update_assignment_status(
+    id: int,
+    new_status: str,
+    user=Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    assignment = await db.get(Assignment, id)
+    if new_status not in VALID_TRANSITIONS[assignment.status]:
+        raise HTTPException(
+            400,
+            f"Cannot transition from "
+            f"{assignment.status} to {new_status}"
+        )
+    assignment.status = new_status
+    if new_status == "COMPLETED":
+        assignment.completed_at = datetime.utcnow()
+    await db.commit()
+    await event_bus.emit("assignment.status_changed", assignment)
+\end{lstlisting}
+
+\subsection{Bulk Assignment Operations}
+
+\begin{lstlisting}[language=Python3,title={Admin assignment list with filters}]
+@router.get("/assignments")
+async def list_assignments(
+    status: str | None = None,
+    interpreter_id: int | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    page: int = 1,
+    per_page: int = 25,
+    user=Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    query = select(Assignment)
+    if status:
+        query = query.where(Assignment.status == status)
+    if interpreter_id:
+        query = query.where(
+            Assignment.interpreter_id == interpreter_id
+        )
+    if date_from:
+        query = query.where(Assignment.start_time >= date_from)
+    if date_to:
+        query = query.where(Assignment.start_time <= date_to)
+    query = query.order_by(Assignment.created_at.desc())
+    query = query.offset((page-1)*per_page).limit(per_page)
+    result = await db.execute(query)
+    return result.scalars().all()
+\end{lstlisting}
+
+\section{Contract Invitation Management}
+
+\subsection{Send Contract Invitation}
+
+\begin{lstlisting}[language=Python3,title={POST /api/v1/admin/contracts/invite}]
+class ContractInviteRequest(BaseModel):
+    interpreter_ids: list[int]
+
+@router.post("/contracts/invite")
+async def bulk_send_invitations(
+    data: ContractInviteRequest,
+    user=Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    results = []
+    for interp_id in data.interpreter_ids:
+        interpreter = await db.get(Interpreter, interp_id)
+        invitation = ContractInvitation(
+            interpreter_id=interp_id,
+            created_by_id=user.id,
+            token=str(uuid4()),
+            accept_token=str(uuid4()),
+            review_token=str(uuid4()),
+            invitation_number=generate_inv_number(),
+            expires_at=datetime.utcnow() + timedelta(days=30),
+        )
+        db.add(invitation)
+
+        # Create tracking event
+        event = ContractTrackingEvent(
+            invitation=invitation,
+            event_type="EMAIL_SENT",
+            performed_by_id=user.id,
+        )
+        db.add(event)
+
+        # Send email via Resend
+        await email_service.send_contract_invitation(
+            interpreter, invitation
+        )
+        results.append(invitation)
+
+    await db.commit()
+    return {"sent": len(results)}
+\end{lstlisting}
+
+\subsection{Contract Status Monitoring}
+
+\begin{lstlisting}[language=Python3,title={GET /api/v1/admin/contracts/invitations}]
+@router.get("/contracts/invitations")
+async def list_invitations(
+    status: str | None = None,
+    user=Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    query = (
+        select(ContractInvitation)
+        .options(
+            joinedload(ContractInvitation.interpreter),
+            joinedload(ContractInvitation.tracking_events)
+        )
+        .order_by(ContractInvitation.created_at.desc())
+    )
+    if status:
+        query = query.where(
+            ContractInvitation.status == status
+        )
+    result = await db.execute(query)
+    return result.unique().scalars().all()
+\end{lstlisting}
+
+\section{Payroll Generation}
+
+The legacy payroll system uses \texttt{PayrollDocumentForm}, \texttt{ServiceFormSet}, \texttt{ReimbursementFormSet}, and \texttt{DeductionFormSet} to create payroll documents with line items.
+
+\subsection{Create Payroll Document}
+
+\begin{lstlisting}[language=Python3,title={POST /api/v1/admin/payroll}]
+class ServiceLine(BaseModel):
+    date: date | None = None
+    client: str = ""
+    source_language: str = ""
+    target_language: str = ""
+    duration: Decimal | None = None
+    rate: Decimal | None = None
+
+class ReimbursementLine(BaseModel):
+    date: date | None = None
+    reimbursement_type: str = "OTHER"
+    description: str
+    amount: Decimal
+    # receipt handled via multipart upload
+
+class DeductionLine(BaseModel):
+    date: date | None = None
+    deduction_type: str = "OTHER"
+    description: str
+    amount: Decimal
+
+class PayrollCreate(BaseModel):
+    interpreter_name: str
+    interpreter_address: str = ""
+    interpreter_phone: str = ""
+    interpreter_email: str = ""
+    company_address: str = "500 GROSSMAN DR, BRAINTREE, MA, 02184"
+    company_phone: str = "+1 (774) 223 8771"
+    company_email: str = "jhbridgetranslation@gmail.com"
+    document_date: date
+    services: list[ServiceLine]
+    reimbursements: list[ReimbursementLine] = []
+    deductions: list[DeductionLine] = []
+
+@router.post("/payroll")
+async def create_payroll(
+    data: PayrollCreate,
+    user=Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    doc = PayrollDocument(
+        document_number=generate_payroll_number(),
+        document_date=data.document_date,
+        company_address=data.company_address,
+        company_phone=data.company_phone,
+        company_email=data.company_email,
+        interpreter_name=data.interpreter_name,
+        interpreter_address=data.interpreter_address,
+        interpreter_phone=data.interpreter_phone,
+        interpreter_email=data.interpreter_email,
+    )
+    db.add(doc)
+    await db.flush()  # get doc.id
+
+    for svc in data.services:
+        db.add(Service(payroll_id=doc.id, **svc.model_dump()))
+    for reimb in data.reimbursements:
+        db.add(Reimbursement(
+            payroll_id=doc.id, **reimb.model_dump()
+        ))
+    for ded in data.deductions:
+        db.add(Deduction(
+            payroll_id=doc.id, **ded.model_dump()
+        ))
+
+    await db.commit()
+    return doc
+\end{lstlisting}
+
+\subsection{Payroll PDF Export}
+
+\begin{lstlisting}[language=Python3,title={GET /api/v1/admin/payroll/\{id\}/pdf}]
+@router.get("/payroll/{id}/pdf")
+async def export_payroll_pdf(
+    id: int,
+    user=Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    doc = await db.get(
+        PayrollDocument, id,
+        options=[
+            joinedload(PayrollDocument.services),
+            joinedload(PayrollDocument.reimbursements),
+            joinedload(PayrollDocument.deductions),
+        ]
+    )
+    # Calculate totals (port legacy computed property)
+    services_total = sum(
+        (s.duration or 0) * (s.rate or 0)
+        for s in doc.services
+    )
+    reimbursements_total = sum(
+        r.amount for r in doc.reimbursements
+    )
+    deductions_total = sum(
+        d.amount for d in doc.deductions
+    )
+    net_pay = (
+        services_total + reimbursements_total
+        - deductions_total
+    )
+
+    pdf_bytes = generate_payroll_pdf(
+        doc, services_total, reimbursements_total,
+        deductions_total, net_pay
+    )
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition":
+            f"attachment; filename=payroll_{doc.document_number}.pdf"
+        }
+    )
+\end{lstlisting}
+
+\section{Audit Logging}
+
+\begin{lstlisting}[language=Python3,title={middleware/audit.py}]
+async def log_audit(
+    db: AsyncSession,
+    user_id: int | None,
+    action: str,
+    model_name: str,
+    object_id: str,
+    changes: dict,
+    ip_address: str | None = None
+):
+    log = AuditLog(
+        user_id=user_id,
+        action=action,
+        model_name=model_name,
+        object_id=str(object_id),
+        changes=changes,
+        ip_address=ip_address,
+    )
+    db.add(log)
+    await db.flush()
+\end{lstlisting}
+
+
+% ============================================================
+% CHAPTER 6: BACKEND API --- INTERPRETER OPERATIONS
+% ============================================================
+\chapter{Backend API --- Interpreter Operations}
+
+\section{Dashboard API}
+
+The legacy interpreter dashboard (\texttt{app/views/interpreter/dashboard.py}) performs several checks before rendering and aggregates statistics. Port this as a single API call:
+
+\begin{lstlisting}[language=Python3,title={GET /api/v1/interpreter/dashboard}]
+class DashboardResponse(BaseModel):
+    weekly_earnings: Decimal
+    pending_missions: int
+    upcoming_missions: int
+    pending_assignments: list[AssignmentSummary]
+    confirmed_assignments: list[AssignmentSummary]
+    recent_completed: list[AssignmentSummary]
+    has_signed_contract: bool
+    is_blocked: bool
+    blocked_reason: str | None = None
+
+@router.get("/dashboard")
+async def interpreter_dashboard(
+    user=Depends(require_interpreter),
+    db: AsyncSession = Depends(get_db)
+):
+    interpreter = await get_interpreter_profile(db, user.id)
+
+    # Check blocking status (legacy: is_manually_blocked)
+    if interpreter.is_manually_blocked:
+        return DashboardResponse(
+            is_blocked=True,
+            blocked_reason=interpreter.blocked_reason,
+            # ... zero values for other fields
+        )
+
+    # Weekly earnings (legacy: Boston timezone)
+    boston_tz = ZoneInfo("America/New_York")
+    now = datetime.now(boston_tz)
+    week_start = now - timedelta(days=now.weekday())
+
+    weekly_earnings = await db.execute(
+        select(func.sum(Assignment.total_interpreter_payment))
+        .where(
+            Assignment.interpreter_id == interpreter.id,
+            Assignment.status == "COMPLETED",
+            Assignment.completed_at >= week_start,
+        )
+    )
+
+    # Pending and upcoming counts
+    pending = await db.execute(
+        select(func.count())
+        .where(
+            Assignment.interpreter_id == interpreter.id,
+            Assignment.status == "PENDING",
+        )
+    )
+    upcoming = await db.execute(
+        select(func.count())
+        .where(
+            Assignment.interpreter_id == interpreter.id,
+            Assignment.status == "CONFIRMED",
+            Assignment.start_time > now,
+        )
+    )
+
+    return DashboardResponse(
+        weekly_earnings=weekly_earnings.scalar() or 0,
+        pending_missions=pending.scalar(),
+        upcoming_missions=upcoming.scalar(),
+        has_signed_contract=interpreter.has_accepted_contract,
+        is_blocked=False,
+        # ... assignment lists
+    )
+\end{lstlisting}
+
+\section{Mission Lifecycle (Extended)}
+
+The legacy system supports: PENDING $\rightarrow$ CONFIRMED $\rightarrow$ IN\_PROGRESS $\rightarrow$ COMPLETED.
+
+The new system adds \textbf{EN\_ROUTE} and \textbf{ARRIVED} states with geolocation:
+
+\begin{verbatim}
+PENDING -> CONFIRMED -> EN_ROUTE -> ARRIVED -> IN_PROGRESS -> COMPLETED
+                    \-> CANCELLED      (also: NO_SHOW at any active state)
+\end{verbatim}
+
+\subsection{Accept/Decline Assignment (Token-Based)}
+
+Port from \texttt{app/views/assignment\_responses.py}. These endpoints are accessed from email links \textbf{without authentication}:
+
+\begin{lstlisting}[language=Python3,title={Token-based assignment response (no auth)}]
+@router.post("/assignments/{token}/accept")
+async def accept_assignment_by_token(
+    token: str,
+    db: AsyncSession = Depends(get_db)
+):
+    # Legacy: AcceptAssignmentView looks up by token
+    notification = await db.execute(
+        select(AssignmentNotification)
+        .join(Assignment)
+        .where(
+            # Token lookup logic from legacy system
+        )
+    )
+    assignment = notification.assignment
+    if not assignment.can_be_confirmed():
+        raise HTTPException(400, "Assignment cannot be confirmed")
+
+    assignment.status = "CONFIRMED"
+    await db.commit()
+    await event_bus.emit("assignment.confirmed", assignment)
+    return {"status": "confirmed"}
+
+@router.post("/assignments/{token}/decline")
+async def decline_assignment_by_token(
+    token: str,
+    db: AsyncSession = Depends(get_db)
+):
+    # Legacy: cancel() method nullifies interpreter
+    assignment.status = "CANCELLED"
+    assignment.interpreter_id = None
+    await db.commit()
+    await event_bus.emit("assignment.declined", assignment)
+    return {"status": "declined"}
+\end{lstlisting}
+
+\subsection{En Route with Geolocation (NEW)}
+
+\begin{lstlisting}[language=Python3,title={POST /api/v1/interpreter/assignments/\{id\}/en-route}]
+class GeolocationUpdate(BaseModel):
+    latitude: float
+    longitude: float
+
+@router.post("/assignments/{id}/en-route")
+async def mark_en_route(
+    id: int,
+    location: GeolocationUpdate,
+    user=Depends(require_interpreter),
+    db: AsyncSession = Depends(get_db)
+):
+    assignment = await db.get(Assignment, id)
+    if assignment.status != "CONFIRMED":
+        raise HTTPException(400, "Must be CONFIRMED first")
+    assignment.status = "EN_ROUTE"
+    # Store geolocation in new columns (to be added)
+    await db.commit()
+    await event_bus.emit(
+        "assignment.en_route", assignment, location
+    )
+    return {"status": "en_route"}
+
+@router.post("/assignments/{id}/arrived")
+async def mark_arrived(
+    id: int,
+    location: GeolocationUpdate,
+    user=Depends(require_interpreter),
+    db: AsyncSession = Depends(get_db)
+):
+    assignment = await db.get(Assignment, id)
+    if assignment.status != "EN_ROUTE":
+        raise HTTPException(400, "Must be EN_ROUTE first")
+    assignment.status = "ARRIVED"
+    await db.commit()
+    return {"status": "arrived"}
+\end{lstlisting}
+
+\section{Contract Wizard API}
+
+The legacy contract wizard is the most complex flow in the system. It involves multiple steps with session state management.
+
+\subsection{Step 1: OTP Verification}
+
+\begin{lstlisting}[language=Python3,title={POST /api/v1/contracts/otp/verify}]
+class OTPVerifyRequest(BaseModel):
+    token: str
+    otp_code: str
+
+@router.post("/contracts/otp/verify")
+async def verify_otp(
+    data: OTPVerifyRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    contract = await db.execute(
+        select(InterpreterContractSignature)
+        .where(
+            InterpreterContractSignature.token == data.token,
+            InterpreterContractSignature.status == "PENDING",
+        )
+    )
+    contract = contract.scalar_one_or_none()
+    if not contract:
+        raise HTTPException(404, "Contract not found")
+    if contract.is_expired():
+        raise HTTPException(400, "Contract expired")
+    if contract.otp_code != data.otp_code:
+        raise HTTPException(400, "Invalid OTP code")
+
+    contract.status = "LINK_ACCESSED"
+    await db.commit()
+    # Return a session token for subsequent steps
+    session_token = create_contract_session_token(
+        contract_id=str(contract.id)
+    )
+    return {"session_token": session_token}
+\end{lstlisting}
+
+\subsection{Step 2: Payment Info Update}
+
+\begin{lstlisting}[language=Python3,title={POST /api/v1/contracts/payment-info}]
+class PaymentInfoUpdate(BaseModel):
+    bank_name: str
+    account_holder_name: str
+    account_type: str  # "checking" or "savings"
+    account_number: str
+    routing_number: str
+
+@router.post("/contracts/payment-info")
+async def update_payment_info(
+    data: PaymentInfoUpdate,
+    session_token: str = Header(...),
+    db: AsyncSession = Depends(get_db)
+):
+    contract_id = verify_contract_session(session_token)
+    contract = await db.get(
+        InterpreterContractSignature, contract_id
+    )
+    contract.bank_name = data.bank_name
+    contract.account_holder_name = data.account_holder_name
+    contract.account_type = data.account_type
+
+    # Encrypt sensitive data (port from legacy)
+    encryptor = FieldEncryptor(os.getenv("ENCRYPTION_KEY"))
+    contract.encrypted_account_number = (
+        encryptor.encrypt(data.account_number)
+    )
+    contract.encrypted_routing_number = (
+        encryptor.encrypt(data.routing_number)
+    )
+
+    await db.commit()
+    return {"status": "payment_info_saved"}
+\end{lstlisting}
+
+\subsection{Step 3: Signature Submission}
+
+The legacy system supports three signature types: \texttt{type} (typography), \texttt{draw} (manual), and \texttt{upload} (image).
+
+\begin{lstlisting}[language=Python3,title={POST /api/v1/contracts/sign}]
+class SignatureRequest(BaseModel):
+    signature_type: str  # "type", "draw", "upload"
+    # For type:
+    text: str | None = None
+    font: str | None = None
+    # For draw:
+    data: str | None = None  # JSON coordinate data
+    # For upload: handled via multipart
+
+@router.post("/contracts/sign")
+async def sign_contract(
+    data: SignatureRequest,
+    session_token: str = Header(...),
+    request: Request = None,
+    db: AsyncSession = Depends(get_db)
+):
+    contract_id = verify_contract_session(session_token)
+    contract = await db.get(
+        InterpreterContractSignature, contract_id
+    )
+
+    # Port of mark_as_signed() method
+    contract.status = "SIGNED"
+    contract.signature_type = data.signature_type
+    contract.ip_address = request.client.host
+    contract.signed_at = datetime.utcnow()
+    contract.signature_hash = generate_signature_hash(
+        contract.interpreter_name,
+        contract.interpreter_email
+    )
+
+    if data.signature_type == "type":
+        contract.signature_typography_text = data.text
+        contract.signature_typography_font = data.font
+    elif data.signature_type == "draw":
+        contract.signature_manual_data = data.data
+        # Convert to PNG and upload to S3
+        png_data = convert_signature_data_to_png(data.data)
+        if png_data:
+            url = await upload_to_s3(
+                png_data, "signatures/",
+                f"signature_{contract.id}.png"
+            )
+            contract.signature_converted_url = url
+
+    # Mark company signed
+    contract.company_representative_signature = (
+        "Electronically signed"
+    )
+    contract.company_signed_at = datetime.utcnow()
+    contract.is_fully_signed = True
+    contract.is_active = True
+    contract.status = "COMPLETED"
+
+    # Update user registration
+    user = await db.get(User, contract.user_id)
+    if user:
+        user.registration_complete = True
+
+    await db.commit()
+
+    # Generate PDF and send confirmation
+    await generate_contract_pdf(contract)
+    await email_service.send_contract_confirmation(contract)
+
+    return {"status": "signed", "contract_id": str(contract.id)}
+\end{lstlisting}
+
+\subsection{Language Rate Table}
+
+The legacy \texttt{ContractReviewView} defines language-specific rates that must be preserved:
+
+\begin{longtable}{ll}
+\toprule
+\textbf{Language} & \textbf{Hourly Rate} \\
+\midrule
+Portuguese & \$35/hr \\
+Spanish & \$30/hr \\
+Haitian Creole & \$30/hr \\
+Cape Verdean & \$30/hr \\
+French & \$35/hr \\
+Mandarin & \$40/hr \\
+All others (default) & \$45/hr \\
+\bottomrule
+\end{longtable}
+
+\section{Earnings API}
+
+\begin{lstlisting}[language=Python3,title={GET /api/v1/interpreter/earnings}]
+@router.get("/earnings")
+async def get_earnings(
+    period: str = "month",  # week, month, year, all
+    user=Depends(require_interpreter),
+    db: AsyncSession = Depends(get_db)
+):
+    interpreter = await get_interpreter_profile(db, user.id)
+    # Aggregate completed assignments by period
+    query = (
+        select(
+            func.sum(Assignment.total_interpreter_payment)
+            .label("total"),
+            func.count().label("count"),
+        )
+        .where(
+            Assignment.interpreter_id == interpreter.id,
+            Assignment.status == "COMPLETED",
+        )
+    )
+    # Apply date filter based on period
+    if period == "week":
+        query = query.where(
+            Assignment.completed_at >= week_start()
+        )
+    elif period == "month":
+        query = query.where(
+            Assignment.completed_at >= month_start()
+        )
+    result = await db.execute(query)
+    row = result.one()
+    return {
+        "total_earnings": row.total or 0,
+        "completed_assignments": row.count,
+        "period": period,
+    }
+\end{lstlisting}
+
+\section{Schedule/Calendar API}
+
+\begin{lstlisting}[language=Python3,title={GET /api/v1/interpreter/schedule}]
+@router.get("/schedule")
+async def get_schedule(
+    start_date: date,
+    end_date: date,
+    user=Depends(require_interpreter),
+    db: AsyncSession = Depends(get_db)
+):
+    interpreter = await get_interpreter_profile(db, user.id)
+    assignments = await db.execute(
+        select(Assignment)
+        .where(
+            Assignment.interpreter_id == interpreter.id,
+            Assignment.start_time >= start_date,
+            Assignment.start_time <= end_date,
+            Assignment.status.in_([
+                "CONFIRMED", "IN_PROGRESS", "EN_ROUTE",
+                "ARRIVED"
+            ]),
+        )
+        .order_by(Assignment.start_time)
+    )
+    return assignments.scalars().all()
+\end{lstlisting}
+
+
+% ============================================================
+% CHAPTER 7: BACKEND API --- CLIENT OPERATIONS
+% ============================================================
+\chapter{Backend API --- Client Operations}
+
+\section{Client Registration}
+
+The legacy system uses a 2-step session-based registration. Consolidate into a single API call:
+
+\begin{lstlisting}[language=Python3,title={POST /api/v1/auth/register/client}]
+class ClientRegister(BaseModel):
+    # Step 1: User info
+    username: str
+    email: str
+    password: str
+    first_name: str
+    last_name: str
+    phone: str | None = None
+    # Step 2: Company info
+    company_name: str
+    address: str
+    city: str
+    state: str
+    zip_code: str
+    preferred_language_id: int | None = None
+
+@router.post("/register/client")
+async def register_client(
+    data: ClientRegister,
+    db: AsyncSession = Depends(get_db)
+):
+    # Validate uniqueness (port from legacy form validation)
+    if await user_exists(db, email=data.email):
+        raise HTTPException(400, "Email already registered")
+    if await user_exists(db, username=data.username):
+        raise HTTPException(400, "Username already taken")
+    if len(data.username) < 3 or not data.username.isalnum():
+        raise HTTPException(400, "Invalid username format")
+
+    # Create user with CLIENT role
+    user = User(
+        username=data.username,
+        email=data.email,
+        password=hash_password(data.password),
+        first_name=data.first_name,
+        last_name=data.last_name,
+        phone=data.phone,
+        role="CLIENT",
+        registration_complete=True,
+    )
+    db.add(user)
+    await db.flush()
+
+    # Create client profile
+    client = Client(
+        user_id=user.id,
+        company_name=data.company_name,
+        address=data.address,
+        city=data.city,
+        state=data.state,
+        zip_code=data.zip_code,
+        preferred_language_id=data.preferred_language_id,
+    )
+    db.add(client)
+    await db.commit()
+
+    token = create_access_token(
+        data={"sub": str(user.id), "role": "CLIENT"}
+    )
+    return {"access_token": token, "token_type": "bearer"}
+\end{lstlisting}
+
+\section{Client Dashboard}
+
+\begin{lstlisting}[language=Python3,title={GET /api/v1/client/dashboard}]
+class ClientDashboardResponse(BaseModel):
+    recent_quotes: list[QuoteRequestSummary]
+    active_assignments: list[AssignmentSummary]
+    notifications: list[NotificationSummary]
+    pending_quotes_count: int
+    active_assignments_count: int
+
+@router.get("/dashboard")
+async def client_dashboard(
+    user=Depends(require_client),
+    db: AsyncSession = Depends(get_db)
+):
+    client = await get_client_profile(db, user.id)
+
+    recent_quotes = await db.execute(
+        select(QuoteRequest)
+        .where(QuoteRequest.client_id == client.id)
+        .order_by(QuoteRequest.created_at.desc())
+        .limit(5)
+    )
+    active_assignments = await db.execute(
+        select(Assignment)
+        .where(
+            Assignment.client_id == client.id,
+            Assignment.status.in_([
+                "PENDING", "CONFIRMED", "IN_PROGRESS",
+                "EN_ROUTE", "ARRIVED"
+            ])
+        )
+        .order_by(Assignment.start_time)
+    )
+    notifications = await db.execute(
+        select(Notification)
+        .where(
+            Notification.recipient_id == user.id,
+            Notification.read == False
+        )
+        .order_by(Notification.created_at.desc())
+        .limit(10)
+    )
+
+    return ClientDashboardResponse(
+        recent_quotes=recent_quotes.scalars().all(),
+        active_assignments=active_assignments.scalars().all(),
+        notifications=notifications.scalars().all(),
+        # counts...
+    )
+\end{lstlisting}
+
+\section{Quote Request APIs}
+
+\subsection{Create Quote Request}
+
+Port the validation rules from \texttt{QuoteRequestForm.clean()}:
+
+\begin{lstlisting}[language=Python3,title={POST /api/v1/client/quotes}]
+class QuoteRequestCreate(BaseModel):
+    service_type_id: int
+    requested_date: datetime
+    duration: int  # minutes
+    location: str
+    city: str
+    state: str
+    zip_code: str
+    source_language_id: int
+    target_language_id: int
+    special_requirements: str | None = None
+
+    @validator("requested_date")
+    def validate_date(cls, v):
+        min_notice = datetime.utcnow() + timedelta(hours=24)
+        if v < min_notice:
+            raise ValueError(
+                "Requests must be made at least "
+                "24 hours in advance"
+            )
+        return v
+
+    @validator("duration")
+    def validate_duration(cls, v):
+        if v < 30:
+            raise ValueError("Minimum duration is 30 minutes")
+        if v % 30 != 0:
+            raise ValueError(
+                "Duration must be in 30-minute increments"
+            )
+        return v
+
+    @validator("target_language_id")
+    def validate_languages(cls, v, values):
+        if v == values.get("source_language_id"):
+            raise ValueError(
+                "Source and target languages must differ"
+            )
+        return v
+\end{lstlisting}
+
+\subsection{Quote Response (Accept/Reject)}
+
+\begin{lstlisting}[language=Python3,title={POST /api/v1/client/quotes/\{id\}/respond}]
+class QuoteResponse(BaseModel):
+    action: str  # "accept" or "reject"
+
+@router.post("/quotes/{id}/respond")
+async def respond_to_quote(
+    id: int,
+    data: QuoteResponse,
+    user=Depends(require_client),
+    db: AsyncSession = Depends(get_db)
+):
+    quote = await db.get(Quote, id)
+    if data.action == "accept":
+        quote.status = "ACCEPTED"
+        quote.quote_request.status = "ACCEPTED"
+    elif data.action == "reject":
+        quote.status = "REJECTED"
+        quote.quote_request.status = "REJECTED"
+    await db.commit()
+    await event_bus.emit("quote.responded", quote)
+    return {"status": quote.status}
+\end{lstlisting}
+
+\section{Assignment Feedback}
+
+\begin{lstlisting}[language=Python3,title={POST /api/v1/client/assignments/\{id\}/feedback}]
+class FeedbackCreate(BaseModel):
+    rating: int = Field(ge=1, le=5)
+    comments: str | None = None
+
+@router.post("/assignments/{id}/feedback")
+async def submit_feedback(
+    id: int,
+    data: FeedbackCreate,
+    user=Depends(require_client),
+    db: AsyncSession = Depends(get_db)
+):
+    assignment = await db.get(Assignment, id)
+    if assignment.status != "COMPLETED":
+        raise HTTPException(
+            400, "Can only rate completed assignments"
+        )
+    feedback = AssignmentFeedback(
+        assignment_id=id,
+        rating=data.rating,
+        comments=data.comments,
+        created_by_id=user.id,
+    )
+    db.add(feedback)
+    await db.commit()
+    return feedback
+\end{lstlisting}
+
+\section{Profile Management}
+
+\begin{lstlisting}[language=Python3,title={PUT /api/v1/client/profile}]
+class ClientProfileUpdate(BaseModel):
+    first_name: str | None = None
+    last_name: str | None = None
+    phone: str | None = None
+    company_name: str | None = None
+    address: str | None = None
+    city: str | None = None
+    state: str | None = None
+    zip_code: str | None = None
+    billing_address: str | None = None
+    billing_city: str | None = None
+    billing_state: str | None = None
+    billing_zip_code: str | None = None
+    tax_id: str | None = None
+    preferred_language_id: int | None = None
+
+@router.put("/profile")
+async def update_profile(
+    data: ClientProfileUpdate,
+    user=Depends(require_client),
+    db: AsyncSession = Depends(get_db)
+):
+    # Update User fields
+    if data.first_name:
+        user.first_name = data.first_name
+    if data.last_name:
+        user.last_name = data.last_name
+    if data.phone:
+        user.phone = data.phone
+
+    # Update Client fields
+    client = await get_client_profile(db, user.id)
+    client_fields = [
+        "company_name", "address", "city", "state",
+        "zip_code", "billing_address", "billing_city",
+        "billing_state", "billing_zip_code", "tax_id",
+        "preferred_language_id"
+    ]
+    for field in client_fields:
+        value = getattr(data, field, None)
+        if value is not None:
+            setattr(client, field, value)
+
+    await db.commit()
+    return {"status": "updated"}
+\end{lstlisting}
+
+
+% ============================================================
+% CHAPTER 8: FRONTEND ARCHITECTURE
+% ============================================================
+\chapter{Frontend Architecture}
+
+\section{Project Setup}
+
+\begin{lstlisting}[language=bash,title={Initialize React project}]
+npm create vite@latest jhbridge-frontend -- \
+    --template react-ts
+cd jhbridge-frontend
+npm install tailwindcss @tailwindcss/vite
+npm install @radix-ui/react-* class-variance-authority
+npm install clsx tailwind-merge lucide-react
+npm install react-router-dom @tanstack/react-query
+npm install axios date-fns zod react-hook-form
+npm install @hookform/resolvers framer-motion
+npx shadcn@latest init
+\end{lstlisting}
+
+\section{Project Structure}
+
+\begin{lstlisting}[language={},title={React project layout}]
+src/
+  api/
+    client.ts           # Axios instance + interceptors
+    auth.ts             # Login, register, refresh
+    assignments.ts      # Assignment CRUD
+    contracts.ts        # Contract wizard APIs
+    quotes.ts           # Quote APIs
+    payroll.ts          # Payroll APIs
+  components/
+    ui/                 # Shadcn/ui components
+    layout/
+      AdminLayout.tsx
+      ClientLayout.tsx
+      InterpreterLayout.tsx
+      PublicLayout.tsx
+    common/
+      DataTable.tsx
+      StatusBadge.tsx
+      LoadingSpinner.tsx
+  features/
+    auth/
+      LoginPage.tsx
+      RegisterClientPage.tsx
+      RegisterInterpreterPage.tsx
+    admin/
+      DashboardPage.tsx
+      AssignmentsPage.tsx
+      ContractInvitationsPage.tsx
+      PayrollPage.tsx
+    client/
+      DashboardPage.tsx
+      QuotesPage.tsx
+      AssignmentDetailPage.tsx
+      ProfilePage.tsx
+    interpreter/
+      DashboardPage.tsx
+      SchedulePage.tsx
+      EarningsPage.tsx
+      ContractWizard/
+        Step1OTP.tsx
+        Step2PaymentInfo.tsx
+        Step3Signature.tsx
+        Success.tsx
+      SettingsPage.tsx
+    public/
+      HomePage.tsx
+      QuoteRequestPage.tsx
+      ContactPage.tsx
+      ContractVerifyPage.tsx
+  hooks/
+    useAuth.ts
+    useAssignments.ts
+    usePolling.ts
+  lib/
+    utils.ts
+    constants.ts
+  stores/
+    authStore.ts        # Zustand or context
+  types/
+    models.ts           # TypeScript interfaces
+    api.ts              # API request/response types
+  App.tsx
+  main.tsx
+  router.tsx
+\end{lstlisting}
+
+\section{Route Configuration}
+
+\begin{lstlisting}[language={},title={router.tsx --- Route definitions}]
+const router = createBrowserRouter([
+  // Public routes
+  { path: "/", element: <HomePage /> },
+  { path: "/quote-request", element: <QuoteRequestPage /> },
+  { path: "/contact", element: <ContactPage /> },
+  { path: "/verify/:number", element: <ContractVerifyPage /> },
+  { path: "/login", element: <LoginPage /> },
+  { path: "/register/client", element: <RegisterClientPage /> },
+  { path: "/register/interpreter",
+    element: <RegisterInterpreterPage /> },
+
+  // Token-based (no auth)
+  { path: "/assignments/accept/:token",
+    element: <AcceptAssignmentPage /> },
+  { path: "/assignments/decline/:token",
+    element: <DeclineAssignmentPage /> },
+  { path: "/contracts/wizard",
+    element: <ContractWizardLayout /> },
+
+  // Admin routes (protected)
+  { path: "/admin", element: <AdminLayout />, children: [
+    { index: true, element: <AdminDashboard /> },
+    { path: "assignments", element: <AssignmentsPage /> },
+    { path: "assignments/:id", element: <AssignmentDetail /> },
+    { path: "contracts", element: <ContractInvitationsPage /> },
+    { path: "payroll", element: <PayrollPage /> },
+    { path: "payroll/new", element: <CreatePayrollPage /> },
+  ]},
+
+  // Client routes (protected)
+  { path: "/client", element: <ClientLayout />, children: [
+    { index: true, element: <ClientDashboard /> },
+    { path: "quotes", element: <QuotesPage /> },
+    { path: "quotes/new", element: <NewQuotePage /> },
+    { path: "quotes/:id", element: <QuoteDetailPage /> },
+    { path: "assignments", element: <AssignmentHistoryPage /> },
+    { path: "assignments/:id", element: <AssignmentDetailPage /> },
+    { path: "profile", element: <ProfilePage /> },
+  ]},
+
+  // Interpreter routes (protected)
+  { path: "/interpreter", element: <InterpreterLayout />,
+    children: [
+    { index: true, element: <InterpreterDashboard /> },
+    { path: "schedule", element: <SchedulePage /> },
+    { path: "earnings", element: <EarningsPage /> },
+    { path: "settings", element: <SettingsPage /> },
+  ]},
+]);
+\end{lstlisting}
+
+\section{Design System}
+
+\textbf{Theme:} White, black, modern, simple. No gradients, no AI slop.
+
+\begin{lstlisting}[language={},title={tailwind.config.ts --- Design tokens}]
+export default {
+  theme: {
+    extend: {
+      colors: {
+        background: "#FFFFFF",
+        foreground: "#09090B",
+        primary: { DEFAULT: "#09090B", foreground: "#FAFAFA" },
+        muted: { DEFAULT: "#F4F4F5", foreground: "#71717A" },
+        border: "#E4E4E7",
+        destructive: {
+          DEFAULT: "#EF4444", foreground: "#FAFAFA"
+        },
+      },
+      fontFamily: {
+        sans: ["Inter", "system-ui", "sans-serif"],
+        mono: ["JetBrains Mono", "monospace"],
+      },
+    },
+  },
+}
+\end{lstlisting}
+
+\section{Dashboard Layouts}
+
+\subsection{Admin Dashboard}
+
+Key components:
+\begin{itemize}[nosep]
+    \item Top stats bar: Total interpreters, active assignments, pending quotes, monthly revenue
+    \item Assignment management table with status filters and bulk actions
+    \item Contract invitation pipeline (SENT $\rightarrow$ OPENED $\rightarrow$ SIGNED funnel)
+    \item Recent activity feed (audit log entries)
+\end{itemize}
+
+\subsection{Client Dashboard}
+
+Key components:
+\begin{itemize}[nosep]
+    \item Quote status cards (pending, accepted, completed)
+    \item Active assignment list with real-time status
+    \item Quick ``Request Quote'' action button
+    \item Notification bell with unread count
+\end{itemize}
+
+\subsection{Interpreter Dashboard}
+
+Key components:
+\begin{itemize}[nosep]
+    \item Earnings summary card (weekly, monthly, YTD)
+    \item Pending missions requiring action (accept/decline)
+    \item Today's schedule with mission timeline
+    \item Contract status banner (if unsigned)
+    \item Mission action buttons (En Route, Arrived, Complete)
+\end{itemize}
+
+\section{Real-Time Updates}
+
+Use polling with \texttt{@tanstack/react-query} for mission status updates:
+
+\begin{lstlisting}[language={},title={usePolling hook}]
+function useAssignmentPolling(assignmentId: number) {
+  return useQuery({
+    queryKey: ["assignment", assignmentId],
+    queryFn: () => api.getAssignment(assignmentId),
+    refetchInterval: 10_000, // 10 seconds
+    refetchIntervalInBackground: true,
+  });
+}
+\end{lstlisting}
+
+
+% ============================================================
+% CHAPTER 9: AUTOMATION & EVENTS
+% ============================================================
+\chapter{Automation \& Events}
+
+\section{Celery to APScheduler Migration}
+
+Replace Celery Beat scheduled tasks with APScheduler:
+
+\begin{lstlisting}[language=Python3,title={scheduler.py}]
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
+
+scheduler = AsyncIOScheduler()
+
+# Task 1: Contract reminders (Day 3, Day 7)
+@scheduler.scheduled_job(
+    CronTrigger(hour=9, minute=0)  # Daily at 9 AM
+)
+async def send_contract_reminders():
+    async with AsyncSessionLocal() as db:
+        now = datetime.utcnow()
+
+        # Day 3 reminders
+        day3_cutoff = now - timedelta(days=3)
+        invitations = await db.execute(
+            select(ContractInvitation)
+            .where(
+                ContractInvitation.status == "SENT",
+                ContractInvitation.created_at <= day3_cutoff,
+                ~ContractInvitation.id.in_(
+                    select(ContractReminder.invitation_id)
+                    .where(
+                        ContractReminder.reminder_type == "DAY_3"
+                    )
+                )
+            )
+        )
+        for inv in invitations.scalars():
+            await email_service.send_reminder(inv, "DAY_3")
+            db.add(ContractReminder(
+                invitation_id=inv.id,
+                reminder_type="DAY_3",
+                email_sent=True,
+            ))
+
+        # Day 7 reminders (same pattern)
+        day7_cutoff = now - timedelta(days=7)
+        # ... similar logic with DAY_7
+
+        await db.commit()
+
+# Task 2: Auto-expire invitations
+@scheduler.scheduled_job(
+    CronTrigger(hour=0, minute=0)  # Midnight daily
+)
+async def expire_old_invitations():
+    async with AsyncSessionLocal() as db:
+        expired = await db.execute(
+            update(ContractInvitation)
+            .where(
+                ContractInvitation.expires_at < datetime.utcnow(),
+                ContractInvitation.status.in_(
+                    ["SENT", "OPENED", "REVIEWING"]
+                ),
+            )
+            .values(status="EXPIRED")
+        )
+        await db.commit()
+
+# Start scheduler with FastAPI lifespan
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app):
+    scheduler.start()
+    yield
+    scheduler.shutdown()
+
+app = FastAPI(lifespan=lifespan)
+\end{lstlisting}
+
+\section{Event Bus}
+
+Replace Django signals with an internal async event bus:
+
+\begin{lstlisting}[language=Python3,title={events/bus.py}]
+from typing import Callable, Any
+import asyncio
+
+class EventBus:
+    def __init__(self):
+        self._handlers: dict[str, list[Callable]] = {}
+
+    def on(self, event_name: str, handler: Callable):
+        self._handlers.setdefault(event_name, [])
+        self._handlers[event_name].append(handler)
+
+    async def emit(self, event_name: str, *args, **kwargs):
+        handlers = self._handlers.get(event_name, [])
+        tasks = [h(*args, **kwargs) for h in handlers]
+        await asyncio.gather(*tasks, return_exceptions=True)
+
+event_bus = EventBus()
+\end{lstlisting}
+
+\subsection{Event Handlers (Port from signals.py)}
+
+\begin{lstlisting}[language=Python3,title={events/handlers.py}]
+from events.bus import event_bus
+
+# Port from Django post_save signal on User
+@event_bus.on("user.created")
+async def handle_user_created(user):
+    if user.role == "CLIENT":
+        await email_service.send_welcome_client(user)
+    elif user.role == "INTERPRETER":
+        await email_service.send_welcome_interpreter(user)
+
+# Port from Django post_save signal on Assignment
+@event_bus.on("assignment.created")
+async def handle_assignment_created(assignment):
+    if assignment.interpreter_id:
+        await email_service.send_assignment_notification(
+            assignment
+        )
+
+@event_bus.on("assignment.status_changed")
+async def handle_status_change(assignment):
+    await email_service.send_status_update(assignment)
+
+@event_bus.on("assignment.confirmed")
+async def handle_confirmed(assignment):
+    # Notify client that interpreter confirmed
+    await email_service.send_confirmation_to_client(
+        assignment
+    )
+
+@event_bus.on("quote.responded")
+async def handle_quote_response(quote):
+    await email_service.send_quote_response(quote)
+\end{lstlisting}
+
+\section{Email Service (Resend API)}
+
+\begin{lstlisting}[language=Python3,title={services/email.py}]
+import httpx
+
+class EmailService:
+    def __init__(self):
+        self.api_key = os.getenv("RESEND_API_KEY")
+        self.base_url = "https://api.resend.com"
+        self.from_email = "noreply@jhbridgetranslation.com"
+
+    async def send(
+        self, to: str, subject: str, html: str
+    ):
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{self.base_url}/emails",
+                headers={
+                    "Authorization": f"Bearer {self.api_key}"
+                },
+                json={
+                    "from": self.from_email,
+                    "to": [to],
+                    "subject": subject,
+                    "html": html,
+                },
+            )
+            response.raise_for_status()
+            return response.json()
+
+    async def send_contract_invitation(
+        self, interpreter, invitation
+    ):
+        html = render_template(
+            "contract_invitation.html",
+            interpreter=interpreter,
+            accept_url=f"{SITE_URL}/contracts/accept/"
+                       f"{invitation.accept_token}",
+            review_url=f"{SITE_URL}/contracts/review/"
+                       f"{invitation.review_token}",
+            tracking_pixel=f"{API_URL}/api/v1/contracts/"
+                          f"track/{invitation.token}/pixel",
+        )
+        await self.send(
+            to=interpreter.user.email,
+            subject="JHBridge - Contract Invitation",
+            html=html,
+        )
+
+email_service = EmailService()
+\end{lstlisting}
+
+
+% ============================================================
+% CHAPTER 10: GAP ANALYSIS & VERIFICATION
+% ============================================================
+\chapter{Gap Analysis \& Verification}
+
+\section{View-to-Endpoint Verification Checklist}
+
+Every legacy view has been mapped to a new API endpoint. The following checklist must be verified during implementation:
+
+\begin{longtable}{p{5cm}p{4cm}p{1.5cm}p{2.5cm}}
+\toprule
+\textbf{Legacy View} & \textbf{New Endpoint} & \textbf{Ported} & \textbf{Tested} \\
+\midrule
+\endhead
+HomePageView & Static React page & $\square$ & $\square$ \\
+QuoteRequestView (public) & POST /api/v1/public/quotes & $\square$ & $\square$ \\
+ContactView & POST /api/v1/public/contact & $\square$ & $\square$ \\
+LoginView & POST /api/v1/auth/login & $\square$ & $\square$ \\
+LogoutView & POST /api/v1/auth/logout & $\square$ & $\square$ \\
+ClientRegistrationStep1 & POST /api/v1/auth/register/client & $\square$ & $\square$ \\
+ClientRegistrationStep2 & (merged) & $\square$ & $\square$ \\
+ClientDashboardView & GET /api/v1/client/dashboard & $\square$ & $\square$ \\
+ClientAssignmentDetailView & GET /api/v1/client/assignments/\{id\} & $\square$ & $\square$ \\
+ClientAssignmentHistoryView & GET /api/v1/client/assignments & $\square$ & $\square$ \\
+QuoteRequestCreateView & POST /api/v1/client/quotes & $\square$ & $\square$ \\
+QuoteRequestListView & GET /api/v1/client/quotes & $\square$ & $\square$ \\
+QuoteRequestDetailView & GET /api/v1/client/quotes/\{id\} & $\square$ & $\square$ \\
+QuoteResponseView & POST /api/v1/client/quotes/\{id\}/respond & $\square$ & $\square$ \\
+SubmitFeedbackView & POST /api/v1/.../feedback & $\square$ & $\square$ \\
+ProfileView (client) & GET/PUT /api/v1/client/profile & $\square$ & $\square$ \\
+NotificationPreferencesView & GET/PUT /api/v1/.../preferences & $\square$ & $\square$ \\
+InterpreterReg Step1--3 & POST /api/v1/auth/register/interpreter & $\square$ & $\square$ \\
+dashboard\_view (interp) & GET /api/v1/interpreter/dashboard & $\square$ & $\square$ \\
+calendar\_view & GET /api/v1/interpreter/schedule & $\square$ & $\square$ \\
+InterpreterSettingsView & GET/PUT /api/v1/interpreter/settings & $\square$ & $\square$ \\
+AcceptAssignmentView & POST /api/v1/assignments/\{t\}/accept & $\square$ & $\square$ \\
+DeclineAssignmentView & POST /api/v1/assignments/\{t\}/decline & $\square$ & $\square$ \\
+ContractWizardView & GET/POST /api/v1/contracts/wizard & $\square$ & $\square$ \\
+ContractOTPView & POST /api/v1/contracts/otp/verify & $\square$ & $\square$ \\
+EmailTrackingPixelView & GET /api/v1/contracts/.../pixel & $\square$ & $\square$ \\
+DirectAcceptView & POST /api/v1/contracts/.../accept & $\square$ & $\square$ \\
+ReviewLinkView & GET /api/v1/contracts/.../review & $\square$ & $\square$ \\
+ContractPDFDownloadView & GET /api/v1/contracts/\{id\}/pdf & $\square$ & $\square$ \\
+ContractPublicVerifyView & GET /api/v1/contracts/verify/\{n\} & $\square$ & $\square$ \\
+Legacy ContractVerification & (merged into wizard) & $\square$ & $\square$ \\
+Legacy ContractSignature & (merged into /sign) & $\square$ & $\square$ \\
+Legacy ContractConfirmation & (merged into /sign) & $\square$ & $\square$ \\
+PayrollDocumentView & POST /api/v1/admin/payroll & $\square$ & $\square$ \\
+EarningsView & GET /api/v1/interpreter/earnings & $\square$ & $\square$ \\
+NotificationView & GET /api/v1/notifications & $\square$ & $\square$ \\
+\bottomrule
+\end{longtable}
+
+\section{Hidden Template Logic to Migrate}
+
+The following business logic is embedded in Django templates and must be moved to the API:
+
+\begin{enumerate}[nosep]
+    \item \textbf{Timezone conversion:} The interpreter dashboard converts times to Boston timezone (\texttt{America/New\_York}) in the template. Move to API response.
+    \item \textbf{Assignment action URL generation:} Accept/decline token URLs are generated in template context. Move to API response fields.
+    \item \textbf{Contract status display logic:} Template conditionals check \texttt{is\_manually\_blocked}, \texttt{has\_accepted\_contract}, \texttt{registration\_complete} to show/hide dashboard sections. Move to API response flags.
+    \item \textbf{Payroll total calculations:} Service amount (\texttt{duration * rate}) is a Python \texttt{@property}. Compute in API.
+    \item \textbf{Notification badge counts:} Unread notification counts computed per-request in view context. Add to dashboard API response.
+    \item \textbf{Language rate mapping:} Hardcoded rate table in \texttt{ContractReviewView} (Portuguese \$35, Spanish \$30, etc.). Move to configuration or database.
+\end{enumerate}
+
+\section{New Features to Implement}
+
+These features are specified in the target architecture but do not exist in the legacy system:
+
+\begin{enumerate}[nosep]
+    \item \textbf{EN\_ROUTE status:} New assignment status with geolocation tracking. Requires adding \texttt{latitude} and \texttt{longitude} columns to \texttt{app\_assignment} (or a separate tracking table).
+    \item \textbf{ARRIVED status:} New assignment status confirming on-site arrival with geolocation.
+    \item \textbf{Google OAuth2:} Not present in legacy system. Implement as additional auth method.
+    \item \textbf{Real-time polling:} Legacy uses full page refreshes. Implement client-side polling with React Query.
+    \item \textbf{Service ordering (client):} Legacy clients submit quote requests; direct service ordering is a new flow.
+    \item \textbf{Invoice downloads (client):} Not fully implemented in legacy. Build PDF invoice generation.
+    \item \textbf{Tax document downloads (1099):} Not in legacy. Add annual tax document generation for interpreters.
+\end{enumerate}
+
+\section{Edge Cases to Handle}
+
+\begin{enumerate}[nosep]
+    \item \textbf{Concurrent assignment acceptance:} Two interpreters clicking accept on the same assignment via email tokens. Use database-level locking (\texttt{SELECT ... FOR UPDATE}).
+    \item \textbf{Expired contract with in-flight wizard:} User starts wizard, takes too long, contract expires mid-flow. Check expiry at each step.
+    \item \textbf{Dual model system removal:} The \texttt{models\_v2} unmanaged models must not be ported. Verify no code path depends on them.
+    \item \textbf{Client field fallback:} Assignment has both \texttt{client\_id} FK and manual \texttt{client\_name}/\texttt{client\_email}/\texttt{client\_phone}. The API must handle both cases (legacy: if \texttt{client\_id} is set, manual fields are cleared).
+    \item \textbf{OTP brute force:} Legacy allows 3 attempts with 5-hour timeout. Implement rate limiting.
+    \item \textbf{Company default info:} Payroll defaults to ``500 GROSSMAN DR, BRAINTREE, MA, 02184'' and ``+1 (774) 223 8771''. Store as configuration, not hardcoded.
+\end{enumerate}
+
+
+% ============================================================
+% APPENDICES
+% ============================================================
+\appendix
+
+\chapter{Complete URL Route Map}
+
+\section{Public Endpoints (No Auth)}
+
+\begin{longtable}{p{2cm}p{5.5cm}p{5.5cm}}
+\toprule
+\textbf{Method} & \textbf{Endpoint} & \textbf{Description} \\
+\midrule
+\endhead
+GET & /api/v1/public/home & Landing page data \\
+POST & /api/v1/public/quotes & Submit public quote request \\
+POST & /api/v1/public/contact & Submit contact form \\
+GET & /api/v1/public/services & List active service types \\
+GET & /api/v1/public/languages & List active languages \\
+POST & /api/v1/auth/login & Email + password login \\
+POST & /api/v1/auth/register/client & Client registration \\
+POST & /api/v1/auth/register/interpreter & Interpreter registration \\
+POST & /api/v1/auth/google & Google OAuth2 login \\
+POST & /api/v1/auth/refresh & Refresh JWT token \\
+POST & /api/v1/auth/logout & Invalidate token \\
+POST & /api/v1/assignments/\{token\}/accept & Accept (from email) \\
+POST & /api/v1/assignments/\{token\}/decline & Decline (from email) \\
+GET & /api/v1/contracts/track/\{token\}/pixel & Email tracking pixel \\
+POST & /api/v1/contracts/\{token\}/accept & Direct accept from email \\
+GET & /api/v1/contracts/\{token\}/review & Start wizard from email \\
+GET & /api/v1/contracts/verify/\{number\} & Public QR verification \\
+POST & /api/v1/contracts/otp/verify & OTP verification \\
+POST & /api/v1/contracts/payment-info & Update banking info \\
+POST & /api/v1/contracts/sign & Submit signature \\
+\bottomrule
+\end{longtable}
+
+\section{Client Endpoints (Requires CLIENT role)}
+
+\begin{longtable}{p{2cm}p{5.5cm}p{5.5cm}}
+\toprule
+\textbf{Method} & \textbf{Endpoint} & \textbf{Description} \\
+\midrule
+\endhead
+GET & /api/v1/client/dashboard & Dashboard stats and lists \\
+GET & /api/v1/client/quotes & List quote requests \\
+POST & /api/v1/client/quotes & Create quote request \\
+GET & /api/v1/client/quotes/\{id\} & Quote detail \\
+POST & /api/v1/client/quotes/\{id\}/respond & Accept/reject quote \\
+GET & /api/v1/client/assignments & Assignment history \\
+GET & /api/v1/client/assignments/\{id\} & Assignment detail \\
+POST & /api/v1/client/assignments/\{id\}/feedback & Submit feedback \\
+GET & /api/v1/client/profile & Get profile \\
+PUT & /api/v1/client/profile & Update profile \\
+GET & /api/v1/client/notifications/preferences & Get notification prefs \\
+PUT & /api/v1/client/notifications/preferences & Update notification prefs \\
+POST & /api/v1/client/password/change & Change password \\
+\bottomrule
+\end{longtable}
+
+\section{Interpreter Endpoints (Requires INTERPRETER role)}
+
+\begin{longtable}{p{2cm}p{5.5cm}p{5.5cm}}
+\toprule
+\textbf{Method} & \textbf{Endpoint} & \textbf{Description} \\
+\midrule
+\endhead
+GET & /api/v1/interpreter/dashboard & Dashboard with stats \\
+GET & /api/v1/interpreter/schedule & Calendar data \\
+GET & /api/v1/interpreter/earnings & Earnings summary \\
+GET & /api/v1/interpreter/settings & Profile settings \\
+PUT & /api/v1/interpreter/settings & Update settings \\
+POST & /api/v1/interpreter/assignments/\{id\}/en-route & Mark en route + GPS \\
+POST & /api/v1/interpreter/assignments/\{id\}/arrived & Mark arrived + GPS \\
+POST & /api/v1/interpreter/assignments/\{id\}/start & Start assignment \\
+POST & /api/v1/interpreter/assignments/\{id\}/complete & Complete assignment \\
+\bottomrule
+\end{longtable}
+
+\section{Admin Endpoints (Requires ADMIN role)}
+
+\begin{longtable}{p{2cm}p{5.5cm}p{5.5cm}}
+\toprule
+\textbf{Method} & \textbf{Endpoint} & \textbf{Description} \\
+\midrule
+\endhead
+GET & /api/v1/admin/dashboard & Admin stats \\
+GET & /api/v1/admin/assignments & List all assignments \\
+POST & /api/v1/admin/assignments & Create assignment \\
+GET & /api/v1/admin/assignments/\{id\} & Assignment detail \\
+PATCH & /api/v1/admin/assignments/\{id\}/status & Update status \\
+DELETE & /api/v1/admin/assignments/\{id\} & Delete assignment \\
+GET & /api/v1/admin/contracts/invitations & List invitations \\
+POST & /api/v1/admin/contracts/invite & Bulk send invitations \\
+POST & /api/v1/admin/contracts/\{id\}/void & Void invitation \\
+POST & /api/v1/admin/contracts/\{id\}/resend & Resend invitation \\
+GET & /api/v1/admin/payroll & List payroll documents \\
+POST & /api/v1/admin/payroll & Create payroll document \\
+GET & /api/v1/admin/payroll/\{id\} & Payroll detail \\
+GET & /api/v1/admin/payroll/\{id\}/pdf & Download PDF \\
+GET & /api/v1/admin/interpreters & List interpreters \\
+PATCH & /api/v1/admin/interpreters/\{id\}/block & Block interpreter \\
+PATCH & /api/v1/admin/interpreters/\{id\}/unblock & Unblock interpreter \\
+GET & /api/v1/admin/audit-logs & View audit trail \\
+GET & /api/v1/admin/notifications & Manage notifications \\
+\bottomrule
+\end{longtable}
+
+
+\chapter{Environment Variables Reference}
+
+\begin{longtable}{p{5cm}p{3cm}p{5cm}}
+\toprule
+\textbf{Variable} & \textbf{Required} & \textbf{Description} \\
+\midrule
+\endhead
+\texttt{SECRET\_KEY} & Yes & Django/JWT secret key \\
+\texttt{MYSQL\_URL} & Yes & MySQL connection string \\
+\texttt{DATABASE\_URL} & Yes & Async MySQL URL (asyncmy) \\
+\texttt{DEBUG} & No & Debug mode (default: False) \\
+\texttt{ALLOWED\_HOSTS} & Yes & Comma-separated host list \\
+\texttt{SITE\_URL} & Yes & Frontend base URL \\
+\texttt{API\_URL} & Yes & Backend API base URL \\
+\texttt{RESEND\_API\_KEY} & Yes & Resend email API key \\
+\texttt{CELERY\_BROKER\_URL} & Legacy & Redis URL (for Celery) \\
+\texttt{REDIS\_URL} & Yes & Redis URL (for caching) \\
+\texttt{AWS\_KEY\_ID} & Yes & S3 access key ID \\
+\texttt{AWS\_KEY\_SECRET} & Yes & S3 secret access key \\
+\texttt{AWS\_S3\_REGION\_NAME} & Yes & S3 region \\
+\texttt{STRIPE\_SECRET\_KEY} & Yes & Stripe secret key \\
+\texttt{STRIPE\_PUBLISHABLE\_KEY} & Yes & Stripe public key \\
+\texttt{ENCRYPTION\_KEY} & Yes & Fernet encryption key (hex) \\
+\texttt{MASTER\_KEY} & Yes & Master encryption key \\
+\texttt{JWT\_SECRET\_KEY} & Yes & JWT signing secret \\
+\texttt{JWT\_ACCESS\_TOKEN\_LIFETIME} & No & Access token TTL (minutes) \\
+\texttt{JWT\_REFRESH\_TOKEN\_LIFETIME} & No & Refresh token TTL (days) \\
+\texttt{GOOGLE\_CLIENT\_ID} & Yes & Google OAuth2 client ID \\
+\texttt{GOOGLE\_CLIENT\_SECRET} & Yes & Google OAuth2 secret \\
+\texttt{CORS\_ALLOWED\_ORIGINS} & Yes & Frontend origins for CORS \\
+\texttt{CSRF\_TRUSTED\_ORIGINS} & Legacy & Not needed in FastAPI \\
+\bottomrule
+\end{longtable}
+
+
+\chapter{Storage Bucket Configuration}
+
+Migrate from Backblaze B2 to AWS S3 with equivalent bucket structure:
+
+\begin{longtable}{p{4cm}p{3.5cm}p{2.5cm}p{3cm}}
+\toprule
+\textbf{Legacy Bucket} & \textbf{New S3 Bucket} & \textbf{Versioning} & \textbf{Lifecycle} \\
+\midrule
+\endhead
+jhbridge-documents-prod/media & jhbridge-media & Off & None \\
+jhbridge-contracts-prod & jhbridge-contracts & \textbf{On} & None \\
+jhbridge-signatures-prod & jhbridge-signatures & Off & None \\
+jhbridge-assets & jhbridge-assets & Off & Public read \\
+jhbridge-temp-uploads & jhbridge-temp & Off & \textbf{24h expiry} \\
+\bottomrule
+\end{longtable}
+
+\textbf{S3 Configuration:}
+
+\begin{lstlisting}[language=Python3,title={storage.py --- S3 bucket configuration}]
+import boto3
+from botocore.config import Config
+
+s3_client = boto3.client(
+    "s3",
+    aws_access_key_id=os.getenv("AWS_KEY_ID"),
+    aws_secret_access_key=os.getenv("AWS_KEY_SECRET"),
+    region_name=os.getenv("AWS_S3_REGION_NAME"),
+    config=Config(signature_version="s3v4"),
+)
+
+BUCKETS = {
+    "media": "jhbridge-media",
+    "contracts": "jhbridge-contracts",
+    "signatures": "jhbridge-signatures",
+    "assets": "jhbridge-assets",
+    "temp": "jhbridge-temp",
+}
+
+async def upload_file(
+    bucket_key: str,
+    file_path: str,
+    content: bytes,
+    content_type: str = "application/octet-stream"
+):
+    bucket = BUCKETS[bucket_key]
+    s3_client.put_object(
+        Bucket=bucket,
+        Key=file_path,
+        Body=content,
+        ContentType=content_type,
+    )
+    return f"https://{bucket}.s3.amazonaws.com/{file_path}"
+
+async def get_presigned_url(
+    bucket_key: str,
+    file_path: str,
+    expires_in: int = 3600
+):
+    bucket = BUCKETS[bucket_key]
+    return s3_client.generate_presigned_url(
+        "get_object",
+        Params={"Bucket": bucket, "Key": file_path},
+        ExpiresIn=expires_in,
+    )
+\end{lstlisting}
+
+\vfill
+\begin{center}
+\rule{0.5\textwidth}{0.4pt}\\[0.5cm]
+{\large\textit{End of Migration Recipe Book}}\\[0.2cm]
+{\small Version 1.0 --- \today}
+\end{center}
+
+\end{document}

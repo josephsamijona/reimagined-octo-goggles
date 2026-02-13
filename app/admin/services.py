@@ -313,6 +313,33 @@ class AssignmentAdmin(AssignmentAdminMixin, admin.ModelAdmin):
         return "-"
     formatted_end_time_detail.short_description = "End Time (Boston)"
 
+    actions = ['mark_as_paid', 'mark_as_confirmed', 'mark_as_completed', 'mark_as_cancelled', 'mark_as_no_show']
+
+    def mark_as_paid(self, request, queryset):
+        rows_updated = queryset.update(is_paid=True)
+        self.message_user(request, f"{rows_updated} assignment(s) successfully marked as paid.")
+    mark_as_paid.short_description = "💰 Mark selected assignments as Paid"
+
+    def mark_as_confirmed(self, request, queryset):
+        rows_updated = queryset.update(status='CONFIRMED')
+        self.message_user(request, f"{rows_updated} assignment(s) successfully marked as confirmed.")
+    mark_as_confirmed.short_description = "✅ Mark selected assignments as Confirmed"
+
+    def mark_as_completed(self, request, queryset):
+        rows_updated = queryset.update(status='COMPLETED')
+        self.message_user(request, f"{rows_updated} assignment(s) successfully marked as completed.")
+    mark_as_completed.short_description = "🏁 Mark selected assignments as Completed"
+
+    def mark_as_cancelled(self, request, queryset):
+        rows_updated = queryset.update(status='CANCELLED')
+        self.message_user(request, f"{rows_updated} assignment(s) successfully marked as cancelled.")
+    mark_as_cancelled.short_description = "❌ Mark selected assignments as Cancelled"
+
+    def mark_as_no_show(self, request, queryset):
+        rows_updated = queryset.update(status='NO_SHOW')
+        self.message_user(request, f"{rows_updated} assignment(s) successfully marked as No Show")
+    mark_as_no_show.short_description = "⚠️ Mark selected assignments as No Show"
+
     def save_model(self, request, obj, form, change):
         """
         Save model with total payment calculation and flexible client handling
