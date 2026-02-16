@@ -22,14 +22,16 @@ class ContractEmailService:
             interpreter = invitation.interpreter
             user = interpreter.user
             
-            # Construct URLs using request.build_absolute_uri() for dynamic environment support
+            # Construct URLs using hardcoded base URL based on user preference
+            base_url = "https://jhbridges.up.railway.app"
+            
             accept_path = reverse('dbdint:contract_direct_accept', kwargs={'accept_token': invitation.accept_token})
             review_path = reverse('dbdint:contract_review_link', kwargs={'review_token': invitation.review_token})
             tracking_path = reverse('dbdint:contract_tracking_pixel', kwargs={'token': invitation.token})
             
-            accept_url = request.build_absolute_uri(accept_path)
-            review_url = request.build_absolute_uri(review_path)
-            tracking_pixel_url = request.build_absolute_uri(tracking_path)
+            accept_url = f"{base_url}{accept_path}"
+            review_url = f"{base_url}{review_path}"
+            tracking_pixel_url = f"{base_url}{tracking_path}"
             
             context = {
                 'interpreter_name': user.get_full_name(),
