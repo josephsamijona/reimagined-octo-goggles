@@ -1,0 +1,7 @@
+JHBridge: New Assignment #{{ assignment.id }} available.
+Type: {{ assignment.service_type.name }}
+Date: {{ start_time|date:"M d, Y" }} @ {{ start_time|date:"h:i A" }}
+Loc: {{ assignment.city }}
+Rate: ${{ assignment.interpreter_rate }}/hr
+
+Accept here: {{ dashboard_url }}

@@ -1,0 +1,5 @@
+JHBridge: Interpreter Confirmed for #{{ assignment.id }}.
+Date: {{ start_time|date:"M d" }} @ {{ start_time|date:"h:i A" }}
+Interpreter: {{ interpreter_name }}
+
+View: {{ dashboard_url }}

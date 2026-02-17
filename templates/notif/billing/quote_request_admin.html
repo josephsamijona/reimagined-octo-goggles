@@ -1,0 +1,16 @@
+{% extends 'notif/layouts/base.html' %}
+
+{% block content %}
+<h2>New Quote Request</h2>
+<p><strong>Admin Alert</strong></p>
+
+<div class="info-box">
+    <p>A new quote request has been submitted.</p>
+    <hr>
+    <p><strong>Client:</strong> {{ client_name }}</p>
+    <p><strong>Service:</strong> {{ service_type }}</p>
+    <p><strong>Languages:</strong> {{ source_lang }} &rarr; {{ target_lang }}</p>
+</div>
+
+<a href="{{ admin_url }}" class="button">Process Quote</a>
+{% endblock %}

@@ -1,0 +1,18 @@
+{% extends 'notif/layouts/base.html' %}
+
+{% block content %}
+<h2>Payment Processed</h2>
+<p>Dear {{ interpreter_name }},</p>
+<p>Good news! A payout has been processed for your account.</p>
+
+<div class="info-box">
+    <h3>Payout Details</h3>
+    <p><strong>Amount:</strong> ${{ amount }}</p>
+    <p><strong>Date:</strong> {{ date|date:"F d, Y" }}</p>
+    <p><strong>Reference:</strong> {{ reference_id }}</p>
+</div>
+
+<p>The funds should appear in your account within 2-3 business days.</p>
+
+<a href="{{ billing_url }}" class="button">View Earnings</a>
+{% endblock %}

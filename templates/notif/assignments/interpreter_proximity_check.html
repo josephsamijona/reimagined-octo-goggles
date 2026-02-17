@@ -1,0 +1,18 @@
+{% extends 'notif/layouts/base.html' %}
+
+{% block content %}
+<h2>Upcoming Assignment Check-in</h2>
+<p>Dear {{ interpreter_name }},</p>
+<p>Your assignment is scheduled to start in <strong>1 hour</strong>.</p>
+
+<div class="info-box">
+    <h3>Are you on your way?</h3>
+    <p><strong>Client:</strong> {{ client_name }}</p>
+    <p><strong>Location:</strong> {{ location }}</p>
+    <p><strong>Start Time:</strong> {{ start_time|date:"h:i A" }}</p>
+</div>
+
+<p>Please update your status to let us know you are en route.</p>
+
+<a href="{{ dashboard_url }}?action=en_route" class="button">I'm on my way</a>
+{% endblock %}

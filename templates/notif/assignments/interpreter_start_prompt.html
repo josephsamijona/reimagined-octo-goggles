@@ -1,0 +1,13 @@
+{% extends 'notif/layouts/base.html' %}
+
+{% block content %}
+<h2>Ready to Start?</h2>
+<p>Dear {{ interpreter_name }},</p>
+<p>It's time to begin your assignment with <strong>{{ client_name }}</strong>.</p>
+
+<div class="info-box">
+    <p>Please click the button below to officially start the timer and log your attendance.</p>
+</div>
+
+<a href="{{ dashboard_url }}?action=start_mission" class="button">Start Mission</a>
+{% endblock %}

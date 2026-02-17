@@ -1,0 +1,4 @@
+Welcome to JH Bridge!
+Your account is ready.
+d
+Log in here: {{ dashboard_url }}

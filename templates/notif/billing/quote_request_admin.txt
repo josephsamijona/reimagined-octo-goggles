@@ -1,0 +1,6 @@
+JHBridge Admin: New Quote Request.
+Client: {{ client_name }}
+Service: {{ service_type }}
+From: {{ source_lang }} To: {{ target_lang }}
+
+Process: {{ admin_url }}

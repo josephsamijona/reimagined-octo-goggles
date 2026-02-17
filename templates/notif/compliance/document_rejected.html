@@ -1,0 +1,17 @@
+{% extends 'notif/layouts/base.html' %}
+
+{% block content %}
+<h2>Document Rejected</h2>
+<p>Dear {{ interpreter_name }},</p>
+<p>Your recent document submission could not be approved.</p>
+
+<div class="info-box">
+    <h3>{{ document_name }}</h3>
+    <p><strong>Reason:</strong> {{ rejection_reason }}</p>
+    <p style="color: #dc3545;"><strong>Status:</strong> <i class="fas fa-times-circle"></i> Rejected</p>
+</div>
+
+<p>Please review the rejection reason and upload a corrected document.</p>
+
+<a href="{{ compliance_url }}" class="button">Upload New Document</a>
+{% endblock %}

@@ -8,6 +8,7 @@ from aws_cdk import (
     aws_events_targets as targets,
     aws_iam as iam,
 )
+import os
 from constructs import Construct
 
 class BackupStack(Stack):
@@ -36,7 +37,8 @@ class BackupStack(Stack):
             ephemeral_storage_size=Size.mebibytes(5120), # 5GB Storage
             environment={
                 "SECRET_NAME": secret_name,
-                "BACKUP_BUCKET_NAME": bucket.bucket_name
+                "BACKUP_BUCKET_NAME": bucket.bucket_name,
+                "RESEND_API_KEY": os.environ.get("RESEND_API_KEY", "")
             },
             architecture=_lambda.Architecture.X86_64,
         )
@@ -61,8 +63,15 @@ class BackupStack(Stack):
 
         # 4. Schedule (EventBridge)
         # Run at 09:00 UTC daily
-        rule = events.Rule(
-            self, "BackupSchedule",
+        rule_am = events.Rule(
+            self, "BackupScheduleAM",
             schedule=events.Schedule.cron(minute="0", hour="9")
         )
-        rule.add_target(targets.LambdaFunction(backup_fn))
+        rule_am.add_target(targets.LambdaFunction(backup_fn))
+
+        # Run at 19:00 UTC daily (7 PM)
+        rule_pm = events.Rule(
+            self, "BackupSchedulePM",
+            schedule=events.Schedule.cron(minute="0", hour="19")
+        )
+        rule_pm.add_target(targets.LambdaFunction(backup_fn))

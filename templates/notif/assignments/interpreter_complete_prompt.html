@@ -1,0 +1,14 @@
+{% extends 'notif/layouts/base.html' %}
+
+{% block content %}
+<h2>Mission Completed?</h2>
+<p>Dear {{ interpreter_name }},</p>
+<p>We hope your assignment with <strong>{{ client_name }}</strong> went well.</p>
+
+<div class="info-box">
+    <p>Don't forget to mark the mission as complete to process your payment.</p>
+    <p>You can also upload any necessary documents or add notes via the dashboard.</p>
+</div>
+
+<a href="{{ dashboard_url }}?action=complete_mission" class="button">Mark as Complete</a>
+{% endblock %}

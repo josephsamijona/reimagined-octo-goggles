@@ -1,0 +1,19 @@
+{% extends 'notif/layouts/base.html' %}
+
+{% block content %}
+<h2>Action Required: Payout Failed</h2>
+<p>Dear {{ interpreter_name }},</p>
+<p style="color: #dc3545;"><strong>We were unable to process your recent payout.</strong></p>
+
+<div class="info-box">
+    <h3>Transaction Details</h3>
+    <p><strong>Amount:</strong> ${{ amount }}</p>
+    <p><strong>Date:</strong> {{ date|date:"F d, Y" }}</p>
+    <hr>
+    <p><strong>Reason:</strong> {{ failure_reason }}</p>
+</div>
+
+<p>Please update your banking information or contact support to resolve this issue.</p>
+
+<a href="{{ payment_settings_url }}" class="button">Update Payment Info</a>
+{% endblock %}

@@ -1,0 +1,20 @@
+{% extends 'notif/layouts/base.html' %}
+
+{% block content %}
+<h2>New Login Detected</h2>
+<p>Dear {{ user.first_name }},</p>
+<p>We detected a new login to your JH Bridge account.</p>
+
+<div class="info-box">
+    <p><strong>Device:</strong> {{ device|default:"Unknown Device" }}</p>
+    <p><strong>Location:</strong> {{ location|default:"Unknown Location" }} (Approx.)</p>
+    <p><strong>Time:</strong> {{ timestamp|date:"F d, Y at h:i A" }}</p>
+    <p><strong>IP Address:</strong> {{ ip_address }}</p>
+</div>
+
+<p>If this was you, you can safely ignore this email.</p>
+<p style="color: #dc3545;"><strong>If you do not recognize this activity, please secure your account
+        immediately.</strong></p>
+
+<a href="{{ security_settings_url }}" class="button">Secure My Account</a>
+{% endblock %}

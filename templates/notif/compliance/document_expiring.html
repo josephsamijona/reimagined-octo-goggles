@@ -1,0 +1,18 @@
+{% extends 'notif/layouts/base.html' %}
+
+{% block content %}
+<h2>Document Expiring Soon</h2>
+<p>Dear {{ interpreter_name }},</p>
+<p>One of your compliance documents is set to expire soon.</p>
+
+<div class="info-box">
+    <h3>{{ document_name }}</h3>
+    <p><strong>Expires On:</strong> {{ expiration_date|date:"F d, Y" }}</p>
+    <p style="color: #e67e22;"><strong>Status:</strong> Action Required</p>
+</div>
+
+<p>To avoid any disruption to your account status or ability to accept assignments, please upload a renewed document
+    before the expiration date.</p>
+
+<a href="{{ compliance_url }}" class="button">Upload New Document</a>
+{% endblock %}

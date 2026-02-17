@@ -1,0 +1,4 @@
+JHBridge: Is your mission #{{ assignment.id }} finished?
+Mark as COMPLETE to process payment.
+
+Complete: {{ dashboard_url }}?action=complete_mission

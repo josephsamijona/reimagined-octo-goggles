@@ -173,15 +173,15 @@ def lambda_handler(event, context):
         # Success Notification
         email_body = f"""
         <h1>Database Backup Successful</h1>
-        <p><strong>Bonjour,</strong></p>
-        <p>Le backup de la base de données a été effectué avec succès.</p>
+        <p><strong>Hello,</strong></p>
+        <p>The database backup was completed successfully.</p>
         <ul>
             <li><strong>Date:</strong> {timestamp}</li>
-            <li><strong>Fichier:</strong> {filename}</li>
-            <li><strong>Taille:</strong> {file_size_mb:.2f} MB</li>
+            <li><strong>File:</strong> {filename}</li>
+            <li><strong>Size:</strong> {file_size_mb:.2f} MB</li>
             <li><strong>Bucket:</strong> {bucket_name}</li>
         </ul>
-        <p>Cordialement,<br>AWS Lambda Backup Service</p>
+        <p>Best regards,<br>AWS Lambda Backup Service</p>
         """
         send_notification(f"Backup Success: {filename}", email_body)
         

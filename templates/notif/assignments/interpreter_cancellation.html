@@ -1,0 +1,17 @@
+{% extends 'notif/layouts/base.html' %}
+
+{% block content %}
+<h2>Assignment Cancelled</h2>
+<p>Dear {{ interpreter_name }},</p>
+<p>The following assignment has been cancelled by the client/admin.</p>
+
+<div class="info-box">
+    <h3>Assignment #{{ assignment.id }}</h3>
+    <p><strong>Date:</strong> {{ start_time|date:"l, F d, Y" }}</p>
+    <p><strong>Location:</strong> {{ location }}</p>
+</div>
+
+<p>This event has been removed from your calendar. Please check your dashboard for other available opportunities.</p>
+
+<a href="{{ dashboard_url }}" class="button">Go to Dashboard</a>
+{% endblock %}

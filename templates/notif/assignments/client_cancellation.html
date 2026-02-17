@@ -1,0 +1,17 @@
+{% extends 'notif/layouts/base.html' %}
+
+{% block content %}
+<h2>Assignment Cancelled</h2>
+<p>Dear {{ client_name }},</p>
+<p>We regret to inform you that the following assignment has been cancelled.</p>
+
+<div class="info-box">
+    <h3>Assignment #{{ assignment.id }}</h3>
+    <p><strong>Reason:</strong> {{ reason|default:"Client request / Other" }}</p>
+    <p><strong>Date:</strong> {{ start_time|date:"l, F d, Y" }}</p>
+</div>
+
+<p>If you need to reschedule or have any questions, please contact our support team immediately.</p>
+
+<a href="{{ dashboard_url }}" class="button">Contact Support</a>
+{% endblock %}

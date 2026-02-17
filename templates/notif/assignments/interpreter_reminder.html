@@ -1,0 +1,17 @@
+{% extends 'notif/layouts/base.html' %}
+
+{% block content %}
+<h2>Upcoming Assignment Reminder</h2>
+<p>Dear {{ interpreter_name }},</p>
+<p>This is a reminder for your upcoming assignment.</p>
+
+<div class="info-box">
+    <h3>Tomorrow: {{ start_time|date:"l, F d" }} at {{ start_time|date:"h:i A" }}</h3>
+    <p><strong>Location:</strong> {{ location }}</p>
+    <p><strong>Client:</strong> {{ client_name }}</p>
+</div>
+
+<p>Please ensure you arrive 15 minutes early.</p>
+
+<a href="{{ dashboard_url }}" class="button">View Details</a>
+{% endblock %}

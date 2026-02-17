@@ -13,6 +13,13 @@ try {
             $env:AWS_SECRET_ACCESS_KEY = $val
             Write-Host "Set AWS_SECRET_ACCESS_KEY"
         }
+        if ($_ -match 'RESEND_API_KEY=(.*)') { 
+            $val = $matches[1].Trim()
+            # Remove quotes if present
+            $val = $val -replace '^"|"$', ''
+            $env:RESEND_API_KEY = $val
+            Write-Host "Set RESEND_API_KEY"
+        }
     }
 }
 catch {

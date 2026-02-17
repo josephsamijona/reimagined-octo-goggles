@@ -1,0 +1,4 @@
+JHBridge: Quote #{{ quote.id }} is ready for review.
+Total: ${{ quote.total_amount }}
+
+View & Accept: {{ quote_url }}

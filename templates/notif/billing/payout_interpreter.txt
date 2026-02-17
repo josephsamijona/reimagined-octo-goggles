@@ -1,0 +1,4 @@
+JHBridge: Payout of ${{ amount }} processed on {{ date|date:"M d" }}.
+Funds available in 2-3 days.
+
+Details: {{ billing_url }}

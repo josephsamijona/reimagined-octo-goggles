@@ -1,0 +1,28 @@
+{% extends 'notif/layouts/base.html' %}
+
+{% block content %}
+<h2>New Assignment Available</h2>
+<p>Dear {{ interpreter_name }},</p>
+<p>A new <strong>{{ assignment.service_type.name }}</strong> assignment matches your profile.</p>
+
+<div class="info-box">
+    <h3>Assignment Details</h3>
+    <p><strong>Language:</strong> {{ assignment.source_language.name }} &rarr; {{ assignment.target_language.name }}</p>
+    <p><strong>Date:</strong> {{ start_time|date:"l, F d, Y" }}</p>
+    <p><strong>Time:</strong> {{ start_time|date:"h:i A" }} - {{ end_time|date:"h:i A" }}</p>
+
+    {% if "Video" in assignment.service_type.name %}
+    <p><strong>Type:</strong> Remote (Video Conference)</p>
+    {% elif "Phone" in assignment.service_type.name %}
+    <p><strong>Type:</strong> Remote (Phone Call)</p>
+    {% else %}
+    <p><strong>Location:</strong> {{ assignment.city }}, {{ assignment.state }}</p>
+    {% endif %}
+
+    <p><strong>Rate:</strong> ${{ assignment.interpreter_rate }}/hr</p>
+</div>
+
+<p>Please review availability and accept/decline via your dashboard.</p>
+
+<a href="{{ dashboard_url }}" class="button">View & Accept</a>
+{% endblock %}

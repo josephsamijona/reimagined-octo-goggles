@@ -1,0 +1,17 @@
+{% extends 'notif/layouts/base.html' %}
+
+{% block content %}
+<h2>Document Approved</h2>
+<p>Dear {{ interpreter_name }},</p>
+<p>Your document submission has been reviewed and approved.</p>
+
+<div class="info-box">
+    <h3>{{ document_name }}</h3>
+    <p><strong>Submitted On:</strong> {{ submission_date|date:"F d, Y" }}</p>
+    <p style="color: #28a745;"><strong>Status:</strong> <i class="fas fa-check-circle"></i> Approved</p>
+</div>
+
+<p>Your compliance profile is up to date.</p>
+
+<a href="{{ compliance_url }}" class="button">View Profile</a>
+{% endblock %}

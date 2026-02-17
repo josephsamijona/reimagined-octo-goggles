@@ -1,0 +1,39 @@
+{% extends 'notif/layouts/base.html' %}
+
+{% block content %}
+<h2>Assignment Confirmed</h2>
+<p>Dear {{ interpreter_name }},</p>
+<p>You are confirmed for the following assignment.</p>
+
+<div class="info-box">
+    <h3>Assignment #{{ assignment.id }}</h3>
+    <p><strong>Service:</strong> {{ assignment.service_type.name }}</p>
+    <p><strong>Date:</strong> {{ start_time|date:"l, F d, Y" }}</p>
+    <p><strong>Time:</strong> {{ start_time|date:"h:i A" }} - {{ end_time|date:"h:i A" }}</p>
+
+    <hr>
+
+    {% if "Video" in assignment.service_type.name %}
+    <p><strong><i class="fas fa-video"></i> Video Link:</strong> <a
+            href="{{ assignment.virtual_link|default:'#' }}">Join Meeting</a></p>
+    <p><em>Please join 5 minutes early to test your connection.</em></p>
+    {% elif "Phone" in assignment.service_type.name or "Call" in assignment.service_type.name %}
+    <p><strong><i class="fas fa-phone"></i> Conference Details:</strong></p>
+    <p>Number: {{ assignment.virtual_link|default:"TBD" }}</p>
+    <p>Access Code: {{ assignment.access_code|default:"N/A" }}</p>
+    {% else %}
+    <p><strong><i class="fas fa-map-marker-alt"></i> Location:</strong></p>
+    <p>{{ location }}</p>
+    <p><strong>On-site Contact:</strong> {{ assignment.client_contact_name }} ({{ assignment.client_phone }})</p>
+    {% endif %}
+
+    {% if assignment.special_requirements %}
+    <br>
+    <p><strong>Notes:</strong> {{ assignment.special_requirements }}</p>
+    {% endif %}
+</div>
+
+<p>A calendar invitation has been attached to this email.</p>
+
+<a href="{{ dashboard_url }}" class="button">View Details</a>
+{% endblock %}

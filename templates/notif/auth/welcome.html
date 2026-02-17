@@ -1,0 +1,16 @@
+{% extends 'notif/layouts/base.html' %}
+
+{% block content %}
+<h2>Welcome to JH Bridge!</h2>
+<p>Dear {{ user.first_name }},</p>
+<p>We are thrilled to have you on board. Your account has been successfully created.</p>
+
+<div class="info-box">
+    <h3>Getting Started</h3>
+    <p>You can now access your dashboard to manage your profile and view available services.</p>
+</div>
+
+<p>If you have any questions, our support team is here to help.</p>
+
+<a href="{{ dashboard_url }}" class="button">Log In to Your Account</a>
+{% endblock %}

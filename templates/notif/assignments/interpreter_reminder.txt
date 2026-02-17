@@ -1,0 +1,5 @@
+JHBridge Reminder: You have an assignment tomorrow at {{ start_time|date:"h:i A" }}.
+Loc: {{ location }}
+Client: {{ client_name }}
+
+Please arrive 15 mins early.

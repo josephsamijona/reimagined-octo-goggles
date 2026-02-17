@@ -1,0 +1,7 @@
+JHBridge: Assignment #{{ assignment.id }} CONFIRMED.
+Date: {{ start_time|date:"M d" }} @ {{ start_time|date:"h:i A" }}
+Client: {{ client_name }}
+Address: {{ location }}
+Contact: {{ assignment.client_contact_name }} {{ assignment.client_phone }}
+
+Details: {{ dashboard_url }}

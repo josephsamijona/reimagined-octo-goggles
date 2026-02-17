@@ -1,0 +1,4 @@
+JHBridge: Your assignment starts in 1 hour.
+Are you on your way?
+
+Confirm here: {{ dashboard_url }}?action=en_route

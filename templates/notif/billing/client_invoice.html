@@ -1,0 +1,17 @@
+{% extends 'notif/layouts/base.html' %}
+
+{% block content %}
+<h2>New Invoice Available</h2>
+<p>Dear {{ client_name }},</p>
+<p>A new invoice has been generated for your recent services.</p>
+
+<div class="info-box">
+    <h3>Invoice #{{ invoice.number }}</h3>
+    <p><strong>Amount Due:</strong> ${{ invoice.amount }}</p>
+    <p><strong>Due Date:</strong> {{ invoice.due_date|date:"F d, Y" }}</p>
+</div>
+
+<p>You can view and download the invoice from the billing section of your portal.</p>
+
+<a href="{{ billing_url }}" class="button">View Invoice</a>
+{% endblock %}

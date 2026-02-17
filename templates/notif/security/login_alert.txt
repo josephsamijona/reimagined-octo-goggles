@@ -1,0 +1,5 @@
+JHBridge Alert: New login detected.
+Time: {{ timestamp|date:"M d, h:i A" }}
+IP: {{ ip_address }}
+
+If not you, secure account: {{ security_settings_url }}

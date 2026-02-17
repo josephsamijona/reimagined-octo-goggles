@@ -1,0 +1,16 @@
+{% extends 'notif/layouts/base.html' %}
+
+{% block content %}
+<h2>Tax Document Available</h2>
+<p>Dear {{ interpreter_name }},</p>
+<p>Your 1099 form for the tax year <strong>{{ tax_year }}</strong> is now available.</p>
+
+<div class="info-box">
+    <p>This document reports your total earnings with JH Bridge for the year.</p>
+    <p>Please download and keep a copy for your records.</p>
+</div>
+
+<p>You can access this document securely from your dashboard.</p>
+
+<a href="{{ tax_docs_url }}" class="button">Download 1099 Form</a>
+{% endblock %}

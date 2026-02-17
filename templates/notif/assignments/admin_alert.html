@@ -1,0 +1,20 @@
+{% extends 'notif/layouts/base.html' %}
+
+{% block content %}
+<h2>{{ action|title }} - Assignment #{{ assignment.id }}</h2>
+<p><strong>Interpreter:</strong> {{ interpreter_name }}</p>
+<p><strong>Client:</strong> {{ client_name }}</p>
+
+<div class="info-box">
+    <p>The interpreter has <strong>{{ action }}</strong> this assignment.</p>
+    <hr>
+    <p><strong>Details:</strong></p>
+    <ul>
+        <li>Date: {{ assignment.start_time|date:"M d, Y" }}</li>
+        <li>Location: {{ assignment.city }}, {{ assignment.state }}</li>
+        <li>Rate: ${{ assignment.interpreter_rate }}</li>
+    </ul>
+</div>
+
+<a href="{{ admin_url }}" class="button">Manage in Admin</a>
+{% endblock %}

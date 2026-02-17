@@ -1,0 +1,4 @@
+JHBridge: Assignment #{{ assignment.id }} on {{ start_time|date:"M d" }} has been CANCELLED.
+Reason: {{ reason|default:"Request/Other" }}
+
+Contact support if needed: {{ dashboard_url }}

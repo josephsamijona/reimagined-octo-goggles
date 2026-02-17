@@ -1,0 +1,4 @@
+JHBridge: Assignment with {{ client_name }} is starting.
+Please click START to log your time.
+
+Start: {{ dashboard_url }}?action=start_mission

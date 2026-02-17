@@ -1,0 +1,2 @@
+JHBridge Info: Your {{ document_name }} expires on {{ expiration_date|date:"M d"}}.
+Upload renewal: {{ compliance_url }}

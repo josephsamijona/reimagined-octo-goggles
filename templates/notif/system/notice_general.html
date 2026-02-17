@@ -1,0 +1,15 @@
+{% extends 'notif/layouts/base.html' %}
+
+{% block content %}
+<h2>Important Notice</h2>
+<p>Dear {{ user_name }},</p>
+
+<div class="content-body">
+    {{ message_body|safe }}
+</div>
+
+{% if action_url %}
+<br>
+<a href="{{ action_url }}" class="button">{{ action_label|default:"Learn More" }}</a>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,17 @@
+{% extends 'notif/layouts/base.html' %}
+
+{% block content %}
+<h2>Your Quote is Ready</h2>
+<p>Dear {{ client_name }},</p>
+<p>We have prepared a quote for your requested service.</p>
+
+<div class="info-box">
+    <h3>Quote #{{ quote.id }}</h3>
+    <p><strong>Service:</strong> {{ service_type }}</p>
+    <p><strong>Total Estimated:</strong> ${{ quote.total_amount }}</p>
+</div>
+
+<p>You can review and accept this quote directly from your portal.</p>
+
+<a href="{{ quote_url }}" class="button">Review Quote</a>
+{% endblock %}

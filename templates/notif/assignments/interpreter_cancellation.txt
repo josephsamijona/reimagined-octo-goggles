@@ -1,0 +1,4 @@
+JHBridge: Assignment #{{ assignment.id }} on {{ start_time|date:"M d" }} was CANCELLED.
+It has been removed from your schedule.
+
+View Dashboard: {{ dashboard_url }}

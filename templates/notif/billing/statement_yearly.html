@@ -1,0 +1,13 @@
+{% extends 'notif/layouts/base.html' %}
+
+{% block content %}
+<h2>Yearly Statement Available</h2>
+<p>Dear {{ user_name }},</p>
+<p>Your annual summary statement for <strong>{{ year }}</strong> has been generated.</p>
+
+<div class="info-box">
+    <p>This report summarizes all your transactions and activities for the past year.</p>
+</div>
+
+<a href="{{ statements_url }}?year={{ year }}" class="button">Download Yearly Report</a>
+{% endblock %}

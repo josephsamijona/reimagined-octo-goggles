@@ -1,0 +1,16 @@
+{% extends 'notif/layouts/base.html' %}
+
+{% block content %}
+<h2>Monthly Statement Available</h2>
+<p>Dear {{ user_name }},</p>
+<p>Your statement for <strong>{{ month_year }}</strong> is ready.</p>
+
+<div class="info-box">
+    <p><strong>Period:</strong> {{ period_start }} - {{ period_end }}</p>
+    <p><strong>Total Activity:</strong> {{ activity_count }} assignments</p>
+</div>
+
+<p>Log in to your portal to view the full details.</p>
+
+<a href="{{ statements_url }}" class="button">View Statement</a>
+{% endblock %}
