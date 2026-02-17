@@ -266,33 +266,33 @@ class AssignmentAdminMixin:
         email_configs = {
             'new': {
                 'subject': _('New Assignment Available - Action Required'),
-                'template': 'notifmail/assignment_new.html',
+                'template': 'emails/assignments/assignment_new.html',
                 'include_calendar': False
             },
             'confirmed': {
                 'subject': _('Assignment Confirmation'),
-                'template': 'notifmail/assignment_confirmed.html',
+                'template': 'emails/assignments/assignment_confirmed.html',
                 'include_calendar': True
             },
             'cancelled': {
                 'subject': _('Assignment Cancelled'),
-                'template': 'notifmail/assignment_cancelled.html',
+                'template': 'emails/assignments/assignment_cancelled.html',
                 'include_calendar': False
             },
             'completed': {
                 'subject': _('Assignment Completed'),
-                'template': 'notifmail/assignment_completed.html',
+                'template': 'emails/assignments/assignment_completed.html',
                 'include_calendar': False
             },
             'no_show': {
                 'subject': _('Assignment No-Show Recorded'),
-                'template': 'notifmail/assignment_no_show.html',
+                'template': 'emails/assignments/assignment_no_show.html',
                 'include_calendar': False
             }
         }
         return email_configs.get(email_type, {
             'subject': _('Assignment Update'),
-            'template': 'notifmail/assignment_generic.html',
+            'template': 'emails/assignments/assignment_generic.html',
             'include_calendar': False
         })
 

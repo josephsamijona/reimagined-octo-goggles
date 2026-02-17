@@ -18,6 +18,7 @@ from django.views.generic import ListView, View
 
 from ..mixins.assignment_mixins import AssignmentAdminMixin
 from ..models import Assignment, AssignmentNotification
+from ..services.assignment_notifications import AssignmentNotificationService
 
 from .utils import TZ_BOSTON
 
@@ -67,238 +68,6 @@ class AssignmentListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
         
         return context
 
-
-def generate_ics_file(assignment):
-    """Génère le fichier ICS pour un rendez-vous d'interprétation."""
-    cal = Calendar()
-    cal.add('prodid', '-//JHBRIDGE//Interpretation Assignment//EN')
-    cal.add('version', '2.0')
-    
-    event = Event()
-    event.add('summary', f'Interpretation Assignment at {assignment.location}')
-    
-    # Conversion en heure locale de Boston
-    dtstart = timezone.localtime(assignment.start_time, TZ_BOSTON)
-    dtend = timezone.localtime(assignment.end_time, TZ_BOSTON)
-    
-    event.add('dtstart', dtstart)
-    event.add('dtend', dtend)
-    event.add('dtstamp', datetime.now(pytz.UTC))
-    event.add('created', datetime.now(pytz.UTC))
-    event.add('uid', f'assignment-{assignment.id}@jhbridge.com')
-    event.add('status', 'CONFIRMED')
-    event.add('location', f"{assignment.location}, {assignment.city}, {assignment.state}")
-
-    # Alarmes
-    alarm1 = Alarm()
-    alarm1.add('action', 'DISPLAY')
-    alarm1.add('description', 'Reminder: You have an interpretation assignment in 2 days')
-    alarm1.add('trigger', timedelta(days=-2))
-    event.add_component(alarm1)
-    
-    alarm2 = Alarm()
-    alarm2.add('action', 'DISPLAY')
-    alarm2.add('description', 'Reminder: You have an interpretation assignment tomorrow')
-    alarm2.add('trigger', timedelta(hours=-24))
-    event.add_component(alarm2)
-    
-    alarm3 = Alarm()
-    alarm3.add('action', 'DISPLAY')
-    alarm3.add('description', 'Reminder: Interpretation assignment starting in 2 hours')
-    alarm3.add('trigger', timedelta(hours=-2))
-    event.add_component(alarm3)
-    
-    alarm4 = Alarm()
-    alarm4.add('action', 'DISPLAY')
-    alarm4.add('description', 'Reminder: Interpretation assignment starting in 30 minutes')
-    alarm4.add('trigger', timedelta(minutes=-30))
-    event.add_component(alarm4)
-    
-    cal.add_component(event)
-    return cal.to_ical()
-
-def send_completion_email(assignment):
-    """Envoie un email de confirmation de complétion à l'interprète."""
-    subject = 'Assignment Completion Confirmation - JHBRIDGE'
-    
-    duration = assignment.end_time - assignment.start_time
-    hours = duration.total_seconds() / 3600
-    total_payment = assignment.total_interpreter_payment
-    
-    # Conversion en heure locale Boston
-    start_local = timezone.localtime(assignment.start_time, TZ_BOSTON)
-    end_local = timezone.localtime(assignment.end_time, TZ_BOSTON)
-    completed_local = timezone.localtime(assignment.completed_at, TZ_BOSTON) if assignment.completed_at else None
-
-    context = {
-        'interpreter_name': assignment.interpreter.user.get_full_name(),
-        'assignment_id': assignment.id,
-        'start_time': start_local.strftime('%B %d, %Y at %I:%M %p'),
-        'end_time': end_local.strftime('%I:%M %p'),
-        'location': assignment.location,
-        'city': assignment.city,
-        'state': assignment.state,
-        'service_type': assignment.service_type.name,
-        'source_language': assignment.source_language.name,
-        'target_language': assignment.target_language.name,
-        'interpreter_rate': assignment.interpreter_rate,
-        'duration_hours': round(hours, 2),
-        'total_payment': total_payment,
-        'completed_at': completed_local.strftime('%B %d, %Y at %I:%M %p') if completed_local else '',
-        'minimum_hours': assignment.minimum_hours
-    }
-    
-    email_html = render_to_string('emails/assignment_completion.html', context)
-    
-    email = EmailMessage(
-        subject=subject,
-        body=email_html,
-        from_email='noreply@jhbridge.com',
-        to=[assignment.interpreter.user.email],
-    )
-    
-    email.extra_headers = {
-        'Message-ID': make_msgid(domain='jhbridge.com'),
-        'X-Entity-Ref-ID': str(uuid.uuid4()),
-    }
-    
-    email.content_subtype = "html"
-    return email.send()
-
-def send_confirmation_email(assignment):
-    """Envoie l'email de confirmation avec le fichier ICS."""
-    subject = 'Assignment Confirmation - JHBRIDGE'
-    
-    # Conversion en heure locale Boston
-    start_local = timezone.localtime(assignment.start_time, TZ_BOSTON)
-    end_local = timezone.localtime(assignment.end_time, TZ_BOSTON)
-    
-    context = {
-        'interpreter_name': assignment.interpreter.user.get_full_name(),
-        'assignment_id': assignment.id,
-        'start_time': start_local.strftime('%B %d, %Y at %I:%M %p'),
-        'end_time': end_local.strftime('%I:%M %p'),
-        'location': assignment.location,
-        'city': assignment.city,
-        'state': assignment.state,
-        'service_type': assignment.service_type.name,
-        'source_language': assignment.source_language.name,
-        'target_language': assignment.target_language.name,
-        'interpreter_rate': assignment.interpreter_rate,
-        'special_requirements': assignment.special_requirements
-    }
-    
-    email_html = render_to_string('emails/assignment_confirmation.html', context)
-    
-    email = EmailMessage(
-        subject=subject,
-        body=email_html,
-        from_email='noreply@jhbridge.com',
-        to=[assignment.interpreter.user.email],
-    )
-    
-    email.extra_headers = {
-        'Message-ID': make_msgid(domain='jhbridge.com'),
-        'X-Entity-Ref-ID': str(uuid.uuid4()),
-    }
-    
-    email.content_subtype = "html"
-    
-    # Génération du fichier ICS
-    ics_content = generate_ics_file(assignment)
-    email.attach('appointment.ics', ics_content, 'text/calendar')
-    
-    return email.send()
-
-def send_admin_notification_email(assignment):
-    """Envoie un email aux admins lorsque l'interprète accepte l'assignement."""
-    admin_users = User.objects.filter(role='ADMIN', is_active=True)
-    if not admin_users.exists():
-        return False
-        
-    subject = f'Interpreter Accepted Assignment - ID: {assignment.id}'
-    
-    start_local = timezone.localtime(assignment.start_time, TZ_BOSTON)
-    end_local = timezone.localtime(assignment.end_time, TZ_BOSTON)
-    
-    context = {
-        'interpreter_name': assignment.interpreter.user.get_full_name(),
-        'interpreter_email': assignment.interpreter.user.email,
-        'interpreter_phone': assignment.interpreter.user.phone,
-        'assignment_id': assignment.id,
-        'start_time': start_local.strftime('%B %d, %Y at %I:%M %p'),
-        'end_time': end_local.strftime('%I:%M %p'),
-        'location': assignment.location,
-        'city': assignment.city,
-        'state': assignment.state,
-        'service_type': assignment.service_type.name,
-        'source_language': assignment.source_language.name,
-        'target_language': assignment.target_language.name,
-        'interpreter_rate': assignment.interpreter_rate,
-        'special_requirements': assignment.special_requirements
-    }
-    
-    email_html = render_to_string('emails/admin_assignment_notification.html', context)
-    
-    email = EmailMessage(
-        subject=subject,
-        body=email_html,
-        from_email='noreply@jhbridge.com',
-        to=[admin.email for admin in admin_users],
-    )
-    
-    email.extra_headers = {
-        'Message-ID': make_msgid(domain='jhbridge.com'),
-        'X-Entity-Ref-ID': str(uuid.uuid4()),
-    }
-    
-    email.content_subtype = "html"
-    
-    ics_content = generate_ics_file(assignment)
-    email.attach('admin_appointment.ics', ics_content, 'text/calendar')
-    
-    return email.send()
-
-def send_admin_rejection_email(assignment, old_interpreter):
-    """Envoie un email aux admins lorsque l'interprète refuse une mission."""
-    admin_users = User.objects.filter(role='ADMIN', is_active=True)
-    if not admin_users.exists():
-        return False
-    
-    subject = f'ACTION REQUIRED: Assignment #{assignment.id} Rejected by Interpreter'
-    
-    context = {
-        'assignment_id': assignment.id,
-        'interpreter_name': old_interpreter.user.get_full_name(),
-        'interpreter_email': old_interpreter.user.email,
-        'client_name': assignment.client.company_name,
-        'start_time': timezone.localtime(assignment.start_time, TZ_BOSTON).strftime("%B %d, %Y at %I:%M %p"),
-        'end_time': timezone.localtime(assignment.end_time, TZ_BOSTON).strftime("%I:%M %p"),
-        'location': assignment.location,
-        'city': assignment.city,
-        'state': assignment.state,
-        'service_type': assignment.service_type.name,
-        'source_language': assignment.source_language.name,
-        'target_language': assignment.target_language.name,
-    }
-    
-    html_message = render_to_string('emails/assignment_rejection_notification.html', context)
-    
-    email = EmailMessage(
-        subject=subject,
-        body=html_message,
-        from_email=settings.DEFAULT_FROM_EMAIL,
-        to=[admin.email for admin in admin_users],
-    )
-    
-    email.extra_headers = {
-        'Message-ID': make_msgid(domain='jhbridge.com'),
-        'X-Entity-Ref-ID': str(uuid.uuid4()),
-    }
-    
-    email.content_subtype = "html"
-    return email.send()
-
 @require_POST
 @login_required
 def accept_assignment(request, pk):
@@ -325,12 +94,12 @@ def accept_assignment(request, pk):
     
     if assignment.confirm():
         try:
-            send_confirmation_email(assignment)
+            AssignmentNotificationService.send_confirmation_email(assignment)
         except Exception as e:
             print(f"Error sending confirmation email: {str(e)}")
             
         try:
-            send_admin_notification_email(assignment)
+            AssignmentNotificationService.notify_admin(assignment, 'accepted')
         except Exception as e:
             print(f"Error sending admin notification email: {str(e)}")
             
@@ -385,7 +154,7 @@ def reject_assignment(request, pk):
     old_interpreter = assignment.cancel()
     if old_interpreter:
         try:
-            send_admin_rejection_email(assignment, old_interpreter)
+            AssignmentNotificationService.notify_admin(assignment, 'rejected', old_interpreter=old_interpreter)
         except Exception as e:
             print(f"Error sending rejection email: {str(e)}")
         return JsonResponse({'status': 'success'})
@@ -427,7 +196,7 @@ def complete_assignment(request, pk):
         
     if assignment.complete():
         try:
-            send_completion_email(assignment)
+            AssignmentNotificationService.send_completion_email(assignment)
         except Exception as e:
             print(f"Error sending completion email: {str(e)}")
             

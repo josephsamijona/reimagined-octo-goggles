@@ -8,7 +8,7 @@ from ..forms import LoginForm
 logger = logging.getLogger(__name__)
 
 class CustomLoginView(LoginView):
-    template_name = 'login.html'
+    template_name = 'accounts/login.html'
     form_class = LoginForm
     redirect_authenticated_user = True
 

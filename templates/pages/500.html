@@ -1,0 +1,18 @@
+{% extends 'layouts/error.html' %}
+
+{% block title %}Hiccup in the System - 500{% endblock %}
+
+{% block content %}
+<div class="error-illustration">
+    <i class="fas fa-cogs"></i>
+</div>
+<h1 class="error-title">We hit a snag!</h1>
+<p class="error-message">
+    Our servers seem to provide their own "interpretation" of your request.
+    Our tech team has been notified and is already working on translating this error back into a working page.
+    Please grab a coffee ☕ and try again in a few minutes.
+</p>
+<a href="/" class="btn">
+    <i class="fas fa-redo"></i> Try Again
+</a>
+{% endblock %}

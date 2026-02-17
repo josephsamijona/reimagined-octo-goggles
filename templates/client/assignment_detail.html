@@ -1,4 +1,4 @@
-{% extends "base_client.html" %}
+{% extends "layouts/base_client.html" %}
 
 {% block title %}Assignment #{{ assignment.id }} - JHBRIDGE{% endblock %}
 
@@ -335,10 +335,10 @@
 
     // Star Rating System
     document.querySelectorAll('.star-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
+        btn.addEventListener('click', function () {
             const value = this.dataset.value;
             document.getElementById('ratingInput').value = value;
-            
+
             document.querySelectorAll('.star-btn').forEach(star => {
                 star.classList.toggle('active', star.dataset.value <= value);
             });

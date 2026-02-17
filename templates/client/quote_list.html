@@ -1,4 +1,4 @@
-{% extends "base_client.html" %}
+{% extends "layouts/base_client.html" %}
 
 {% block title %}My Quotes - JHBRIDGE{% endblock %}
 {% block header_title %}My Quotes{% endblock %}
@@ -207,7 +207,8 @@
         margin-top: 1rem;
     }
 
-    .btn-apply, .btn-reset {
+    .btn-apply,
+    .btn-reset {
         padding: 0.75rem 1.5rem;
         border-radius: 8px;
         font-weight: 500;
@@ -465,9 +466,9 @@
                 <select name="status" class="filter-input">
                     <option value="">All Statuses</option>
                     {% for status, label in status_choices %}
-                        <option value="{{ status }}" {% if form.status.value == status %}selected{% endif %}>
-                            {{ label }}
-                        </option>
+                    <option value="{{ status }}" {% if form.status.value==status %}selected{% endif %}>
+                        {{ label }}
+                    </option>
                     {% endfor %}
                 </select>
             </div>
@@ -476,9 +477,10 @@
                 <select name="service_type" class="filter-input">
                     <option value="">All Services</option>
                     {% for service_type in service_types %}
-                        <option value="{{ service_type.0 }}" {% if form.service_type.value == service_type.0 %}selected{% endif %}>
-                            {{ service_type.1 }}
-                        </option>
+                    <option value="{{ service_type.0 }}" {% if form.service_type.value==service_type.0 %}selected{%
+                        endif %}>
+                        {{ service_type.1 }}
+                    </option>
                     {% endfor %}
                 </select>
             </div>
@@ -503,51 +505,51 @@
 <!-- Quote Grid -->
 <div class="quote-grid">
     {% for quote in quotes %}
-        <div class="quote-card">
-            <div class="quote-header">
-                <div class="quote-title">
-                    <h3>{{ quote.service_type }}</h3>
-                    {% include 'client/partials/_status_badge.html' with status=quote.status %}
-                </div>
-                <div class="quote-datetime">
-                    {{ quote.requested_date|date:"M j, Y - g:i A" }}
-                </div>
+    <div class="quote-card">
+        <div class="quote-header">
+            <div class="quote-title">
+                <h3>{{ quote.service_type }}</h3>
+                {% include 'client/partials/_status_badge.html' with status=quote.status %}
             </div>
-            
-            <div class="quote-details">
-                <div class="detail-row">
-                    <span class="detail-label">Duration:</span>
-                    <span class="detail-value">{{ quote.duration }} minutes</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Languages:</span>
-                    <span class="detail-value">{{ quote.source_language }} → {{ quote.target_language }}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Location:</span>
-                    <span class="detail-value">{{ quote.city }}, {{ quote.state }}</span>
-                </div>
-            </div>
-            
-            <div class="quote-footer">
-                <div class="quote-meta">
-                    Created {{ quote.created_at|timesince }} ago
-                </div>
-                <a href="{% url 'dbdint:client_quote_detail' quote.pk %}" class="quote-action">
-                    View Details <i class="fas fa-chevron-right"></i>
-                </a>
+            <div class="quote-datetime">
+                {{ quote.requested_date|date:"M j, Y - g:i A" }}
             </div>
         </div>
-    {% empty %}
-        <div class="empty-state">
-            <div class="empty-state-icon">
-                <i class="fas fa-file-alt"></i>
+
+        <div class="quote-details">
+            <div class="detail-row">
+                <span class="detail-label">Duration:</span>
+                <span class="detail-value">{{ quote.duration }} minutes</span>
             </div>
-            <p class="empty-state-text">No quotes found matching your criteria.</p>
-            <a href="{% url 'dbdint:client_quote_create' %}" class="create-quote-btn">
-                Create Your First Quote
+            <div class="detail-row">
+                <span class="detail-label">Languages:</span>
+                <span class="detail-value">{{ quote.source_language }} → {{ quote.target_language }}</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Location:</span>
+                <span class="detail-value">{{ quote.city }}, {{ quote.state }}</span>
+            </div>
+        </div>
+
+        <div class="quote-footer">
+            <div class="quote-meta">
+                Created {{ quote.created_at|timesince }} ago
+            </div>
+            <a href="{% url 'dbdint:client_quote_detail' quote.pk %}" class="quote-action">
+                View Details <i class="fas fa-chevron-right"></i>
             </a>
         </div>
+    </div>
+    {% empty %}
+    <div class="empty-state">
+        <div class="empty-state-icon">
+            <i class="fas fa-file-alt"></i>
+        </div>
+        <p class="empty-state-text">No quotes found matching your criteria.</p>
+        <a href="{% url 'dbdint:client_quote_create' %}" class="create-quote-btn">
+            Create Your First Quote
+        </a>
+    </div>
     {% endfor %}
 </div>
 
@@ -555,21 +557,21 @@
 {% if is_paginated %}
 <div class="pagination">
     {% if page_obj.has_previous %}
-        <a href="?page={{ page_obj.previous_page_number }}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}" 
-           class="btn-prev">
-            <i class="fas fa-chevron-left"></i> Previous
-        </a>
+    <a href="?page={{ page_obj.previous_page_number }}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}"
+        class="btn-prev">
+        <i class="fas fa-chevron-left"></i> Previous
+    </a>
     {% endif %}
-    
+
     <span class="current-page">
         Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
     </span>
-    
+
     {% if page_obj.has_next %}
-        <a href="?page={{ page_obj.next_page_number }}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}" 
-           class="btn-next">
-            Next <i class="fas fa-chevron-right"></i>
-        </a>
+    <a href="?page={{ page_obj.next_page_number }}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}"
+        class="btn-next">
+        Next <i class="fas fa-chevron-right"></i>
+    </a>
     {% endif %}
 </div>
 {% endif %}
@@ -577,7 +579,7 @@
 
 {% block extra_js %}
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', function () {
         // Gestion des filtres
         const filterForm = document.querySelector('.filter-form');
         const filterToggle = document.querySelector('.filter-toggle');
@@ -609,7 +611,7 @@
 
         // Préserver les paramètres de filtrage lors de la pagination
         if (filterForm) {
-            filterForm.addEventListener('submit', function(e) {
+            filterForm.addEventListener('submit', function (e) {
                 e.preventDefault();
                 const formData = new FormData(this);
                 const params = new URLSearchParams(formData);

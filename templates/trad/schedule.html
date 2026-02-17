@@ -1,4 +1,4 @@
-{% extends 'base_trad.html' %}
+{% extends 'layouts/base_trad.html' %}
 {% load static %}
 
 {% block title %}Schedule{% endblock %}
@@ -361,30 +361,30 @@
             </h2>
             <div class="assignment-list">
                 {% for assignment in upcoming_assignments %}
-                    <div class="assignment-card">
-                        <div class="assignment-header">
-                            <span class="assignment-status status-{{ assignment.status|lower }}">
-                                {{ assignment.get_status_display }}
-                            </span>
-                            <span class="assignment-time">
-                                {{ assignment.start_time|date:"M d, g:i A" }}
-                            </span>
+                <div class="assignment-card">
+                    <div class="assignment-header">
+                        <span class="assignment-status status-{{ assignment.status|lower }}">
+                            {{ assignment.get_status_display }}
+                        </span>
+                        <span class="assignment-time">
+                            {{ assignment.start_time|date:"M d, g:i A" }}
+                        </span>
+                    </div>
+                    <div class="assignment-details">
+                        <div class="detail-languages">
+                            {{ assignment.source_language.name }} → {{ assignment.target_language.name }}
                         </div>
-                        <div class="assignment-details">
-                            <div class="detail-languages">
-                                {{ assignment.source_language.name }} → {{ assignment.target_language.name }}
-                            </div>
-                            <div class="detail-location">
-                                <i class="fas fa-map-marker-alt"></i>
-                                {{ assignment.city }}, {{ assignment.state }}
-                            </div>
+                        <div class="detail-location">
+                            <i class="fas fa-map-marker-alt"></i>
+                            {{ assignment.city }}, {{ assignment.state }}
                         </div>
                     </div>
+                </div>
                 {% empty %}
-                    <div class="empty-state">
-                        <i class="fas fa-calendar-check"></i>
-                        <p>No upcoming assignments</p>
-                    </div>
+                <div class="empty-state">
+                    <i class="fas fa-calendar-check"></i>
+                    <p>No upcoming assignments</p>
+                </div>
                 {% endfor %}
             </div>
         </div>
@@ -412,96 +412,96 @@
 <!-- Custom JS -->
 <script src="{% static 'js/schedule.js' %}"></script>
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    const calendarEl = document.getElementById('calendar');
-    let currentTooltip = null;
-    let calendar;
+    document.addEventListener('DOMContentLoaded', function () {
+        const calendarEl = document.getElementById('calendar');
+        let currentTooltip = null;
+        let calendar;
 
-    // Initialize FullCalendar
-    calendar = new FullCalendar.Calendar(calendarEl, {
-        initialView: 'dayGridMonth',
-        height: 'auto',
-        headerToolbar: false, // We'll use our custom buttons
-        events: '{% url "dbdint:get_calendar_assignments" %}',
-        dayMaxEvents: true,
-        eventTimeFormat: {
-            hour: 'numeric',
-            minute: '2-digit',
-            meridiem: 'short'
-        },
-        eventDidMount: function(info) {
-            // Initialize tooltip for the event
-            initializeTooltip(info.el, info.event);
-        },
-        eventClick: function(info) {
-            showEventDetails(info.event);
-        },
-        loading: function(isLoading) {
-            if (isLoading) {
-                // Show loading state
-                calendarEl.classList.add('loading');
-            } else {
-                // Hide loading state
-                calendarEl.classList.remove('loading');
+        // Initialize FullCalendar
+        calendar = new FullCalendar.Calendar(calendarEl, {
+            initialView: 'dayGridMonth',
+            height: 'auto',
+            headerToolbar: false, // We'll use our custom buttons
+            events: '{% url "dbdint:get_calendar_assignments" %}',
+            dayMaxEvents: true,
+            eventTimeFormat: {
+                hour: 'numeric',
+                minute: '2-digit',
+                meridiem: 'short'
+            },
+            eventDidMount: function (info) {
+                // Initialize tooltip for the event
+                initializeTooltip(info.el, info.event);
+            },
+            eventClick: function (info) {
+                showEventDetails(info.event);
+            },
+            loading: function (isLoading) {
+                if (isLoading) {
+                    // Show loading state
+                    calendarEl.classList.add('loading');
+                } else {
+                    // Hide loading state
+                    calendarEl.classList.remove('loading');
+                }
             }
-        }
-    });
+        });
 
-    calendar.render();
+        calendar.render();
 
-    // Quick Action Buttons
-    document.getElementById('todayBtn').addEventListener('click', () => {
-        calendar.today();
-    });
+        // Quick Action Buttons
+        document.getElementById('todayBtn').addEventListener('click', () => {
+            calendar.today();
+        });
 
-    document.getElementById('weekBtn').addEventListener('click', () => {
-        calendar.changeView('timeGridWeek');
-    });
+        document.getElementById('weekBtn').addEventListener('click', () => {
+            calendar.changeView('timeGridWeek');
+        });
 
-    document.getElementById('monthBtn').addEventListener('click', () => {
-        calendar.changeView('dayGridMonth');
-    });
+        document.getElementById('monthBtn').addEventListener('click', () => {
+            calendar.changeView('dayGridMonth');
+        });
 
-    document.getElementById('refreshBtn').addEventListener('click', () => {
-        calendar.refetchEvents();
-    });
+        document.getElementById('refreshBtn').addEventListener('click', () => {
+            calendar.refetchEvents();
+        });
 
-    // Tooltip Functions
-    function initializeTooltip(element, event) {
-        const tooltip = createTooltipContent(event);
-        
-        element.addEventListener('mouseenter', () => {
-            document.body.appendChild(tooltip);
-            currentTooltip = Popper.createPopper(element, tooltip, {
-                placement: 'top',
-                modifiers: [
-                    {
-                        name: 'offset',
-                        options: { offset: [0, 8] }
-                    },
-                    {
-                        name: 'preventOverflow',
-                        options: { padding: 8 }
-                    }
-                ]
+        // Tooltip Functions
+        function initializeTooltip(element, event) {
+            const tooltip = createTooltipContent(event);
+
+            element.addEventListener('mouseenter', () => {
+                document.body.appendChild(tooltip);
+                currentTooltip = Popper.createPopper(element, tooltip, {
+                    placement: 'top',
+                    modifiers: [
+                        {
+                            name: 'offset',
+                            options: { offset: [0, 8] }
+                        },
+                        {
+                            name: 'preventOverflow',
+                            options: { padding: 8 }
+                        }
+                    ]
+                });
             });
-        });
 
-        element.addEventListener('mouseleave', () => {
-            tooltip.remove();
-            if (currentTooltip) {
-                currentTooltip.destroy();
-                currentTooltip = null;
-            }
-        });
-    }
+            element.addEventListener('mouseleave', () => {
+                tooltip.remove();
+                if (currentTooltip) {
+                    currentTooltip.destroy();
+                    currentTooltip = null;
+                }
+            });
+        }
 
-    function createTooltipContent(event) {
-        const props = event.extendedProps;
-        const tooltip = document.createElement('div');
-        tooltip.className = 'event-tooltip';
-        
-        tooltip.innerHTML = `
+        function createTooltipContent(event) {
+            const props = event.extendedProps;
+            const tooltip = document.createElement('div');
+            tooltip.className = 'event-tooltip';
+
+            tooltip.innerHTML = `
             <div class="tooltip-row">
                 <span class="tooltip-label">Status:</span>
                 <span class="tooltip-value">${props.status}</span>
@@ -524,18 +524,18 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
         `;
 
-        return tooltip;
-    }
+            return tooltip;
+        }
 
-    // Event Details Modal Functions
-    function showEventDetails(event) {
-        const props = event.extendedProps;
-        const modal = document.getElementById('eventModal');
-        const titleEl = document.getElementById('eventTitle');
-        const detailsEl = document.getElementById('eventDetails');
+        // Event Details Modal Functions
+        function showEventDetails(event) {
+            const props = event.extendedProps;
+            const modal = document.getElementById('eventModal');
+            const titleEl = document.getElementById('eventTitle');
+            const detailsEl = document.getElementById('eventDetails');
 
-        titleEl.textContent = event.title;
-        detailsEl.innerHTML = `
+            titleEl.textContent = event.title;
+            detailsEl.innerHTML = `
             <div class="modal-info-grid">
                 <div class="info-group">
                     <label>Date & Time</label>
@@ -569,33 +569,33 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
         `;
 
-        modal.style.display = 'block';
-    }
-
-    // Helper Functions
-    function formatDateTime(date) {
-        return new Date(date).toLocaleString('en-US', {
-            weekday: 'short',
-            month: 'short',
-            day: 'numeric',
-            hour: 'numeric',
-            minute: '2-digit',
-            hour12: true
-        });
-    }
-
-    // Modal Close Button
-    document.querySelector('.close-btn').addEventListener('click', () => {
-        document.getElementById('eventModal').style.display = 'none';
-    });
-
-    // Close modal when clicking outside
-    window.addEventListener('click', (e) => {
-        const modal = document.getElementById('eventModal');
-        if (e.target === modal) {
-            modal.style.display = 'none';
+            modal.style.display = 'block';
         }
+
+        // Helper Functions
+        function formatDateTime(date) {
+            return new Date(date).toLocaleString('en-US', {
+                weekday: 'short',
+                month: 'short',
+                day: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true
+            });
+        }
+
+        // Modal Close Button
+        document.querySelector('.close-btn').addEventListener('click', () => {
+            document.getElementById('eventModal').style.display = 'none';
+        });
+
+        // Close modal when clicking outside
+        window.addEventListener('click', (e) => {
+            const modal = document.getElementById('eventModal');
+            if (e.target === modal) {
+                modal.style.display = 'none';
+            }
+        });
     });
-});
 </script>
 {% endblock %}

@@ -1,4 +1,4 @@
-{% extends 'base_trad.html' %}
+{% extends 'layouts/base_trad.html' %}
 {% load static %}
 
 {% block title %}Assignment Details{% endblock %}
@@ -33,10 +33,25 @@
         font-weight: 500;
     }
 
-    .status-pending { background: rgba(236, 201, 75, 0.2); color: #ECC94B; }
-    .status-confirmed { background: rgba(72, 187, 120, 0.2); color: #48BB78; }
-    .status-in-progress { background: rgba(66, 153, 225, 0.2); color: #4299E1; }
-    .status-completed { background: rgba(160, 174, 192, 0.2); color: #A0AEC0; }
+    .status-pending {
+        background: rgba(236, 201, 75, 0.2);
+        color: #ECC94B;
+    }
+
+    .status-confirmed {
+        background: rgba(72, 187, 120, 0.2);
+        color: #48BB78;
+    }
+
+    .status-in-progress {
+        background: rgba(66, 153, 225, 0.2);
+        color: #4299E1;
+    }
+
+    .status-completed {
+        background: rgba(160, 174, 192, 0.2);
+        color: #A0AEC0;
+    }
 
     .action-buttons {
         display: flex;
@@ -60,12 +75,29 @@
         transform: translateY(-2px);
     }
 
-    .accept-button { background: #48BB78; }
-    .accept-button:hover { background: #38A169; }
-    .reject-button { background: #F56565; }
-    .reject-button:hover { background: #E53E3E; }
-    .complete-button { background: var(--accent-blue); }
-    .complete-button:hover { background: var(--secondary-blue); }
+    .accept-button {
+        background: #48BB78;
+    }
+
+    .accept-button:hover {
+        background: #38A169;
+    }
+
+    .reject-button {
+        background: #F56565;
+    }
+
+    .reject-button:hover {
+        background: #E53E3E;
+    }
+
+    .complete-button {
+        background: var(--accent-blue);
+    }
+
+    .complete-button:hover {
+        background: var(--secondary-blue);
+    }
 
     /* Client Info Card */
     .client-info {
@@ -205,9 +237,17 @@
 
     /* Animation for status changes */
     @keyframes statusChange {
-        0% { transform: scale(1); }
-        50% { transform: scale(1.05); }
-        100% { transform: scale(1); }
+        0% {
+            transform: scale(1);
+        }
+
+        50% {
+            transform: scale(1.05);
+        }
+
+        100% {
+            transform: scale(1);
+        }
     }
 
     .status-changed {
@@ -227,16 +267,16 @@
         </div>
         <div class="action-buttons">
             {% if assignment.status == 'PENDING' %}
-                <button class="action-button accept-button" onclick="handleAccept()">
-                    <i class="fas fa-check"></i> Accept Assignment
-                </button>
-                <button class="action-button reject-button" onclick="handleReject()">
-                    <i class="fas fa-times"></i> Reject Assignment
-                </button>
+            <button class="action-button accept-button" onclick="handleAccept()">
+                <i class="fas fa-check"></i> Accept Assignment
+            </button>
+            <button class="action-button reject-button" onclick="handleReject()">
+                <i class="fas fa-times"></i> Reject Assignment
+            </button>
             {% elif assignment.status == 'IN_PROGRESS' %}
-                <button class="action-button complete-button" onclick="handleComplete()">
-                    <i class="fas fa-check-circle"></i> Mark as Completed
-                </button>
+            <button class="action-button complete-button" onclick="handleComplete()">
+                <i class="fas fa-check-circle"></i> Mark as Completed
+            </button>
             {% endif %}
         </div>
     </div>
@@ -244,8 +284,8 @@
     <!-- Client Information -->
     <div class="client-info">
         <div class="client-header">
-            <img src="{{ assignment.client.profile_image.url|default:'/static/images/default-avatar.png' }}" 
-                 alt="Client" class="client-avatar">
+            <img src="{{ assignment.client.profile_image.url|default:'/static/images/default-avatar.png' }}"
+                alt="Client" class="client-avatar">
             <div>
                 <div class="client-name">{{ assignment.client.full_name }}</div>
                 <div>{{ assignment.client.email }}</div>
@@ -267,7 +307,8 @@
             </div>
             <div class="detail-item">
                 <span class="detail-label">Languages</span>
-                <span class="detail-value">{{ assignment.source_language.name }} → {{ assignment.target_language.name }}</span>
+                <span class="detail-value">{{ assignment.source_language.name }} → {{ assignment.target_language.name
+                    }}</span>
             </div>
             <div class="detail-item">
                 <span class="detail-label">Duration</span>
@@ -344,67 +385,67 @@
 
 {% block extra_js %}
 <script>
-async function handleAccept() {
-    if (!confirm('Are you sure you want to accept this assignment?')) return;
-    
-    try {
-        const response = await fetch('{% url "dbdint:accept_assignment" assignment.id %}', {
-            method: 'POST',
-            headers: {
-                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+    async function handleAccept() {
+        if (!confirm('Are you sure you want to accept this assignment?')) return;
+
+        try {
+            const response = await fetch('{% url "dbdint:accept_assignment" assignment.id %}', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                }
+            });
+
+            if (response.ok) {
+                location.reload();
+            } else {
+                throw new Error('Failed to accept assignment');
             }
-        });
-
-        if (response.ok) {
-            location.reload();
-        } else {
-            throw new Error('Failed to accept assignment');
+        } catch (error) {
+            alert('Error accepting assignment');
         }
-    } catch (error) {
-        alert('Error accepting assignment');
     }
-}
 
-async function handleReject() {
-    if (!confirm('Are you sure you want to reject this assignment?')) return;
-    
-    try {
-        const response = await fetch('{% url "dbdint:reject_assignment" assignment.id %}', {
-            method: 'POST',
-            headers: {
-                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+    async function handleReject() {
+        if (!confirm('Are you sure you want to reject this assignment?')) return;
+
+        try {
+            const response = await fetch('{% url "dbdint:reject_assignment" assignment.id %}', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                }
+            });
+
+            if (response.ok) {
+                window.location.href = '{% url "dbdint:interpreter_assignments" %}';
+            } else {
+                throw new Error('Failed to reject assignment');
             }
-        });
-
-        if (response.ok) {
-            window.location.href = '{% url "dbdint:interpreter_assignments" %}';
-        } else {
-            throw new Error('Failed to reject assignment');
+        } catch (error) {
+            alert('Error rejecting assignment');
         }
-    } catch (error) {
-        alert('Error rejecting assignment');
     }
-}
 
-async function handleComplete() {
-    if (!confirm('Are you sure you want to mark this assignment as completed?')) return;
-    
-    try {
-        const response = await fetch('{% url "dbdint:complete_assignment" assignment.id %}', {
-            method: 'POST',
-            headers: {
-                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+    async function handleComplete() {
+        if (!confirm('Are you sure you want to mark this assignment as completed?')) return;
+
+        try {
+            const response = await fetch('{% url "dbdint:complete_assignment" assignment.id %}', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                }
+            });
+
+            if (response.ok) {
+                location.reload();
+            } else {
+                throw new Error('Failed to complete assignment');
             }
-        });
-
-        if (response.ok) {
-            location.reload();
-        } else {
-            throw new Error('Failed to complete assignment');
+        } catch (error) {
+            alert('Error completing assignment');
         }
-    } catch (error) {
-        alert('Error completing assignment');
     }
-}
 </script>
 {% endblock %}

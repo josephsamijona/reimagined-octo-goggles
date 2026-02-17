@@ -1,4 +1,4 @@
-{% extends 'base_trad.html' %}
+{% extends 'layouts/base_trad.html' %}
 {% load static %}
 
 {% block title %}Jobs{% endblock %}
@@ -341,7 +341,9 @@
     }
 
     @keyframes spin {
-        to { transform: rotate(360deg); }
+        to {
+            transform: rotate(360deg);
+        }
     }
 
     /* Empty State */
@@ -423,7 +425,8 @@
             <div class="assignment-card" data-id="{{ assignment.id }}">
                 <div class="assignment-header">
                     <span class="assignment-status status-pending">Pending</span>
-                    <span class="assignment-time">{{ assignment.start_time|date:"M d, Y" }} at {{ assignment.start_time|time:"g:i A" }}</span>
+                    <span class="assignment-time">{{ assignment.start_time|date:"M d, Y" }} at {{
+                        assignment.start_time|time:"g:i A" }}</span>
                 </div>
                 <div class="assignment-info">
                     <h3 class="assignment-title">{{ assignment.client.full_name }}</h3>
@@ -470,7 +473,8 @@
             <div class="assignment-card" data-id="{{ assignment.id }}">
                 <div class="assignment-header">
                     <span class="assignment-status status-confirmed">Confirmed</span>
-                    <span class="assignment-time">{{ assignment.start_time|date:"M d, Y" }} at {{ assignment.start_time|time:"g:i A" }}</span>
+                    <span class="assignment-time">{{ assignment.start_time|date:"M d, Y" }} at {{
+                        assignment.start_time|time:"g:i A" }}</span>
                 </div>
                 <!-- Similar structure to pending assignments -->
                 <div class="assignment-info">
@@ -512,150 +516,150 @@
 
 {% block extra_js %}
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Tab switching functionality
-    const tabs = document.querySelectorAll('.tab-button');
-    const contents = document.querySelectorAll('.tab-content');
+    document.addEventListener('DOMContentLoaded', function () {
+        // Tab switching functionality
+        const tabs = document.querySelectorAll('.tab-button');
+        const contents = document.querySelectorAll('.tab-content');
 
-    tabs.forEach(tab => {
-        tab.addEventListener('click', () => {
-            // Remove active class from all tabs and contents
-            tabs.forEach(t => t.classList.remove('active'));
-            contents.forEach(c => c.classList.remove('active'));
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                // Remove active class from all tabs and contents
+                tabs.forEach(t => t.classList.remove('active'));
+                contents.forEach(c => c.classList.remove('active'));
 
-            // Add active class to clicked tab and corresponding content
-            tab.classList.add('active');
-            document.getElementById(`${tab.dataset.tab}-content`).classList.add('active');
+                // Add active class to clicked tab and corresponding content
+                tab.classList.add('active');
+                document.getElementById(`${tab.dataset.tab}-content`).classList.add('active');
+            });
+        });
+
+        // Assignment card click handler
+        const assignmentCards = document.querySelectorAll('.assignment-card');
+        assignmentCards.forEach(card => {
+            card.addEventListener('click', async (e) => {
+                // Don't open modal if clicking on action buttons
+                if (e.target.closest('.assignment-actions')) return;
+
+                const assignmentId = card.dataset.id;
+                await showAssignmentDetails(assignmentId);
+            });
         });
     });
 
-    // Assignment card click handler
-    const assignmentCards = document.querySelectorAll('.assignment-card');
-    assignmentCards.forEach(card => {
-        card.addEventListener('click', async (e) => {
-            // Don't open modal if clicking on action buttons
-            if (e.target.closest('.assignment-actions')) return;
-
-            const assignmentId = card.dataset.id;
-            await showAssignmentDetails(assignmentId);
-        });
-    });
-});
-
-// Show loading overlay
-function showLoading() {
-    document.querySelector('.loading-overlay').style.display = 'flex';
-}
-
-// Hide loading overlay
-function hideLoading() {
-    document.querySelector('.loading-overlay').style.display = 'none';
-}
-
-// Accept assignment
-async function acceptAssignment(id, event) {
-    event.stopPropagation();
-    if (!confirm('Are you sure you want to accept this assignment?')) return;
-
-    showLoading();
-    try {
-        const response = await fetch(`/interpreter/assignments/${id}/accept/`, {
-            method: 'POST',
-            headers: {
-                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
-            }
-        });
-
-        if (response.ok) {
-            // Remove the card with animation
-            const card = document.querySelector(`[data-id="${id}"]`);
-            card.style.transform = 'translateX(100%)';
-            card.style.opacity = '0';
-            setTimeout(() => card.remove(), 300);
-
-            // Show success message
-            showToast('Assignment accepted successfully');
-        } else {
-            throw new Error('Failed to accept assignment');
-        }
-    } catch (error) {
-        showToast('Error accepting assignment', 'error');
-    } finally {
-        hideLoading();
+    // Show loading overlay
+    function showLoading() {
+        document.querySelector('.loading-overlay').style.display = 'flex';
     }
-}
 
-// Reject assignment
-async function rejectAssignment(id, event) {
-    event.stopPropagation();
-    if (!confirm('Are you sure you want to reject this assignment?')) return;
-
-    showLoading();
-    try {
-        const response = await fetch(`/interpreter/assignments/${id}/reject/`, {
-            method: 'POST',
-            headers: {
-                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
-            }
-        });
-
-        if (response.ok) {
-            // Remove the card with animation
-            const card = document.querySelector(`[data-id="${id}"]`);
-            card.style.transform = 'translateX(-100%)';
-            card.style.opacity = '0';
-            setTimeout(() => card.remove(), 300);
-
-            // Show success message
-            showToast('Assignment rejected');
-        } else {
-            throw new Error('Failed to reject assignment');
-        }
-    } catch (error) {
-        showToast('Error rejecting assignment', 'error');
-    } finally {
-        hideLoading();
+    // Hide loading overlay
+    function hideLoading() {
+        document.querySelector('.loading-overlay').style.display = 'none';
     }
-}
 
-// Complete assignment
-async function completeAssignment(id) {
-    if (!confirm('Are you sure you want to mark this assignment as completed?')) return;
+    // Accept assignment
+    async function acceptAssignment(id, event) {
+        event.stopPropagation();
+        if (!confirm('Are you sure you want to accept this assignment?')) return;
 
-    showLoading();
-    try {
-        const response = await fetch(`/interpreter/assignments/${id}/complete/`, {
-            method: 'POST',
-            headers: {
-                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        showLoading();
+        try {
+            const response = await fetch(`/interpreter/assignments/${id}/accept/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                }
+            });
+
+            if (response.ok) {
+                // Remove the card with animation
+                const card = document.querySelector(`[data-id="${id}"]`);
+                card.style.transform = 'translateX(100%)';
+                card.style.opacity = '0';
+                setTimeout(() => card.remove(), 300);
+
+                // Show success message
+                showToast('Assignment accepted successfully');
+            } else {
+                throw new Error('Failed to accept assignment');
             }
-        });
-
-        if (response.ok) {
-            location.reload(); // Refresh to update all lists
-        } else {
-            throw new Error('Failed to complete assignment');
+        } catch (error) {
+            showToast('Error accepting assignment', 'error');
+        } finally {
+            hideLoading();
         }
-    } catch (error) {
-        showToast('Error completing assignment', 'error');
-    } finally {
-        hideLoading();
     }
-}
 
-// Show assignment details
-async function showAssignmentDetails(id) {
-    showLoading();
-    try {
-        const response = await fetch(`/interpreter/assignments/${id}/`);
-        const data = await response.json();
+    // Reject assignment
+    async function rejectAssignment(id, event) {
+        event.stopPropagation();
+        if (!confirm('Are you sure you want to reject this assignment?')) return;
 
-        const modal = document.getElementById('assignmentModal');
-        const modalTitle = modal.querySelector('.modal-title');
-        const modalBody = modal.querySelector('.modal-body');
+        showLoading();
+        try {
+            const response = await fetch(`/interpreter/assignments/${id}/reject/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                }
+            });
 
-        modalTitle.textContent = `Assignment Details - ${data.client_name}`;
-        modalBody.innerHTML = `
+            if (response.ok) {
+                // Remove the card with animation
+                const card = document.querySelector(`[data-id="${id}"]`);
+                card.style.transform = 'translateX(-100%)';
+                card.style.opacity = '0';
+                setTimeout(() => card.remove(), 300);
+
+                // Show success message
+                showToast('Assignment rejected');
+            } else {
+                throw new Error('Failed to reject assignment');
+            }
+        } catch (error) {
+            showToast('Error rejecting assignment', 'error');
+        } finally {
+            hideLoading();
+        }
+    }
+
+    // Complete assignment
+    async function completeAssignment(id) {
+        if (!confirm('Are you sure you want to mark this assignment as completed?')) return;
+
+        showLoading();
+        try {
+            const response = await fetch(`/interpreter/assignments/${id}/complete/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                }
+            });
+
+            if (response.ok) {
+                location.reload(); // Refresh to update all lists
+            } else {
+                throw new Error('Failed to complete assignment');
+            }
+        } catch (error) {
+            showToast('Error completing assignment', 'error');
+        } finally {
+            hideLoading();
+        }
+    }
+
+    // Show assignment details
+    async function showAssignmentDetails(id) {
+        showLoading();
+        try {
+            const response = await fetch(`/interpreter/assignments/${id}/`);
+            const data = await response.json();
+
+            const modal = document.getElementById('assignmentModal');
+            const modalTitle = modal.querySelector('.modal-title');
+            const modalBody = modal.querySelector('.modal-body');
+
+            modalTitle.textContent = `Assignment Details - ${data.client_name}`;
+            modalBody.innerHTML = `
             <div class="modal-info-grid">
                 <!-- Time and Date -->
                 <div class="info-section">
@@ -705,71 +709,71 @@ async function showAssignmentDetails(id) {
             </div>
         `;
 
-        modal.style.display = 'block';
-    } catch (error) {
-        showToast('Error loading assignment details', 'error');
-    } finally {
-        hideLoading();
+            modal.style.display = 'block';
+        } catch (error) {
+            showToast('Error loading assignment details', 'error');
+        } finally {
+            hideLoading();
+        }
     }
-}
 
-// Helper functions
-function formatDateTime(dateString) {
-    const date = new Date(dateString);
-    return date.toLocaleString('en-US', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true
-    });
-}
+    // Helper functions
+    function formatDateTime(dateString) {
+        const date = new Date(dateString);
+        return date.toLocaleString('en-US', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true
+        });
+    }
 
-function calculateDuration(start, end) {
-    const startDate = new Date(start);
-    const endDate = new Date(end);
-    const hours = (endDate - startDate) / (1000 * 60 * 60);
-    return `${hours.toFixed(1)} hours`;
-}
+    function calculateDuration(start, end) {
+        const startDate = new Date(start);
+        const endDate = new Date(end);
+        const hours = (endDate - startDate) / (1000 * 60 * 60);
+        return `${hours.toFixed(1)} hours`;
+    }
 
-function calculateEstimatedTotal(assignment) {
-    const startDate = new Date(assignment.start_time);
-    const endDate = new Date(assignment.end_time);
-    const hours = Math.max(
-        assignment.minimum_hours,
-        (endDate - startDate) / (1000 * 60 * 60)
-    );
-    return (hours * assignment.interpreter_rate).toFixed(2);
-}
+    function calculateEstimatedTotal(assignment) {
+        const startDate = new Date(assignment.start_time);
+        const endDate = new Date(assignment.end_time);
+        const hours = Math.max(
+            assignment.minimum_hours,
+            (endDate - startDate) / (1000 * 60 * 60)
+        );
+        return (hours * assignment.interpreter_rate).toFixed(2);
+    }
 
-// Toast notifications
-function showToast(message, type = 'success') {
-    const toast = document.createElement('div');
-    toast.className = `toast toast-${type}`;
-    toast.innerHTML = `
+    // Toast notifications
+    function showToast(message, type = 'success') {
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+        toast.innerHTML = `
         <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'}"></i>
         ${message}
     `;
-    document.body.appendChild(toast);
+        document.body.appendChild(toast);
 
-    setTimeout(() => {
-        toast.style.opacity = '0';
-        setTimeout(() => toast.remove(), 300);
-    }, 3000);
-}
-
-// Close modal when clicking outside or on close button
-window.addEventListener('click', (e) => {
-    const modal = document.getElementById('assignmentModal');
-    if (e.target === modal) {
-        modal.style.display = 'none';
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            setTimeout(() => toast.remove(), 300);
+        }, 3000);
     }
-});
 
-document.querySelector('.modal-close').addEventListener('click', () => {
-    document.getElementById('assignmentModal').style.display = 'none';
-});
+    // Close modal when clicking outside or on close button
+    window.addEventListener('click', (e) => {
+        const modal = document.getElementById('assignmentModal');
+        if (e.target === modal) {
+            modal.style.display = 'none';
+        }
+    });
+
+    document.querySelector('.modal-close').addEventListener('click', () => {
+        document.getElementById('assignmentModal').style.display = 'none';
+    });
 </script>
 {% endblock %}

@@ -356,7 +356,7 @@ class InterpreterContractSignatureAdmin(admin.ModelAdmin):
                 }
                 
                 # Rendu du template HTML
-                html_message = render_to_string('notifmail/esign_notif.html', context)
+                html_message = render_to_string('emails/assignments/esign_notif.html', context)
                 plain_message = strip_tags(html_message)
                 
                 # Ligne d'objet optimisée pour la délivrabilité

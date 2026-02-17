@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Error{% endblock %} - JH Bridge</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-color: #003366;
+            --secondary-color: #f8f9fa;
+            --text-color: #333;
+            --muted-color: #666;
+            --accent-color: #0088FF;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--secondary-color);
+            color: var(--text-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .brand-logo {
+            margin-bottom: 2rem;
+            max-width: 200px;
+            height: auto;
+        }
+
+        .error-card {
+            background: white;
+            padding: 3rem;
+            border-radius: 16px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+            max-width: 600px;
+            width: 100%;
+            text-align: center;
+            border-top: 5px solid var(--primary-color);
+        }
+
+        .error-illustration {
+            font-size: 4rem;
+            color: var(--primary-color);
+            margin-bottom: 1.5rem;
+            opacity: 0.9;
+        }
+
+        .error-title {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            margin: 0 0 1rem 0;
+        }
+
+        .error-message {
+            color: var(--muted-color);
+            font-size: 1.1rem;
+            line-height: 1.6;
+            margin-bottom: 2rem;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background-color: var(--primary-color);
+            color: white;
+            padding: 0.8rem 2rem;
+            text-decoration: none;
+            border-radius: 50px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0, 51, 102, 0.2);
+        }
+
+        .btn:hover {
+            background-color: #002244;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0, 51, 102, 0.3);
+        }
+
+        .contact-footer {
+            margin-top: 3rem;
+            text-align: center;
+            color: var(--muted-color);
+            font-size: 0.9rem;
+            border-top: 1px solid #eee;
+            padding-top: 1.5rem;
+            width: 100%;
+            max-width: 600px;
+        }
+
+        .contact-footer h4 {
+            color: var(--primary-color);
+            margin: 0 0 0.5rem 0;
+            font-size: 1rem;
+        }
+
+        .contact-footer p {
+            margin: 0.25rem 0;
+        }
+
+        .contact-footer a {
+            color: var(--primary-color);
+            text-decoration: none;
+        }
+
+        .contact-footer a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+
+<body>
+    <img src="https://jhbridgetranslation.com/images/logo.png" alt="JH Bridge Translation Services" class="brand-logo"
+        onerror="this.src='/static/images/logo.png'">
+
+    <div class="error-card">
+        {% block content %}{% endblock %}
+    </div>
+
+    <div class="contact-footer">
+        <h4>Need assistance?</h4>
+        <p><strong>JHBridge Translation services</strong></p>
+        <p>Marketplace at Braintree, 500 Grossman Dr, Braintree, MA 02184, USA</p>
+        <p>
+            <i class="fas fa-phone-alt"></i> +1 774-223-8771 &nbsp;|&nbsp;
+            <i class="fas fa-envelope"></i> <a
+                href="mailto:contact@jhbridgetranslation.com">contact@jhbridgetranslation.com</a>
+        </p>
+    </div>
+</body>
+
+</html>

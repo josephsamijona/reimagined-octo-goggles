@@ -1,0 +1,18 @@
+{% extends 'layouts/error.html' %}
+
+{% block title %}Confusion in the Air - 400{% endblock %}
+
+{% block content %}
+<div class="error-illustration">
+    <i class="fas fa-question-circle"></i>
+</div>
+<h1 class="error-title">Say that again?</h1>
+<p class="error-message">
+    We couldn't quite understand your request.
+    It seems there was a mix-up in the data sent.
+    Please verify the URL or your input and try again.
+</p>
+<a href="/" class="btn">
+    <i class="fas fa-home"></i> Return Home
+</a>
+{% endblock %}

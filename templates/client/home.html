@@ -1,5 +1,5 @@
 <!-- templates/dashboard/client_dashboard.html -->
-{% extends "base_client.html" %}
+{% extends "layouts/base_client.html" %}
 
 {% block title %}Dashboard{% endblock %}
 {% block header_title %}Welcome, {{ user.first_name }}{% endblock %}
@@ -137,20 +137,20 @@
 <div class="dashboard-section">
     <h2 class="section-title">Upcoming Assignments</h2>
     {% if upcoming_assignments %}
-        {% for assignment in upcoming_assignments %}
-        <div class="list-item">
-            <div class="list-item-title">{{ assignment.service_type }}</div>
-            <div class="list-item-subtitle">{{ assignment.start_time|date:"F j, Y - g:i A" }}</div>
-            <div class="list-item-meta">
-                <span class="status-badge status-{{ assignment.status|lower }}">{{ assignment.status }}</span>
-                <span class="amount">${{ assignment.total_amount|floatformat:2 }}</span>
-            </div>
+    {% for assignment in upcoming_assignments %}
+    <div class="list-item">
+        <div class="list-item-title">{{ assignment.service_type }}</div>
+        <div class="list-item-subtitle">{{ assignment.start_time|date:"F j, Y - g:i A" }}</div>
+        <div class="list-item-meta">
+            <span class="status-badge status-{{ assignment.status|lower }}">{{ assignment.status }}</span>
+            <span class="amount">${{ assignment.total_amount|floatformat:2 }}</span>
         </div>
-        {% endfor %}
+    </div>
+    {% endfor %}
     {% else %}
-        <div class="list-item">
-            <div class="list-item-subtitle">No upcoming assignments</div>
-        </div>
+    <div class="list-item">
+        <div class="list-item-subtitle">No upcoming assignments</div>
+    </div>
     {% endif %}
 </div>
 
@@ -158,22 +158,22 @@
 <div class="dashboard-section">
     <h2 class="section-title">Recent Quotes</h2>
     {% if recent_quotes %}
-        {% for quote in recent_quotes %}
-        <div class="list-item">
-            <div class="list-item-title">{{ quote.service_type }}</div>
-            <div class="list-item-subtitle">Requested on {{ quote.created_at|date:"F j, Y" }}</div>
-            <div class="list-item-meta">
-                <span class="status-badge status-{{ quote.status|lower }}">{{ quote.status }}</span>
-                {% if quote.estimated_amount %}
-                    <span class="amount">${{ quote.estimated_amount|floatformat:2 }}</span>
-                {% endif %}
-            </div>
+    {% for quote in recent_quotes %}
+    <div class="list-item">
+        <div class="list-item-title">{{ quote.service_type }}</div>
+        <div class="list-item-subtitle">Requested on {{ quote.created_at|date:"F j, Y" }}</div>
+        <div class="list-item-meta">
+            <span class="status-badge status-{{ quote.status|lower }}">{{ quote.status }}</span>
+            {% if quote.estimated_amount %}
+            <span class="amount">${{ quote.estimated_amount|floatformat:2 }}</span>
+            {% endif %}
         </div>
-        {% endfor %}
+    </div>
+    {% endfor %}
     {% else %}
-        <div class="list-item">
-            <div class="list-item-subtitle">No recent quotes</div>
-        </div>
+    <div class="list-item">
+        <div class="list-item-subtitle">No recent quotes</div>
+    </div>
     {% endif %}
 </div>
 
@@ -181,20 +181,20 @@
 <div class="dashboard-section">
     <h2 class="section-title">Recent Payments</h2>
     {% if recent_payments %}
-        {% for payment in recent_payments %}
-        <div class="list-item">
-            <div class="list-item-title">Payment for {{ payment.assignment.service_type }}</div>
-            <div class="list-item-subtitle">{{ payment.payment_date|date:"F j, Y" }}</div>
-            <div class="list-item-meta">
-                <span class="status-badge status-completed">{{ payment.status }}</span>
-                <span class="amount">${{ payment.amount|floatformat:2 }}</span>
-            </div>
+    {% for payment in recent_payments %}
+    <div class="list-item">
+        <div class="list-item-title">Payment for {{ payment.assignment.service_type }}</div>
+        <div class="list-item-subtitle">{{ payment.payment_date|date:"F j, Y" }}</div>
+        <div class="list-item-meta">
+            <span class="status-badge status-completed">{{ payment.status }}</span>
+            <span class="amount">${{ payment.amount|floatformat:2 }}</span>
         </div>
-        {% endfor %}
+    </div>
+    {% endfor %}
     {% else %}
-        <div class="list-item">
-            <div class="list-item-subtitle">No recent payments</div>
-        </div>
+    <div class="list-item">
+        <div class="list-item-subtitle">No recent payments</div>
+    </div>
     {% endif %}
 </div>
 
@@ -202,19 +202,19 @@
 <div class="dashboard-section">
     <h2 class="section-title">Notifications</h2>
     {% if unread_notifications %}
-        {% for notification in unread_notifications %}
-        <div class="list-item">
-            <div class="list-item-title">{{ notification.title }}</div>
-            <div class="list-item-subtitle">{{ notification.message }}</div>
-            <div class="list-item-meta">
-                <span>{{ notification.created_at|timesince }} ago</span>
-            </div>
+    {% for notification in unread_notifications %}
+    <div class="list-item">
+        <div class="list-item-title">{{ notification.title }}</div>
+        <div class="list-item-subtitle">{{ notification.message }}</div>
+        <div class="list-item-meta">
+            <span>{{ notification.created_at|timesince }} ago</span>
         </div>
-        {% endfor %}
+    </div>
+    {% endfor %}
     {% else %}
-        <div class="list-item">
-            <div class="list-item-subtitle">No unread notifications</div>
-        </div>
+    <div class="list-item">
+        <div class="list-item-subtitle">No unread notifications</div>
+    </div>
     {% endif %}
 </div>
 {% endblock %}

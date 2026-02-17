@@ -1,0 +1,37 @@
+{
+  "version": "48.0.0",
+  "files": {
+    "526de18c699b796e6cffe3dc1a34b0736e1dc88a85eb19f0692201ee9eba696d": {
+      "displayName": "JhbridgeBackupStack Template",
+      "source": {
+        "path": "JhbridgeBackupStack.template.json",
+        "packaging": "file"
+      },
+      "destinations": {
+        "739180644643-us-east-1-54f5f335": {
+          "bucketName": "cdk-hnb659fds-assets-739180644643-us-east-1",
+          "objectKey": "526de18c699b796e6cffe3dc1a34b0736e1dc88a85eb19f0692201ee9eba696d.json",
+          "region": "us-east-1",
+          "assumeRoleArn": "arn:${AWS::Partition}:iam::739180644643:role/cdk-hnb659fds-file-publishing-role-739180644643-us-east-1"
+        }
+      }
+    }
+  },
+  "dockerImages": {
+    "abf2b28b4adbe3a2dd93ea9b54f66eae872fa902f14a4193aed584b9632ac6e3": {
+      "displayName": "BackupFunction/AssetImage",
+      "source": {
+        "directory": "asset.abf2b28b4adbe3a2dd93ea9b54f66eae872fa902f14a4193aed584b9632ac6e3",
+        "platform": "linux/amd64"
+      },
+      "destinations": {
+        "739180644643-us-east-1-aa647023": {
+          "repositoryName": "cdk-hnb659fds-container-assets-739180644643-us-east-1",
+          "imageTag": "abf2b28b4adbe3a2dd93ea9b54f66eae872fa902f14a4193aed584b9632ac6e3",
+          "region": "us-east-1",
+          "assumeRoleArn": "arn:${AWS::Partition}:iam::739180644643:role/cdk-hnb659fds-image-publishing-role-739180644643-us-east-1"
+        }
+      }
+    }
+  }
+}

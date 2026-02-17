@@ -1,131 +1,134 @@
-{% extends 'intbase.html' %}
+{% extends 'layouts/intbase.html' %}
 
 {% block title %}Earnings- JH Bridge{% endblock %}
 
 {% block content %}
-    <!-- Summary Cards -->
-    <div class="grid stats-grid">
-        <!-- Weekly Earnings Card -->
-        <div class="card stat-card">
-            <div class="card-content">
-                <i class="fas fa-dollar-sign fa-2x mb-2"></i>
-                <div class="stat-value">${{ weekly_revenue|floatformat:2 }}</div>
-                <div class="stat-label">Week of {{ week_date_range }}</div>
-            </div>
-        </div>
-
-        <!-- Monthly Earnings Card -->
-        <div class="card stat-card">
-            <div class="card-content">
-                <i class="fas fa-calendar fa-2x mb-2"></i>
-                <div class="stat-value">${{ monthly_revenue|floatformat:2 }}</div>
-                <div class="stat-label">{{ current_month }} Earnings</div>
-            </div>
-        </div>
-
-        <!-- Total Earnings Card -->
-        <div class="card stat-card">
-            <div class="card-content">
-                <i class="fas fa-money-bill-wave fa-2x mb-2"></i>
-                <div class="stat-value">${{ total_revenue|floatformat:2 }}</div>
-                <div class="stat-label">Total Earnings</div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Payment Status Summary -->
-    <div class="card mt-4">
-        <div class="card-header">
-            <h2 class="card-title">Payment Status Overview</h2>
-        </div>
+<!-- Summary Cards -->
+<div class="grid stats-grid">
+    <!-- Weekly Earnings Card -->
+    <div class="card stat-card">
         <div class="card-content">
-            <div class="status-bars">
-                <div class="status-item">
-                    <div class="status-label">
-                        <span>Paid</span>
-                        <span>{{ paid_count }} assignment{% if paid_count != 1 %}s{% endif %}</span>
-                    </div>
-                    <div class="progress-bar">
-                        <div class="progress bg-success" style="width: {{ paid_percentage }}%"></div>
-                    </div>
-                </div>
-                <div class="status-item">
-                    <div class="status-label">
-                        <span>Unpaid</span>
-                        <span>{{ unpaid_count }} assignment{% if unpaid_count != 1 %}s{% endif %}</span>
-                    </div>
-                    <div class="progress-bar">
-                        <div class="progress bg-danger" style="width: {{ unpaid_percentage }}%"></div>
-                    </div>
-                </div>
-            </div>
+            <i class="fas fa-dollar-sign fa-2x mb-2"></i>
+            <div class="stat-value">${{ weekly_revenue|floatformat:2 }}</div>
+            <div class="stat-label">Week of {{ week_date_range }}</div>
         </div>
     </div>
 
-    <!-- Assignments Table -->
-    <div class="card mt-4">
-        <div class="card-header">
-            <h2 class="card-title">Provided Services</h2>
-        </div>
+    <!-- Monthly Earnings Card -->
+    <div class="card stat-card">
         <div class="card-content">
-            <div class="table-responsive">
-                <table class="assignments-table">
-                    <thead>
-                        <tr>
-                            <th>Date</th>
-                            <th>Service Type</th>
-                            
-                            <th>Amount</th>
-                            <th>Status</th>
-                            <th>Payment</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for assignment in assignments %}
-                        <tr>
-                            <td>{{ assignment.start_time|date:"M d, Y" }}</td>
-                            <td>{{ assignment.service_type.name }}</td>
-                            
-                            <td>${{ assignment.total_interpreter_payment|floatformat:2 }}</td>
-                            <td>
-                                <span class="status-badge {% if assignment.status == 'COMPLETED' %}badge-success{% else %}badge-warning{% endif %}">
-                                    {{ assignment.get_status_display }}
-                                </span>
-                            </td>
-                            <td>
-                                <span class="status-badge {% if assignment.is_paid %}badge-success{% else %}badge-danger{% endif %}">
-                                    {% if assignment.is_paid %}Paid{% else %}Unpaid{% endif %}
-                                </span>
-                            </td>
-                        </tr>
-                        {% empty %}
-                        <tr>
-                            <td colspan="6" class="no-results">No completed services found.</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-            
-            {% if is_paginated %}
-            <div class="pagination">
-                <div class="pagination-container">
-                    {% if page_obj.has_previous %}
-                    <a href="?page=1" class="pagination-item">&laquo; First</a>
-                    <a href="?page={{ page_obj.previous_page_number }}" class="pagination-item">Previous</a>
-                    {% endif %}
-                    
-                    <span class="pagination-item active">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
-                    
-                    {% if page_obj.has_next %}
-                    <a href="?page={{ page_obj.next_page_number }}" class="pagination-item">Next</a>
-                    <a href="?page={{ page_obj.paginator.num_pages }}" class="pagination-item">Last &raquo;</a>
-                    {% endif %}
-                </div>
-            </div>
-            {% endif %}
+            <i class="fas fa-calendar fa-2x mb-2"></i>
+            <div class="stat-value">${{ monthly_revenue|floatformat:2 }}</div>
+            <div class="stat-label">{{ current_month }} Earnings</div>
         </div>
     </div>
+
+    <!-- Total Earnings Card -->
+    <div class="card stat-card">
+        <div class="card-content">
+            <i class="fas fa-money-bill-wave fa-2x mb-2"></i>
+            <div class="stat-value">${{ total_revenue|floatformat:2 }}</div>
+            <div class="stat-label">Total Earnings</div>
+        </div>
+    </div>
+</div>
+
+<!-- Payment Status Summary -->
+<div class="card mt-4">
+    <div class="card-header">
+        <h2 class="card-title">Payment Status Overview</h2>
+    </div>
+    <div class="card-content">
+        <div class="status-bars">
+            <div class="status-item">
+                <div class="status-label">
+                    <span>Paid</span>
+                    <span>{{ paid_count }} assignment{% if paid_count != 1 %}s{% endif %}</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress bg-success" style="width: {{ paid_percentage }}%"></div>
+                </div>
+            </div>
+            <div class="status-item">
+                <div class="status-label">
+                    <span>Unpaid</span>
+                    <span>{{ unpaid_count }} assignment{% if unpaid_count != 1 %}s{% endif %}</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress bg-danger" style="width: {{ unpaid_percentage }}%"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Assignments Table -->
+<div class="card mt-4">
+    <div class="card-header">
+        <h2 class="card-title">Provided Services</h2>
+    </div>
+    <div class="card-content">
+        <div class="table-responsive">
+            <table class="assignments-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Service Type</th>
+
+                        <th>Amount</th>
+                        <th>Status</th>
+                        <th>Payment</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for assignment in assignments %}
+                    <tr>
+                        <td>{{ assignment.start_time|date:"M d, Y" }}</td>
+                        <td>{{ assignment.service_type.name }}</td>
+
+                        <td>${{ assignment.total_interpreter_payment|floatformat:2 }}</td>
+                        <td>
+                            <span
+                                class="status-badge {% if assignment.status == 'COMPLETED' %}badge-success{% else %}badge-warning{% endif %}">
+                                {{ assignment.get_status_display }}
+                            </span>
+                        </td>
+                        <td>
+                            <span
+                                class="status-badge {% if assignment.is_paid %}badge-success{% else %}badge-danger{% endif %}">
+                                {% if assignment.is_paid %}Paid{% else %}Unpaid{% endif %}
+                            </span>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="no-results">No completed services found.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if is_paginated %}
+        <div class="pagination">
+            <div class="pagination-container">
+                {% if page_obj.has_previous %}
+                <a href="?page=1" class="pagination-item">&laquo; First</a>
+                <a href="?page={{ page_obj.previous_page_number }}" class="pagination-item">Previous</a>
+                {% endif %}
+
+                <span class="pagination-item active">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages
+                    }}</span>
+
+                {% if page_obj.has_next %}
+                <a href="?page={{ page_obj.next_page_number }}" class="pagination-item">Next</a>
+                <a href="?page={{ page_obj.paginator.num_pages }}" class="pagination-item">Last &raquo;</a>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_css %}
@@ -217,9 +220,17 @@
         transition: width 0.3s ease;
     }
 
-    .bg-success { background-color: #4ade80; }
-    .bg-danger { background-color: #f87171; }
-    .bg-warning { background-color: #fbbf24; }
+    .bg-success {
+        background-color: #4ade80;
+    }
+
+    .bg-danger {
+        background-color: #f87171;
+    }
+
+    .bg-warning {
+        background-color: #fbbf24;
+    }
 
     /* Table Styles */
     .table-responsive {

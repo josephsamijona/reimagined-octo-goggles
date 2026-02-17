@@ -1,4 +1,4 @@
-{% extends 'base_trad.html' %}
+{% extends 'layouts/base_trad.html' %}
 {% load static %}
 
 {% block title %}Notifications{% endblock %}
@@ -205,7 +205,7 @@
             gap: 1rem;
             align-items: stretch;
         }
-        
+
         .notification-tabs {
             padding-bottom: 0.5rem;
         }
@@ -248,9 +248,8 @@
     <!-- Liste des notifications -->
     <div class="notification-list">
         {% for notification in notifications %}
-        <div class="notification-item {% if not notification.read %}unread{% endif %}" 
-             data-id="{{ notification.id }}"
-             data-type="{{ notification.type|lower }}">
+        <div class="notification-item {% if not notification.read %}unread{% endif %}" data-id="{{ notification.id }}"
+            data-type="{{ notification.type|lower }}">
             <div class="notification-header">
                 <span class="notification-type">{{ notification.get_type_display }}</span>
                 <span class="notification-time">{{ notification.created_at|timesince }} ago</span>
@@ -290,15 +289,15 @@
         {% for num in page_obj.paginator.page_range %}
         {% if page_obj.number == num %}
         <a href="?page={{ num }}" class="page-link active">{{ num }}</a>
-        {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
-        <a href="?page={{ num }}" class="page-link">{{ num }}</a>
-        {% endif %}
-        {% endfor %}
+        {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %} <a href="?page={{ num }}"
+            class="page-link">{{ num }}</a>
+            {% endif %}
+            {% endfor %}
 
-        {% if page_obj.has_next %}
-        <a href="?page={{ page_obj.next_page_number }}" class="page-link">Next</a>
-        <a href="?page={{ page_obj.paginator.num_pages }}" class="page-link">Last &raquo;</a>
-        {% endif %}
+            {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}" class="page-link">Next</a>
+            <a href="?page={{ page_obj.paginator.num_pages }}" class="page-link">Last &raquo;</a>
+            {% endif %}
     </div>
     {% endif %}
 </div>
@@ -306,100 +305,100 @@
 
 {% block extra_js %}
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Gestion des onglets
-    const tabs = document.querySelectorAll('.tab-button');
-    const notificationItems = document.querySelectorAll('.notification-item');
+    document.addEventListener('DOMContentLoaded', function () {
+        // Gestion des onglets
+        const tabs = document.querySelectorAll('.tab-button');
+        const notificationItems = document.querySelectorAll('.notification-item');
 
-    tabs.forEach(tab => {
-        tab.addEventListener('click', () => {
-            // Mise à jour des onglets actifs
-            tabs.forEach(t => t.classList.remove('active'));
-            tab.classList.add('active');
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                // Mise à jour des onglets actifs
+                tabs.forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
 
-            // Filtrage des notifications
-            const type = tab.dataset.type;
-            notificationItems.forEach(item => {
-                if (type === 'all') {
-                    item.style.display = 'block';
-                } else if (type === 'unread') {
-                    item.style.display = item.classList.contains('unread') ? 'block' : 'none';
-                } else {
-                    item.style.display = item.dataset.type.includes(type) ? 'block' : 'none';
+                // Filtrage des notifications
+                const type = tab.dataset.type;
+                notificationItems.forEach(item => {
+                    if (type === 'all') {
+                        item.style.display = 'block';
+                    } else if (type === 'unread') {
+                        item.style.display = item.classList.contains('unread') ? 'block' : 'none';
+                    } else {
+                        item.style.display = item.dataset.type.includes(type) ? 'block' : 'none';
+                    }
+                });
+            });
+        });
+
+        // Marquer une notification comme lue
+        const markReadButtons = document.querySelectorAll('.mark-read-button');
+        markReadButtons.forEach(button => {
+            button.addEventListener('click', async () => {
+                const notificationId = button.dataset.id;
+                try {
+                    const response = await fetch(`/interpreter/notifications/${notificationId}/mark-read/`, {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                        }
+                    });
+                    if (response.ok) {
+                        const notificationItem = button.closest('.notification-item');
+                        notificationItem.classList.remove('unread');
+                        button.remove();
+
+                        // Update unread count in the tab
+                        updateUnreadCount();
+                    }
+                } catch (error) {
+                    console.error('Error marking notification as read:', error);
                 }
             });
         });
-    });
 
-    // Marquer une notification comme lue
-    const markReadButtons = document.querySelectorAll('.mark-read-button');
-    markReadButtons.forEach(button => {
-        button.addEventListener('click', async () => {
-            const notificationId = button.dataset.id;
-            try {
-                const response = await fetch(`/interpreter/notifications/${notificationId}/mark-read/`, {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
-                    }
-                });
-                if (response.ok) {
-                    const notificationItem = button.closest('.notification-item');
-                    notificationItem.classList.remove('unread');
-                    button.remove();
-                    
-                    // Update unread count in the tab
-                    updateUnreadCount();
-                }
-            } catch (error) {
-                console.error('Error marking notification as read:', error);
-            }
-        });
-    });
-
-    // Marquer toutes les notifications comme lues
-    const markAllReadBtn = document.getElementById('markAllReadBtn');
-    if (markAllReadBtn) {
-        markAllReadBtn.addEventListener('click', async () => {
-            try {
-                const response = await fetch('/interpreter/notifications/mark-all-read/', {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
-                    }
-                });
-                if (response.ok) {
-                    // Supprimer la classe unread de toutes les notifications
-                    document.querySelectorAll('.notification-item.unread').forEach(item => {
-                        item.classList.remove('unread');
-                        item.querySelector('.mark-read-button')?.remove();
-                    });
-                    
-                    // Cacher le bouton "Mark all as read"
-                    markAllReadBtn.style.display = 'none';
-                    
-                    // Update unread count in the tab
-                    updateUnreadCount();
-                }
-            } catch (error) {
-                console.error('Error marking all notifications as read:', error);
-            }
-        });
-    }
-
-    // Fonction pour mettre à jour le compteur de notifications non lues
-    function updateUnreadCount() {
-        const unreadCount = document.querySelectorAll('.notification-item.unread').length;
-        const unreadTab = document.querySelector('.tab-button[data-type="unread"] .count');
-        if (unreadTab) {
-            unreadTab.textContent = `(${unreadCount})`;
-        }
-        
-        // Mettre à jour l'affichage du bouton "Mark all as read"
+        // Marquer toutes les notifications comme lues
+        const markAllReadBtn = document.getElementById('markAllReadBtn');
         if (markAllReadBtn) {
-            markAllReadBtn.style.display = unreadCount > 0 ? 'flex' : 'none';
+            markAllReadBtn.addEventListener('click', async () => {
+                try {
+                    const response = await fetch('/interpreter/notifications/mark-all-read/', {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                        }
+                    });
+                    if (response.ok) {
+                        // Supprimer la classe unread de toutes les notifications
+                        document.querySelectorAll('.notification-item.unread').forEach(item => {
+                            item.classList.remove('unread');
+                            item.querySelector('.mark-read-button')?.remove();
+                        });
+
+                        // Cacher le bouton "Mark all as read"
+                        markAllReadBtn.style.display = 'none';
+
+                        // Update unread count in the tab
+                        updateUnreadCount();
+                    }
+                } catch (error) {
+                    console.error('Error marking all notifications as read:', error);
+                }
+            });
         }
-    }
-});
+
+        // Fonction pour mettre à jour le compteur de notifications non lues
+        function updateUnreadCount() {
+            const unreadCount = document.querySelectorAll('.notification-item.unread').length;
+            const unreadTab = document.querySelector('.tab-button[data-type="unread"] .count');
+            if (unreadTab) {
+                unreadTab.textContent = `(${unreadCount})`;
+            }
+
+            // Mettre à jour l'affichage du bouton "Mark all as read"
+            if (markAllReadBtn) {
+                markAllReadBtn.style.display = unreadCount > 0 ? 'flex' : 'none';
+            }
+        }
+    });
 </script>
 {% endblock %}

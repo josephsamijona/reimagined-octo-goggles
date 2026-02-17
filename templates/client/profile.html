@@ -1,5 +1,5 @@
 <!-- templates/profiles/profile.html -->
-{% extends "base_client.html" %}
+{% extends "layouts/base_client.html" %}
 
 {% block title %}My Profile - JHBRIDGE{% endblock %}
 {% block header_title %}My Profile{% endblock %}
@@ -327,13 +327,13 @@
 <script>
     function copyPrimaryAddress() {
         // Copy primary address to billing address
-        document.getElementById('{{ client_form.billing_address.id_for_label }}').value = 
+        document.getElementById('{{ client_form.billing_address.id_for_label }}').value =
             document.getElementById('{{ client_form.address.id_for_label }}').value;
-        document.getElementById('{{ client_form.billing_city.id_for_label }}').value = 
+        document.getElementById('{{ client_form.billing_city.id_for_label }}').value =
             document.getElementById('{{ client_form.city.id_for_label }}').value;
-        document.getElementById('{{ client_form.billing_state.id_for_label }}').value = 
+        document.getElementById('{{ client_form.billing_state.id_for_label }}').value =
             document.getElementById('{{ client_form.state.id_for_label }}').value;
-        document.getElementById('{{ client_form.billing_zip_code.id_for_label }}').value = 
+        document.getElementById('{{ client_form.billing_zip_code.id_for_label }}').value =
             document.getElementById('{{ client_form.zip_code.id_for_label }}').value;
     }
 </script>

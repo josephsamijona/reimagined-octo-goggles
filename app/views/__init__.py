@@ -70,11 +70,6 @@ from .interpreter import (
 # Assignments (Internal)
 from .assignments import (
     AssignmentListView,
-    generate_ics_file,
-    send_completion_email,
-    send_confirmation_email,
-    send_admin_notification_email,
-    send_admin_rejection_email,
     accept_assignment,
     AssignmentDetailView,
     reject_assignment,

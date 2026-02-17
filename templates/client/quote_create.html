@@ -1,4 +1,4 @@
-{% extends "base_client.html" %}
+{% extends "layouts/base_client.html" %}
 
 {% block title %}New Quote Request - JHBRIDGE{% endblock %}
 {% block header_title %}New Quote Request{% endblock %}
@@ -162,6 +162,7 @@
             grid-template-columns: 1fr 1fr;
         }
     }
+
     /* Language Selection */
     .language-pair {
         display: grid;
@@ -270,7 +271,7 @@
         <!-- Service Details Section -->
         <div class="form-section">
             <h2 class="section-title">Service Details</h2>
-            
+
             <div class="form-group">
                 <label for="{{ form.service_type.id_for_label }}">Service Type</label>
                 {{ form.service_type }}
@@ -303,7 +304,7 @@
         <!-- Language Selection Section -->
         <div class="form-section">
             <h2 class="section-title">Languages</h2>
-            
+
             <div class="language-pair">
                 <div class="form-group">
                     <label for="{{ form.source_language.id_for_label }}">From</label>
@@ -330,7 +331,7 @@
         <!-- Location Section -->
         <div class="form-section">
             <h2 class="section-title">Location</h2>
-            
+
             <div class="form-group">
                 <label for="{{ form.location.id_for_label }}">Address</label>
                 {{ form.location }}
@@ -367,7 +368,7 @@
         <!-- Special Requirements Section -->
         <div class="form-section">
             <h2 class="section-title">Additional Information</h2>
-            
+
             <div class="form-group">
                 <label for="{{ form.special_requirements.id_for_label }}">Special Requirements</label>
                 {{ form.special_requirements }}
@@ -393,7 +394,7 @@
 
 {% block extra_js %}
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', function () {
         // Set minimum date for datetime input
         const dateInput = document.querySelector('input[type="datetime-local"]');
         if (dateInput) {
@@ -405,7 +406,7 @@
 
         // Form validation
         const form = document.getElementById('quoteRequestForm');
-        form.addEventListener('submit', function(e) {
+        form.addEventListener('submit', function (e) {
             // Add your custom validation logic here
             // Example: duration validation
             const duration = document.getElementById('{{ form.duration.id_for_label }}').value;

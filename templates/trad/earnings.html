@@ -1,4 +1,4 @@
-{% extends 'base_trad.html' %}
+{% extends 'layouts/base_trad.html' %}
 {% load static %}
 
 {% block title %}Earnings{% endblock %}
@@ -264,7 +264,9 @@
     }
 
     @keyframes spin {
-        to { transform: translate(-50%, -50%) rotate(360deg); }
+        to {
+            transform: translate(-50%, -50%) rotate(360deg);
+        }
     }
 </style>
 {% endblock %}

@@ -145,7 +145,7 @@ MIDDLEWARE = [
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.locale.LocaleMiddleware",  # Internationalisation middleware
     "whitenoise.middleware.WhiteNoiseMiddleware", 
-    "app.api_auth.middleware.APIKeyMiddleware",
+    # "app.api_auth.middleware.APIKeyMiddleware",
     'corsheaders.middleware.CorsMiddleware',
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -286,7 +286,8 @@ CSRF_TRUSTED_ORIGINS = os.getenv('CSRF_TRUSTED_ORIGINS', '').split(',') if os.ge
 
 # Email Configuration
 # Pour tester sans SMTP
-EMAIL_BACKEND = 'app.backends.resend_backend.ResendEmailBackend'
+# Pour tester sans SMTP
+EMAIL_BACKEND = 'app.utils.email_backend.ResendEmailBackend'
 RESEND_API_KEY = os.getenv('RESEND_API_KEY')
 DEFAULT_FROM_EMAIL = "dispatch@jhbridgetranslation.com"
 #QUOTE_NOTIFICATION_EMAIL = os.getenv('DEFAULT_FROM_EMAIL')

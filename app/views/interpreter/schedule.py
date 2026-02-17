@@ -14,12 +14,12 @@ def calendar_view(request):
     """
     if not request.user.registration_complete:
         # Affichage de la page de complétion d'inscription
-        return render(request, 'complete_registration.html', {
+        return render(request, 'accounts/complete_registration.html', {
             'user': request.user
         })
     # Vérifier si l'utilisateur a un profil d'interprète
     if not hasattr(request.user, 'interpreter_profile'):
-        return render(request, 'error.html', {
+        return render(request, 'pages/error.html', {
             'message': 'Access denied. Interpreter profile required.'
         })
         
@@ -164,7 +164,7 @@ def calendar_data_api(request, year, month):
     """
     if not request.user.registration_complete:
         # Affichage de la page de complétion d'inscription
-        return render(request, 'complete_registration.html', {
+        return render(request, 'accounts/complete_registration.html', {
             'user': request.user
         })
     if not hasattr(request.user, 'interpreter_profile'):
@@ -211,7 +211,7 @@ def daily_missions_api(request, date_str):
     """
     if not request.user.registration_complete:
         # Affichage de la page de complétion d'inscription
-        return render(request, 'complete_registration.html', {
+        return render(request, 'accounts/complete_registration.html', {
             'user': request.user
         })
     if not hasattr(request.user, 'interpreter_profile'):

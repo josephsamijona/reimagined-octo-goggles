@@ -1,0 +1,18 @@
+{% extends 'layouts/error.html' %}
+
+{% block title %}Restricted Area - 403{% endblock %}
+
+{% block content %}
+<div class="error-illustration">
+    <i class="fas fa-id-card"></i>
+</div>
+<h1 class="error-title">VIP Access Only</h1>
+<p class="error-message">
+    It looks like you don't have the necessary clearance for this area.
+    This section is reserved for authorized personnel only.
+    If you believe this is a mistake, please check your credentials or contact support.
+</p>
+<a href="/" class="btn">
+    <i class="fas fa-arrow-left"></i> Go Back
+</a>
+{% endblock %}

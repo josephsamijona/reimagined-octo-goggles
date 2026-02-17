@@ -579,7 +579,7 @@ class ContractConfirmationView(View):
             }
             
             # Rendu du template HTML
-            html_message = render_to_string('notifmail/contract_agreement_good.html', context)
+            html_message = render_to_string('emails/assignments/contract_agreement_good.html', context)
             plain_message = strip_tags(html_message)
             
             # Ligne d'objet

@@ -29,7 +29,7 @@ from .utils import format_decimal, generate_document_number
 class PayrollCreateView(CreateView):
     model = PayrollDocument
     form_class = PayrollDocumentForm
-    template_name = 'payroll_form.html'
+    template_name = 'payroll/form.html'
     success_url = reverse_lazy('dbdint:payroll_list')
 
     def get_context_data(self, **kwargs):
@@ -142,7 +142,7 @@ class PayrollCreateView(CreateView):
 
 class PayrollDetailView(DetailView):
     model = PayrollDocument
-    template_name = 'payroll_template.html'
+    template_name = 'payroll/template.html'
     context_object_name = 'payroll'
 
     def get_context_data(self, **kwargs):
@@ -202,7 +202,7 @@ class PayrollDetailView(DetailView):
         return super().get(request, *args, **kwargs)
 
 class PayrollPreviewView(DetailView):
-    template_name = 'payroll_template.html'
+    template_name = 'payroll/template.html'
     context_object_name = 'payroll'
 
     def post(self, request, *args, **kwargs):
@@ -302,7 +302,7 @@ class PayrollPreviewView(DetailView):
                 'is_preview': True
             }
             
-            return render(request, 'payroll_template.html', context)
+            return render(request, 'payroll/template.html', context)
         else:
             return JsonResponse({
                 'status': 'error',

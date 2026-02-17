@@ -160,13 +160,13 @@ def stats_view(request):
 
     if not request.user.registration_complete:
         # Affichage de la page de complétion d'inscription
-        return render(request, 'complete_registration.html', {
+        return render(request, 'accounts/complete_registration.html', {
             'user': request.user
         })
     # Vérifier si l'utilisateur a un profil d'interprète
     if not hasattr(request.user, 'interpreter_profile'):
         logger.error(f"User {request.user.username} does not have interpreter profile")
-        return render(request, 'error.html', {
+        return render(request, 'pages/error.html', {
             'message': 'Access denied. Interpreter profile required.'
         })
 
@@ -332,7 +332,7 @@ def stats_view(request):
     except Exception as e:
         logger.error(f"Error in stats_view: {str(e)}")
         logger.error(f"Full traceback: {traceback.format_exc()}")
-        return render(request, 'error.html', {
+        return render(request, 'pages/error.html', {
             'message': f'An error occurred while loading statistics: {str(e)}'
         })
 
@@ -343,7 +343,7 @@ def earnings_data_api(request, period):
     """
     if not request.user.registration_complete:
         # Affichage de la page de complétion d'inscription
-        return render(request, 'complete_registration.html', {
+        return render(request, 'accounts/complete_registration.html', {
             'user': request.user
         })
     if not hasattr(request.user, 'interpreter_profile'):
@@ -445,11 +445,11 @@ class PaymentListView(ListView):
             
         if not request.user.registration_complete:
         # Affichage de la page de complétion d'inscription
-            return render(request, 'complete_registration.html', {
+            return render(request, 'accounts/complete_registration.html', {
             'user': request.user
         })
         if not hasattr(request.user, 'interpreter_profile'):
-            return render(request, 'error.html', {
+            return render(request, 'pages/error.html', {
                 'message': 'Access denied. Interpreter profile required.'
             })
             

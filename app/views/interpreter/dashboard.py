@@ -22,12 +22,12 @@ def dashboard_view(request):
     # Vérification si l'inscription est complète
     if not request.user.registration_complete:
         # Affichage de la page de complétion d'inscription
-        return render(request, 'complete_registration.html', {
+        return render(request, 'accounts/complete_registration.html', {
             'user': request.user
         })
     
     if not hasattr(request.user, 'interpreter_profile'):
-        return render(request, 'error.html', {
+        return render(request, 'pages/error.html', {
             'message': 'Access denied. Interpreter profile required.'
         })
 
@@ -71,7 +71,7 @@ def dashboard_view(request):
         return render(request, 'interpreter/int_main.html', context)
 
     except Exception as e:
-        return render(request, 'error.html', {
+        return render(request, 'pages/error.html', {
             'message': f'An error occurred: {str(e)}'
         })
 

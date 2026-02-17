@@ -1,4 +1,4 @@
-{% extends 'base_trad.html' %}
+{% extends 'layouts/base_trad.html' %}
 {% load static %}
 {% block title %}Home{% endblock %}
 
@@ -186,6 +186,7 @@
             transform: translateX(-100%);
             opacity: 0;
         }
+
         to {
             transform: translateX(0);
             opacity: 1;
@@ -287,7 +288,7 @@
                 <i class="fas fa-chart-line"></i>
                 Performance
             </h2>
-            
+
             <div class="performance-metric">
                 <div class="metric-icon">
                     <i class="fas fa-star"></i>
@@ -298,7 +299,8 @@
                         <span>{{ performance.average_rating|floatformat:1 }}/5.0</span>
                     </div>
                     <div class="progress-bar">
-                        <div class="progress-fill" style="width: {% widthratio performance.average_rating 5 100 %}%"></div>
+                        <div class="progress-fill" style="width: {% widthratio performance.average_rating 5 100 %}%">
+                        </div>
                     </div>
                 </div>
             </div>
@@ -371,7 +373,7 @@
 
 {% block extra_js %}
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', function () {
         const statCards = document.querySelectorAll('.stat-card');
         statCards.forEach((card, index) => {
             setTimeout(() => {

@@ -10,7 +10,7 @@ from ..forms import PublicQuoteRequestForm, ContactForm
 from ..models import PublicQuoteRequest, ContactMessage
 
 class ChooseRegistrationTypeView(TemplateView):
-    template_name = 'choose_registration.html'
+    template_name = 'accounts/choose_registration.html'
 
     def dispatch(self, request, *args, **kwargs):
         if request.user.is_authenticated:
