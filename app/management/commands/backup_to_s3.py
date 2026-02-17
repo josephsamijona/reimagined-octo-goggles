@@ -6,7 +6,8 @@ Safely exports Django database to AWS S3 using dumpdata (no mysqldump required)
 import os
 import gzip
 import hashlib
-import tempfile
+import logging
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -41,11 +42,53 @@ class Command(BaseCommand):
             help='Days to keep local backups (default: 7)'
         )
 
+    def _setup_logging(self):
+        """Configure logging to both file and console"""
+        log_file = Path("backup.log")
+        
+        # Create logger
+        self.logger = logging.getLogger("django.backup")
+        self.logger.setLevel(logging.INFO)
+        
+        # Prevent duplicate handlers
+        if self.logger.hasHandlers():
+            self.logger.handlers.clear()
+
+        # Formatters
+        file_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+        
+        # File Handler
+        fh = logging.FileHandler(log_file, encoding='utf-8')
+        fh.setFormatter(file_formatter)
+        self.logger.addHandler(fh)
+
+        # Success/Error style helper
+        self.STYLE_SUCCESS = self.style.SUCCESS
+        self.STYLE_WARNING = self.style.WARNING
+        self.STYLE_ERROR = self.style.ERROR
+
+    def log(self, message, level="info", style=None):
+        """Helper to log to file and write to stdout with Django styling"""
+        if level == "info":
+            self.logger.info(message)
+            out_msg = style(message) if style else message
+            self.stdout.write(out_msg)
+        elif level == "error":
+            self.logger.error(message)
+            self.stdout.write(self.style.ERROR(message))
+        elif level == "warning":
+            self.logger.warning(message)
+            self.stdout.write(self.style.WARNING(message))
+
     def handle(self, *args, **options):
+        self._setup_logging()
+        
+        start_time_total = time.perf_counter()
+        
         self.stdout.write("=" * 80)
-        self.stdout.write(self.style.SUCCESS("DJANGO DATABASE BACKUP TO AWS S3"))
+        self.log("DJANGO DATABASE BACKUP TO AWS S3", style=self.STYLE_SUCCESS)
         self.stdout.write("=" * 80)
-        self.stdout.write(f"Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        self.log(f"Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
 
         try:
             # Initialize
@@ -60,27 +103,50 @@ class Command(BaseCommand):
             # Initialize S3
             self.s3_client = self._init_s3_client()
             
-            # Execute backup process
+            # 1. Bucket Check
+            step_start = time.perf_counter()
             self._create_s3_bucket()
+            self.log(f"   [Step Duration: {time.perf_counter() - step_start:.2f}s]")
+            
+            # 2. Database Export
+            step_start = time.perf_counter()
             backup_file = self._export_database()
+            self.log(f"   [Step Duration: {time.perf_counter() - step_start:.2f}s]")
+            
+            # 3. Checksum
+            step_start = time.perf_counter()
             checksum = self._calculate_checksum(backup_file)
+            self.log(f"   [Step Duration: {time.perf_counter() - step_start:.2f}s]")
+            
+            # 4. Integrity
+            step_start = time.perf_counter()
             self._verify_backup(backup_file)
+            self.log(f"   [Step Duration: {time.perf_counter() - step_start:.2f}s]")
+            
+            # 5. S3 Upload
+            step_start = time.perf_counter()
             upload_info = self._upload_to_s3(backup_file, checksum)
+            self.log(f"   [Step Duration: {time.perf_counter() - step_start:.2f}s]")
+            
+            # 6. Cleanup
+            step_start = time.perf_counter()
             self._cleanup_old_backups()
+            self.log(f"   [Step Duration: {time.perf_counter() - step_start:.2f}s]")
             
             # Success summary
+            total_duration = time.perf_counter() - start_time_total
             self.stdout.write("\n" + "=" * 80)
-            self.stdout.write(self.style.SUCCESS("BACKUP COMPLETED SUCCESSFULLY ✓"))
+            self.log("BACKUP COMPLETED SUCCESSFULLY ✓", style=self.STYLE_SUCCESS)
             self.stdout.write("=" * 80)
-            self.stdout.write(f"Local file: {backup_file}")
-            self.stdout.write(f"S3 location: s3://{self.bucket_name}/{upload_info['s3_key']}")
-            self.stdout.write(f"File size: {upload_info['size'] / (1024*1024):.2f} MB")
-            self.stdout.write(f"Checksum: {checksum}")
-            self.stdout.write(f"Download URL (7 days): {upload_info['download_url'][:80]}...")
+            self.log(f"Total time: {total_duration:.2f} seconds")
+            self.log(f"Local file: {backup_file}")
+            self.log(f"S3 location: s3://{self.bucket_name}/{upload_info['s3_key']}")
+            self.log(f"File size: {upload_info['size'] / (1024*1024):.2f} MB")
+            self.log(f"Checksum: {checksum}")
             
         except Exception as e:
             self.stdout.write("\n" + "=" * 80)
-            self.stdout.write(self.style.ERROR(f"BACKUP FAILED: {e}"))
+            self.log(f"BACKUP FAILED: {e}", level="error")
             self.stdout.write("=" * 80)
             raise CommandError(f"Backup failed: {e}")
 
@@ -101,15 +167,15 @@ class Command(BaseCommand):
 
     def _create_s3_bucket(self):
         """Create S3 bucket if it doesn't exist"""
-        self.stdout.write(f"[1/5] Checking/Creating S3 bucket: {self.bucket_name}")
+        self.log(f"[1/6] Checking S3 bucket: {self.bucket_name}")
         
         try:
             self.s3_client.head_bucket(Bucket=self.bucket_name)
-            self.stdout.write(self.style.SUCCESS(f"✓ Bucket '{self.bucket_name}' exists"))
+            self.log(f"   ✓ Bucket exists", style=self.STYLE_SUCCESS)
             
         except ClientError as e:
             if e.response['Error']['Code'] == '404':
-                self.stdout.write(f"Creating bucket '{self.bucket_name}'...")
+                self.log(f"   Bucket '{self.bucket_name}' not found. Creating...")
                 
                 self.s3_client.create_bucket(
                     Bucket=self.bucket_name,
@@ -135,31 +201,30 @@ class Command(BaseCommand):
                         }]
                     }
                 )
-                
-                self.stdout.write(self.style.SUCCESS("✓ Bucket created with versioning"))
+                self.log(f"   ✓ Bucket created with versioning", style=self.STYLE_SUCCESS)
             else:
                 raise
 
     def _export_database(self):
-        """Export database using Django's dumpdata"""
+        """Export database using Django's dumpdata with compression"""
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         json_file = self.backup_dir / f"backup_{timestamp}.json"
         backup_file = self.backup_dir / f"backup_{timestamp}.json.gz"
         
-        self.stdout.write(f"[2/5] Exporting database: {backup_file.name}")
+        self.log(f"[2/6] Exporting database to {backup_file.name}")
         
         try:
             # Build exclude list
-            exclude_list = []
+            exclude_args = []
             for app in self.exclude_apps:
-                exclude_list.extend(['--exclude', app])
+                exclude_args.extend(['--exclude', app])
             
             # Export to JSON
-            self.stdout.write("Running dumpdata...")
+            self.log("   -> Dumping data to JSON...")
             with open(json_file, 'w', encoding='utf-8') as f:
                 call_command(
                     'dumpdata',
-                    *exclude_list,
+                    *exclude_args,
                     indent=2,
                     use_natural_foreign_keys=True,
                     use_natural_primary_keys=True,
@@ -167,15 +232,16 @@ class Command(BaseCommand):
                 )
             
             json_size = json_file.stat().st_size
-            self.stdout.write(f"JSON export: {json_size / (1024*1024):.2f} MB")
+            self.log(f"   ✓ JSON export complete ({json_size / (1024*1024):.2f} MB)")
             
             # Compress with progress
-            self.stdout.write("Compressing...")
+            self.log("   -> Compressing file...")
             with open(json_file, 'rb') as f_in:
                 with gzip.open(backup_file, 'wb', compresslevel=9) as f_out:
-                    with tqdm(total=json_size, desc="Compressing", unit="B", unit_scale=True, ncols=100) as pbar:
+                    with tqdm(total=json_size, desc="      Progress", unit="B", unit_scale=True, 
+                              leave=False, colour="green", dynamic_ncols=True) as pbar:
                         while True:
-                            chunk = f_in.read(8192)
+                            chunk = f_in.read(65536)
                             if not chunk:
                                 break
                             f_out.write(chunk)
@@ -185,67 +251,57 @@ class Command(BaseCommand):
             json_file.unlink()
             
             compressed_size = backup_file.stat().st_size
-            compression_ratio = (1 - compressed_size / json_size) * 100
+            ratio = (1 - compressed_size / json_size) * 100
             
-            self.stdout.write(self.style.SUCCESS(
-                f"✓ Backup created: {compressed_size / (1024*1024):.2f} MB "
-                f"(compression: {compression_ratio:.1f}%)"
-            ))
+            self.log(f"   ✓ Compression complete ({compressed_size / (1024*1024):.2f} MB, {ratio:.1f}% reduced)", 
+                     style=self.STYLE_SUCCESS)
             
             return backup_file
             
         except Exception as e:
-            if json_file.exists():
-                json_file.unlink()
-            if backup_file.exists():
-                backup_file.unlink()
+            if json_file.exists(): json_file.unlink()
+            if backup_file.exists(): backup_file.unlink()
             raise CommandError(f"Export failed: {e}")
 
     def _calculate_checksum(self, file_path):
-        """Calculate SHA256 checksum"""
-        self.stdout.write("[3/5] Calculating checksum...")
+        """Calculate SHA256 checksum with progress"""
+        self.log("[3/6] Calculating SHA256 checksum")
         
         sha256_hash = hashlib.sha256()
         file_size = file_path.stat().st_size
         
         with open(file_path, "rb") as f:
-            with tqdm(total=file_size, desc="Computing checksum", unit="B", unit_scale=True, ncols=100) as pbar:
-                for byte_block in iter(lambda: f.read(4096), b""):
-                    sha256_hash.update(byte_block)
-                    pbar.update(len(byte_block))
+            with tqdm(total=file_size, desc="      Hashing", unit="B", unit_scale=True, 
+                      leave=False, colour="cyan", dynamic_ncols=True) as pbar:
+                for chunk in iter(lambda: f.read(65536), b""):
+                    sha256_hash.update(chunk)
+                    pbar.update(len(chunk))
         
         checksum = sha256_hash.hexdigest()
-        self.stdout.write(self.style.SUCCESS(f"✓ Checksum: {checksum}"))
+        self.log(f"   ✓ Checksum: {checksum[:16]}...", style=self.STYLE_SUCCESS)
         return checksum
 
     def _verify_backup(self, file_path):
         """Verify backup integrity"""
-        self.stdout.write("[4/5] Verifying backup integrity...")
+        self.log("[4/6] Verifying archive integrity")
         
         try:
-            # Test gzip decompression
             with gzip.open(file_path, 'rb') as f:
-                # Read first 1KB to verify it's valid gzip
-                f.read(1024)
-            
-            self.stdout.write(self.style.SUCCESS("✓ Backup integrity verified"))
-            
+                f.read(1024 * 1024) # Test read first MB
+            self.log("   ✓ Integrity check passed", style=self.STYLE_SUCCESS)
         except Exception as e:
-            raise CommandError(f"Backup verification failed: {e}")
+            raise CommandError(f"Integrity verification failed: {e}")
 
     def _upload_to_s3(self, file_path, checksum):
-        """Upload backup to S3"""
+        """Upload backup to S3 with progress"""
         s3_key = f"backups/{file_path.name}"
-        
-        self.stdout.write(f"[5/5] Uploading to S3: s3://{self.bucket_name}/{s3_key}")
+        self.log(f"[5/6] Uploading to S3: {s3_key}")
         
         file_size = file_path.stat().st_size
         
         try:
-            # Upload with progress
-            with tqdm(total=file_size, desc="Uploading to S3", unit="B", unit_scale=True, ncols=100) as pbar:
-                def upload_callback(bytes_transferred):
-                    pbar.update(bytes_transferred)
+            with tqdm(total=file_size, desc="      Uploading", unit="B", unit_scale=True, 
+                      leave=False, colour="blue", dynamic_ncols=True) as pbar:
                 
                 self.s3_client.upload_file(
                     str(file_path),
@@ -255,53 +311,34 @@ class Command(BaseCommand):
                         'Metadata': {
                             'checksum-sha256': checksum,
                             'backup-date': datetime.now().isoformat(),
-                            'django-version': settings.VERSION if hasattr(settings, 'VERSION') else 'unknown',
-                            'format': 'json-gzip'
                         },
                         'StorageClass': 'STANDARD_IA'
                     },
-                    Callback=upload_callback
+                    Callback=lambda b: pbar.update(b)
                 )
             
-            # Verify upload
-            response = self.s3_client.head_object(
-                Bucket=self.bucket_name,
-                Key=s3_key
-            )
+            # Verify upload size
+            response = self.s3_client.head_object(Bucket=self.bucket_name, Key=s3_key)
+            if response['ContentLength'] != file_size:
+                raise CommandError("Upload size mismatch!")
             
-            uploaded_size = response['ContentLength']
-            
-            if uploaded_size != file_size:
-                raise CommandError(f"Upload verification failed: size mismatch")
-            
-            self.stdout.write(self.style.SUCCESS(f"✓ Upload successful: {uploaded_size / (1024*1024):.2f} MB"))
-            
-            # Generate download URL
-            download_url = self.s3_client.generate_presigned_url(
-                'get_object',
-                Params={'Bucket': self.bucket_name, 'Key': s3_key},
-                ExpiresIn=604800  # 7 days
-            )
-            
-            return {
-                's3_key': s3_key,
-                'size': uploaded_size,
-                'download_url': download_url
-            }
+            self.log(f"   ✓ Upload successful", style=self.STYLE_SUCCESS)
+            return {'s3_key': s3_key, 'size': file_size}
             
         except Exception as e:
             raise CommandError(f"Upload failed: {e}")
 
     def _cleanup_old_backups(self):
         """Remove old local backups"""
-        self.stdout.write(f"Cleaning up local backups older than {self.keep_local_days} days...")
+        self.log(f"[6/6] Cleaning up local backups (> {self.keep_local_days} days)")
         
-        cutoff_time = datetime.now().timestamp() - (self.keep_local_days * 86400)
+        cutoff = time.time() - (self.keep_local_days * 86400)
         deleted = 0
         
-        for backup_file in self.backup_dir.glob("backup_*.json.gz"):
-            if backup_file.stat().st_mtime < cutoff_time:
-                backup_file.unlink()
+        for f in self.backup_dir.glob("backup_*.json.gz"):
+            if f.stat().st_mtime < cutoff:
+                f.unlink()
                 deleted += 1
         
-        self.stdout.write(self.style.SUCCESS(f"✓ Cleaned up {deleted} old backup(s)"))
+        self.log(f"   ✓ Removed {deleted} old local files", style=self.STYLE_SUCCESS)
+
