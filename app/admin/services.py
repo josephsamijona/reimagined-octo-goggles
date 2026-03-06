@@ -33,6 +33,10 @@ class CustomAssignmentForm(forms.ModelForm):
         self.fields['client_name'].required = False
         self.fields['client_email'].required = False
         self.fields['client_phone'].required = False
+        
+        # Override interpreter dropdown labels
+        if 'interpreter' in self.fields:
+            self.fields['interpreter'].label_from_instance = lambda obj: f"{obj.user.first_name} {obj.user.last_name} - {obj.address}, {obj.city}, {obj.state}" if obj.user else f"Interprète #{obj.id}"
 
     def clean(self):
         cleaned_data = super().clean()
@@ -143,21 +147,22 @@ class AssignmentAdmin(AssignmentAdminMixin, admin.ModelAdmin):
         'interpreter__user__first_name', 
         'interpreter__user__last_name'
     )
-    raw_id_fields = ('quote', 'interpreter', 'client')
+    raw_id_fields = ('quote', 'client')
     readonly_fields = (
         'created_at', 
         'updated_at', 
         'completed_at', 
         'total_interpreter_payment',
         'formatted_start_time_detail',
-        'formatted_end_time_detail'
+        'formatted_end_time_detail',
+        'get_interpreter_details'
     )
 
     fieldsets = (
         ('Assignment Information', {
             'fields': (
                 ('quote', 'service_type'), 
-                ('interpreter',),
+                ('interpreter', 'get_interpreter_details'),
                 ('client',),  # Existing client
                 ('client_name', 'client_email', 'client_phone')  # New client
             ),
@@ -274,6 +279,16 @@ class AssignmentAdmin(AssignmentAdminMixin, admin.ModelAdmin):
             return f"{obj.interpreter.user.first_name} {obj.interpreter.user.last_name}"
         return "-"
     get_interpreter.short_description = 'Interpreter'
+
+    def get_interpreter_details(self, obj):
+        """Display selected interpreter name and full address"""
+        if obj.interpreter:
+            name = f"{obj.interpreter.user.first_name} {obj.interpreter.user.last_name}"
+            # Check if address exists, otherwise provide a fallback
+            address = f"{obj.interpreter.address}, {obj.interpreter.city}, {obj.interpreter.state} {obj.interpreter.zip_code}" if obj.interpreter.address else "Pas d'adresse"
+            return f"{name} - {address}"
+        return "-"
+    get_interpreter_details.short_description = 'Interpreter Details'
 
     def formatted_start_time(self, obj):
         """Pour l'affichage en liste"""
