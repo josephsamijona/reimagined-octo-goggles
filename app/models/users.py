@@ -129,12 +129,14 @@ class Interpreter(models.Model):
     def __str__(self):
         """Retourne une représentation lisible de l'interprète"""
         if self.user:
-            # Format: Nom Prénom - Email - Langues
+            # Format: Nom Prénom - Email - Langues - Adresse
             languages_str = ', '.join([lang.name for lang in self.languages.all()[:3]])
             if self.languages.count() > 3:
                 languages_str += f" +{self.languages.count() - 3} autres"
+            
+            address_str = f"{self.address}, {self.city}, {self.state} {self.zip_code}" if self.address else "Pas d'adresse"
                 
-            return f"{self.user.first_name} {self.user.last_name} ({self.user.email})"
+            return f"{self.user.first_name} {self.user.last_name} ({self.user.email}) - {address_str}"
         return f"Interprète #{self.id}"
         
     def get_full_details(self):
