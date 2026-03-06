@@ -62,6 +62,7 @@ class InterpreterAdmin(admin.ModelAdmin):
     list_display = (
         'get_full_name',
         'get_languages',
+        'address',
         'city', 
         'state',
         'active',
@@ -82,6 +83,7 @@ class InterpreterAdmin(admin.ModelAdmin):
         'user__email',
         'user__first_name',
         'user__last_name',
+        'address',
         'city',
         'state',
         'zip_code',
