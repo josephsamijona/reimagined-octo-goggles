@@ -10,6 +10,7 @@ from .documents import (
 )
 from .contracts import ContractInvitation, ContractTrackingEvent
 from .reminders import ContractReminder
+from .onboarding import OnboardingInvitation, OnboardingTrackingEvent
 
 __all__ = [
     # Users & Profiles
@@ -29,6 +30,8 @@ __all__ = [
     # Contracts
     'ContractInvitation', 'ContractTrackingEvent',
     'ContractReminder',
+    # Onboarding
+    'OnboardingInvitation', 'OnboardingTrackingEvent',
     # Utils (for migrations)
     'get_expiration_time', 'signature_upload_path', 'pdf_upload_path',
 ]

@@ -8,6 +8,7 @@ from custom_storages import ContractStorage
 
 logger = logging.getLogger(__name__)
 
+
 class ContractEmailService:
     """
     Service to handle sending contract-related emails with tracking.
@@ -22,9 +23,8 @@ class ContractEmailService:
             interpreter = invitation.interpreter
             user = interpreter.user
             
-            # Construct URLs using hardcoded base URL based on user preference
-            base_url = "https://jhbridges.up.railway.app"
-            
+            base_url = getattr(settings, 'SITE_URL', 'https://jhbridges.up.railway.app').rstrip('/')
+
             accept_path = reverse('dbdint:contract_direct_accept', kwargs={'accept_token': invitation.accept_token})
             review_path = reverse('dbdint:contract_review_link', kwargs={'review_token': invitation.review_token})
             tracking_path = reverse('dbdint:contract_tracking_pixel', kwargs={'token': invitation.token})
@@ -145,6 +145,52 @@ class ContractEmailService:
             logger.error("------------------------")
             # Re-raise to alert caller if needed
             raise e
+
+class OnboardingEmailService:
+    """Service for sending onboarding invitation emails."""
+
+    @classmethod
+    def send_invitation_email(cls, onboarding_invitation, request=None):
+        """Send the onboarding invitation email with tracking pixel."""
+        try:
+            base_url = getattr(settings, 'SITE_URL', 'https://jhbridges.up.railway.app').rstrip('/')
+
+            onboarding_path = reverse('dbdint:onboarding_entry', kwargs={'token': onboarding_invitation.token})
+            tracking_path = reverse('dbdint:onboarding_tracking_pixel', kwargs={'token': onboarding_invitation.token})
+
+            onboarding_url = f"{base_url}{onboarding_path}"
+            tracking_pixel_url = f"{base_url}{tracking_path}"
+
+            context = {
+                'first_name': onboarding_invitation.first_name,
+                'last_name': onboarding_invitation.last_name,
+                'full_name': onboarding_invitation.full_name,
+                'onboarding_url': onboarding_url,
+                'tracking_pixel_url': tracking_pixel_url,
+                'invitation_number': onboarding_invitation.invitation_number,
+            }
+
+            html_message = render_to_string('emails/onboarding/invitation.html', context)
+
+            logger.info(f"Sending onboarding invitation {onboarding_invitation.invitation_number} to {onboarding_invitation.email}")
+
+            sent_count = send_mail(
+                subject='Welcome to JHBridge Translation Services!',
+                message='',
+                html_message=html_message,
+                from_email='JHBridge Team <team@jhbridgetranslation.com>',
+                recipient_list=[onboarding_invitation.email],
+                fail_silently=False,
+            )
+
+            return sent_count > 0
+
+        except Exception as e:
+            logger.error(f"Failed to send onboarding invitation email: {e}", exc_info=True)
+            logger.error(f"EMAIL_BACKEND: {getattr(settings, 'EMAIL_BACKEND', 'Not Set')}")
+            logger.error(f"RESEND_API_KEY set: {bool(getattr(settings, 'RESEND_API_KEY', None))}")
+            return False
+
 
 class ContractReminderService:
     """

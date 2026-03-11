@@ -7,6 +7,7 @@ from .communication import NotificationAdmin, ContactMessageAdmin
 from .security import AuditLogAdmin, APIKeyAdmin, PGPKeyAdmin
 from .documents import InterpreterContractSignatureAdmin, DocumentAdmin
 from .contracts import ContractInvitationAdmin
+from .onboarding import OnboardingInvitationAdmin
 
 # =======================================================
 # CONFIGURATION DU SITE ADMIN

@@ -1,0 +1,1073 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to JHBridge - Onboarding</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --deep-blue: #1d3557;
+            --action-blue: #2b50a1;
+            --growth-green: #76b041;
+            --light-bg: #f0f4f8;
+            --white: #ffffff;
+            --text-dark: #2d3748;
+            --text-muted: #718096;
+            --border: #e2e8f0;
+            --danger: #e53e3e;
+            --warning: #dd6b20;
+            --shadow: 0 4px 20px rgba(0,0,0,0.08);
+            --shadow-lg: 0 10px 40px rgba(0,0,0,0.12);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--light-bg);
+            color: var(--text-dark);
+            min-height: 100vh;
+        }
+
+        /* Progress Bar */
+        .progress-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: var(--border);
+            z-index: 100;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--action-blue), var(--growth-green));
+            transition: width 0.5s ease;
+            width: 0%;
+        }
+
+        /* Phase Indicator */
+        .phase-indicator {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: var(--white);
+            padding: 12px 20px;
+            border-radius: 50px;
+            box-shadow: var(--shadow);
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--action-blue);
+            z-index: 99;
+        }
+
+        /* Container */
+        .onboarding-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 40px 20px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        /* Phase sections */
+        .phase { display: none; }
+        .phase.active { display: block; animation: fadeIn 0.5s ease; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes slideInRight {
+            from { opacity: 0; transform: translateX(60px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        @keyframes slideInLeft {
+            from { opacity: 0; transform: translateX(-60px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        /* Welcome Slides */
+        .slide-container {
+            position: relative;
+            overflow: hidden;
+        }
+        .slide { display: none; }
+        .slide.active {
+            display: block;
+            animation: slideInRight 0.4s ease;
+        }
+        .slide.slide-back {
+            animation: slideInLeft 0.4s ease;
+        }
+
+        .slide-card {
+            background: var(--white);
+            border-radius: 20px;
+            padding: 60px 50px;
+            box-shadow: var(--shadow-lg);
+            text-align: center;
+            min-height: 450px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .slide-icon {
+            font-size: 72px;
+            margin-bottom: 30px;
+        }
+
+        .slide-card h1 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 32px;
+            color: var(--deep-blue);
+            margin-bottom: 16px;
+        }
+
+        .slide-card h2 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 26px;
+            color: var(--deep-blue);
+            margin-bottom: 16px;
+        }
+
+        .slide-card p {
+            font-size: 16px;
+            color: var(--text-muted);
+            line-height: 1.7;
+            max-width: 550px;
+            margin: 0 auto;
+        }
+
+        .slide-card ul {
+            text-align: left;
+            max-width: 450px;
+            margin: 20px auto;
+            list-style: none;
+        }
+
+        .slide-card ul li {
+            padding: 10px 0;
+            padding-left: 35px;
+            position: relative;
+            font-size: 15px;
+            color: var(--text-dark);
+            line-height: 1.5;
+        }
+
+        .slide-card ul li::before {
+            content: attr(data-icon);
+            position: absolute;
+            left: 0;
+            font-size: 20px;
+        }
+
+        /* Slide Navigation */
+        .slide-nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 30px;
+        }
+
+        .slide-dots {
+            display: flex;
+            gap: 8px;
+        }
+
+        .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--border);
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .dot.active {
+            background: var(--action-blue);
+            width: 30px;
+            border-radius: 5px;
+        }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 14px 32px;
+            border: none;
+            border-radius: 12px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--action-blue), var(--deep-blue));
+            color: white;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(43,80,161,0.4);
+        }
+
+        .btn-green {
+            background: linear-gradient(135deg, var(--growth-green), #5a9c2e);
+            color: white;
+            font-size: 18px;
+            padding: 18px 40px;
+        }
+        .btn-green:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(118,176,65,0.4);
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 2px solid var(--border);
+            color: var(--text-muted);
+        }
+        .btn-outline:hover {
+            border-color: var(--action-blue);
+            color: var(--action-blue);
+        }
+
+        .btn-ghost {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            padding: 14px 20px;
+        }
+
+        /* Form Card */
+        .form-card {
+            background: var(--white);
+            border-radius: 20px;
+            padding: 50px;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .form-card h2 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 28px;
+            color: var(--deep-blue);
+            margin-bottom: 8px;
+        }
+
+        .form-card .subtitle {
+            color: var(--text-muted);
+            font-size: 15px;
+            margin-bottom: 30px;
+        }
+
+        /* Form Elements */
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            font-weight: 600;
+            font-size: 13px;
+            color: var(--text-dark);
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .form-group input[type="text"],
+        .form-group input[type="email"],
+        .form-group input[type="password"],
+        .form-group input[type="number"],
+        .form-group input[type="tel"],
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid var(--border);
+            border-radius: 10px;
+            font-size: 15px;
+            font-family: 'Inter', sans-serif;
+            transition: border-color 0.3s;
+            background: var(--white);
+        }
+
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: var(--action-blue);
+        }
+
+        .form-group input[readonly] {
+            background: #f7fafc;
+            color: var(--text-muted);
+        }
+
+        .form-group select[multiple] {
+            min-height: 120px;
+        }
+
+        .form-group textarea {
+            min-height: 80px;
+            resize: vertical;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .form-row-3 {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 16px;
+        }
+
+        /* Radio/Checkbox groups */
+        .radio-group, .checkbox-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 6px;
+        }
+
+        .radio-option, .checkbox-option {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 16px;
+            border: 2px solid var(--border);
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 14px;
+        }
+
+        .radio-option:has(input:checked),
+        .checkbox-option:has(input:checked) {
+            border-color: var(--action-blue);
+            background: #edf2f7;
+        }
+
+        .radio-option input,
+        .checkbox-option input {
+            width: auto;
+            margin: 0;
+        }
+
+        /* Section divider */
+        .section-divider {
+            border: none;
+            border-top: 2px solid var(--border);
+            margin: 30px 0;
+        }
+
+        .section-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 20px;
+            color: var(--deep-blue);
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--border);
+        }
+
+        /* Password strength */
+        .password-strength {
+            margin-top: 6px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .strength-weak { color: var(--danger); }
+        .strength-medium { color: var(--warning); }
+        .strength-strong { color: var(--growth-green); }
+
+        /* Error messages */
+        .messages {
+            margin-bottom: 20px;
+        }
+        .alert {
+            padding: 12px 16px;
+            border-radius: 10px;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+        .alert-error {
+            background: #fed7d7;
+            color: #9b2c2c;
+            border: 1px solid #feb2b2;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .onboarding-container { padding: 20px 16px; }
+            .slide-card { padding: 40px 24px; min-height: auto; }
+            .slide-card h1 { font-size: 24px; }
+            .slide-card h2 { font-size: 20px; }
+            .form-card { padding: 30px 24px; }
+            .form-row, .form-row-3 { grid-template-columns: 1fr; }
+            .phase-indicator { top: 10px; right: 10px; font-size: 11px; padding: 8px 14px; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Progress Bar -->
+    <div class="progress-bar">
+        <div class="progress-fill" id="progressFill"></div>
+    </div>
+
+    <!-- Logo -->
+    <div style="position: fixed; top: 16px; left: 20px; z-index: 99;">
+        <img src="https://jhbridgetranslation.com/images/logo.png" alt="JHBridge" style="height: 40px;">
+    </div>
+
+    <!-- Phase Indicator -->
+    <div class="phase-indicator" id="phaseIndicator">
+        {% if phase == 'welcome' %}Step 1 of 4 - Welcome{% endif %}
+        {% if phase == 'account' %}Step 2 of 4 - Account{% endif %}
+        {% if phase == 'profile' %}Step 3 of 4 - Profile{% endif %}
+    </div>
+
+    <div class="onboarding-container">
+        {% if messages %}
+        <div class="messages">
+            {% for message in messages %}
+            <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- ============================================ -->
+        <!-- PHASE 1: WELCOME SLIDES                      -->
+        <!-- ============================================ -->
+        {% if phase == 'welcome' %}
+        <div class="phase active" id="phaseWelcome">
+            <div class="slide-container">
+                <!-- Slide 1: Welcome -->
+                <div class="slide active" data-slide="1">
+                    <div class="slide-card">
+                        <div class="slide-icon">&#127919;</div>
+                        <h1>Welcome to JHBridge, {{ first_name }}!</h1>
+                        <p>We're thrilled to have you join our team of professional interpreters. In the next few minutes, we'll walk you through everything you need to know to get started.</p>
+                    </div>
+                </div>
+
+                <!-- Slide 2: How It Works -->
+                <div class="slide" data-slide="2">
+                    <div class="slide-card">
+                        <div class="slide-icon">&#128640;</div>
+                        <h2>How Assignments Work</h2>
+                        <ul>
+                            <li data-icon="&#128233;">You receive an assignment notification via email</li>
+                            <li data-icon="&#9989;">Accept or decline directly from the email link</li>
+                            <li data-icon="&#128197;">Confirmed assignments appear on your dashboard calendar</li>
+                            <li data-icon="&#128205;">Arrive 15 minutes early to on-site assignments</li>
+                            <li data-icon="&#9989;">Mark assignments as complete when finished</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Slide 3: Your Dashboard -->
+                <div class="slide" data-slide="3">
+                    <div class="slide-card">
+                        <div class="slide-icon">&#128202;</div>
+                        <h2>Your Dashboard</h2>
+                        <p>Once onboarded, you'll have access to your personal dashboard where you can:</p>
+                        <ul>
+                            <li data-icon="&#128197;">View upcoming assignments and your schedule</li>
+                            <li data-icon="&#128176;">Track your earnings </li>
+                            <li data-icon="&#128276;">Manage notification preferences</li>
+                            <li data-icon="&#128221;">Access signed contracts and documents</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Slide 4: Getting Paid -->
+                <div class="slide" data-slide="4">
+                    <div class="slide-card">
+                        <div class="slide-icon">&#128181;</div>
+                        <h2>Getting Paid</h2>
+                        <ul>
+                            <li data-icon="&#128179;">Payments are processed via ACH direct deposit</li>                            
+                            <li data-icon="&#128200;">Track all your earnings from the dashboard</li>
+                            <li data-icon="&#128196;">Year-end tax documents (1099) provided automatically</li>
+                        </ul>
+                        <p style="margin-top: 20px;">You'll set up your bank details during this onboarding process.</p>
+                    </div>
+                </div>
+
+                <!-- Slide 5: Ready -->
+                <div class="slide" data-slide="5">
+                    <div class="slide-card">
+                        <div class="slide-icon">&#127881;</div>
+                        <h2>Ready to Get Started?</h2>
+                        <p>Next, we'll set up your account, build your interpreter profile, and review the contractor agreement. It only takes a few minutes!</p>
+                        <div style="margin-top: 40px;">
+                            <form method="post" action="{% url 'dbdint:onboarding_welcome' %}">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-green">Let's Set Up Your Account &#10145;</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide Navigation -->
+            <div class="slide-nav" id="slideNav">
+                <button class="btn btn-ghost" id="btnPrevSlide" onclick="prevSlide()" style="visibility: hidden;">&#8592; Back</button>
+                <div class="slide-dots" id="slideDots">
+                    <div class="dot active" onclick="goToSlide(1)"></div>
+                    <div class="dot" onclick="goToSlide(2)"></div>
+                    <div class="dot" onclick="goToSlide(3)"></div>
+                    <div class="dot" onclick="goToSlide(4)"></div>
+                    <div class="dot" onclick="goToSlide(5)"></div>
+                </div>
+                <button class="btn btn-primary" id="btnNextSlide" onclick="nextSlide()">Next &#8594;</button>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- ============================================ -->
+        <!-- PHASE 2: ACCOUNT CREATION                    -->
+        <!-- ============================================ -->
+        {% if phase == 'account' %}
+        <div class="phase active" id="phaseAccount">
+            <div class="form-card">
+                {% if existing_user %}
+                <!-- Existing user login -->
+                <h2>Welcome Back, {{ first_name }}!</h2>
+                <p class="subtitle">We found an existing account with your email. Please enter your password to continue.</p>
+
+                <form method="post" action="{% url 'dbdint:onboarding_account' %}">
+                    {% csrf_token %}
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input type="email" value="{{ email }}" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label>Password *</label>
+                        <input type="password" name="password" required placeholder="Enter your password">
+                    </div>
+                    <div style="margin-top: 30px;">
+                        <button type="submit" class="btn btn-primary">Continue &#8594;</button>
+                    </div>
+                </form>
+
+                {% else %}
+                <!-- New user registration -->
+                <h2>Create Your Account</h2>
+                <p class="subtitle">Set up your JHBridge interpreter account. This will be your login to access the dashboard.</p>
+
+                <form method="post" action="{% url 'dbdint:onboarding_account' %}" id="accountForm">
+                    {% csrf_token %}
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>First Name *</label>
+                            <input type="text" name="first_name" value="{{ first_name }}" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Last Name *</label>
+                            <input type="text" name="last_name" value="{{ last_name }}" required>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Email</label>
+                            <input type="email" name="email" value="{{ email }}" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label>Phone</label>
+                            <input type="tel" name="phone" value="{{ phone }}">
+                        </div>
+                    </div>
+
+                    <hr class="section-divider">
+
+                    <div class="form-group">
+                        <label>Username *</label>
+                        <input type="text" name="username" required placeholder="Choose a username" autocomplete="username">
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Password *</label>
+                            <input type="password" name="password1" id="password1" required placeholder="Min. 8 characters" autocomplete="new-password" oninput="checkPasswordStrength(this.value)">
+                            <div class="password-strength" id="passwordStrength"></div>
+                        </div>
+                        <div class="form-group">
+                            <label>Confirm Password *</label>
+                            <input type="password" name="password2" id="password2" required placeholder="Re-enter password" autocomplete="new-password">
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 30px;">
+                        <button type="submit" class="btn btn-primary" onclick="return validateAccountForm()">Create Account &#8594;</button>
+                    </div>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- ============================================ -->
+        <!-- PHASE 3: PROFILE SETUP                       -->
+        <!-- ============================================ -->
+        {% if phase == 'profile' %}
+        <div class="phase active" id="phaseProfile">
+            <div class="form-card">
+                <h2>Set Up Your Profile</h2>
+                <p class="subtitle">Tell us about your skills and preferences so we can match you with the right assignments.</p>
+
+                <form method="post" action="{% url 'dbdint:onboarding_profile' %}" id="profileForm" enctype="multipart/form-data">
+                    {% csrf_token %}
+
+                    <!-- Profile Photo -->
+                    <h3 class="section-title">&#128247; Profile Photo</h3>
+                    <div class="form-group" style="text-align: center;">
+                        <div id="photoPreview" style="width:120px;height:120px;border-radius:50%;background:#e2e8f0;margin:0 auto 16px;overflow:hidden;display:flex;align-items:center;justify-content:center;">
+                            {% if interpreter.profile_image %}
+                            <img src="{{ interpreter.profile_image }}" style="width:100%;height:100%;object-fit:cover;" id="previewImg">
+                            {% else %}
+                            <span style="font-size:48px;color:#a0aec0;" id="photoPlaceholder">&#128100;</span>
+                            <img src="" style="width:100%;height:100%;object-fit:cover;display:none;" id="previewImg">
+                            {% endif %}
+                        </div>
+                        <label class="btn btn-outline" style="cursor:pointer;display:inline-block;padding:8px 20px;border:1px solid var(--action-blue);border-radius:8px;color:var(--action-blue);font-size:14px;">
+                            Upload Photo
+                            <input type="file" name="profile_image" accept="image/*" style="display:none;" onchange="previewPhoto(this)">
+                        </label>
+                        <p style="color:#a0aec0;font-size:12px;margin-top:8px;">Optional. JPG, PNG. Max 5MB.</p>
+                    </div>
+
+                    <hr class="section-divider">
+
+                    <!-- Contact Information -->
+                    <h3 class="section-title">&#128205; Contact Information</h3>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Date of Birth *</label>
+                            <input type="date" name="date_of_birth" value="{{ date_of_birth|default:'' }}" required>
+                        </div>
+                        <div class="form-group">
+                            <!-- spacer -->
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Address *</label>
+                        <input type="text" name="address" value="{{ interpreter.address|default:'' }}" required placeholder="Street address">
+                    </div>
+                    <div class="form-row-3">
+                        <div class="form-group">
+                            <label>City *</label>
+                            <input type="text" name="city" value="{{ interpreter.city|default:'' }}" required>
+                        </div>
+                        <div class="form-group">
+                            <label>State *</label>
+                            <select name="state" required>
+                                <option value="">-- Select --</option>
+                                <option value="AL" {% if interpreter.state == 'AL' %}selected{% endif %}>AL</option>
+                                <option value="AK" {% if interpreter.state == 'AK' %}selected{% endif %}>AK</option>
+                                <option value="AZ" {% if interpreter.state == 'AZ' %}selected{% endif %}>AZ</option>
+                                <option value="AR" {% if interpreter.state == 'AR' %}selected{% endif %}>AR</option>
+                                <option value="CA" {% if interpreter.state == 'CA' %}selected{% endif %}>CA</option>
+                                <option value="CO" {% if interpreter.state == 'CO' %}selected{% endif %}>CO</option>
+                                <option value="CT" {% if interpreter.state == 'CT' %}selected{% endif %}>CT</option>
+                                <option value="DE" {% if interpreter.state == 'DE' %}selected{% endif %}>DE</option>
+                                <option value="DC" {% if interpreter.state == 'DC' %}selected{% endif %}>DC</option>
+                                <option value="FL" {% if interpreter.state == 'FL' %}selected{% endif %}>FL</option>
+                                <option value="GA" {% if interpreter.state == 'GA' %}selected{% endif %}>GA</option>
+                                <option value="HI" {% if interpreter.state == 'HI' %}selected{% endif %}>HI</option>
+                                <option value="ID" {% if interpreter.state == 'ID' %}selected{% endif %}>ID</option>
+                                <option value="IL" {% if interpreter.state == 'IL' %}selected{% endif %}>IL</option>
+                                <option value="IN" {% if interpreter.state == 'IN' %}selected{% endif %}>IN</option>
+                                <option value="IA" {% if interpreter.state == 'IA' %}selected{% endif %}>IA</option>
+                                <option value="KS" {% if interpreter.state == 'KS' %}selected{% endif %}>KS</option>
+                                <option value="KY" {% if interpreter.state == 'KY' %}selected{% endif %}>KY</option>
+                                <option value="LA" {% if interpreter.state == 'LA' %}selected{% endif %}>LA</option>
+                                <option value="ME" {% if interpreter.state == 'ME' %}selected{% endif %}>ME</option>
+                                <option value="MD" {% if interpreter.state == 'MD' %}selected{% endif %}>MD</option>
+                                <option value="MA" {% if interpreter.state == 'MA' %}selected{% endif %}>MA</option>
+                                <option value="MI" {% if interpreter.state == 'MI' %}selected{% endif %}>MI</option>
+                                <option value="MN" {% if interpreter.state == 'MN' %}selected{% endif %}>MN</option>
+                                <option value="MS" {% if interpreter.state == 'MS' %}selected{% endif %}>MS</option>
+                                <option value="MO" {% if interpreter.state == 'MO' %}selected{% endif %}>MO</option>
+                                <option value="MT" {% if interpreter.state == 'MT' %}selected{% endif %}>MT</option>
+                                <option value="NE" {% if interpreter.state == 'NE' %}selected{% endif %}>NE</option>
+                                <option value="NV" {% if interpreter.state == 'NV' %}selected{% endif %}>NV</option>
+                                <option value="NH" {% if interpreter.state == 'NH' %}selected{% endif %}>NH</option>
+                                <option value="NJ" {% if interpreter.state == 'NJ' %}selected{% endif %}>NJ</option>
+                                <option value="NM" {% if interpreter.state == 'NM' %}selected{% endif %}>NM</option>
+                                <option value="NY" {% if interpreter.state == 'NY' %}selected{% endif %}>NY</option>
+                                <option value="NC" {% if interpreter.state == 'NC' %}selected{% endif %}>NC</option>
+                                <option value="ND" {% if interpreter.state == 'ND' %}selected{% endif %}>ND</option>
+                                <option value="OH" {% if interpreter.state == 'OH' %}selected{% endif %}>OH</option>
+                                <option value="OK" {% if interpreter.state == 'OK' %}selected{% endif %}>OK</option>
+                                <option value="OR" {% if interpreter.state == 'OR' %}selected{% endif %}>OR</option>
+                                <option value="PA" {% if interpreter.state == 'PA' %}selected{% endif %}>PA</option>
+                                <option value="RI" {% if interpreter.state == 'RI' %}selected{% endif %}>RI</option>
+                                <option value="SC" {% if interpreter.state == 'SC' %}selected{% endif %}>SC</option>
+                                <option value="SD" {% if interpreter.state == 'SD' %}selected{% endif %}>SD</option>
+                                <option value="TN" {% if interpreter.state == 'TN' %}selected{% endif %}>TN</option>
+                                <option value="TX" {% if interpreter.state == 'TX' %}selected{% endif %}>TX</option>
+                                <option value="UT" {% if interpreter.state == 'UT' %}selected{% endif %}>UT</option>
+                                <option value="VT" {% if interpreter.state == 'VT' %}selected{% endif %}>VT</option>
+                                <option value="VA" {% if interpreter.state == 'VA' %}selected{% endif %}>VA</option>
+                                <option value="WA" {% if interpreter.state == 'WA' %}selected{% endif %}>WA</option>
+                                <option value="WV" {% if interpreter.state == 'WV' %}selected{% endif %}>WV</option>
+                                <option value="WI" {% if interpreter.state == 'WI' %}selected{% endif %}>WI</option>
+                                <option value="WY" {% if interpreter.state == 'WY' %}selected{% endif %}>WY</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Zip Code *</label>
+                            <input type="text" name="zip_code" value="{{ interpreter.zip_code|default:'' }}" required>
+                        </div>
+                    </div>
+
+                    <hr class="section-divider">
+
+                    <!-- Languages Section -->
+                    <h3 class="section-title">&#127760; Languages</h3>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Languages Spoken * <small>(hold Ctrl to select multiple)</small></label>
+                            <select multiple name="languages" id="languages" required>
+                                {% for lang in all_languages %}
+                                <option value="{{ lang.id }}" {% if lang.id in existing_language_ids %}selected{% endif %}>{{ lang.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Primary Language *</label>
+                            <select name="primary_language" id="primary_language" required>
+                                <option value="">-- Select --</option>
+                                {% for lang in all_languages %}
+                                <option value="{{ lang.id }}" {% if lang.id == primary_language_id %}selected{% endif %}>{{ lang.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+
+                    <hr class="section-divider">
+
+                    <!-- Certification Section -->
+                    <h3 class="section-title">&#127942; Certification</h3>
+
+                    <div class="form-group">
+                        <label>Are you a certified interpreter? *</label>
+                        <div class="radio-group">
+                            <label class="radio-option">
+                                <input type="radio" name="certified" value="yes" {% if certified %}checked{% endif %} onchange="toggleCertDetails()"> Yes
+                            </label>
+                            <label class="radio-option">
+                                <input type="radio" name="certified" value="no" {% if not certified %}checked{% endif %} onchange="toggleCertDetails()"> No
+                            </label>
+                        </div>
+                    </div>
+
+                    <div id="cert-details" style="display: {% if certified %}block{% else %}none{% endif %};">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Certification Type</label>
+                                <input type="text" name="cert_type" id="cert_type" value="{{ cert_type }}" placeholder="e.g. State Certified">
+                            </div>
+                            <div class="form-group">
+                                <label>Certification Number</label>
+                                <input type="text" name="cert_number" id="cert_number" value="{{ cert_number }}" placeholder="Certificate #">
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Upload Certification Documents</label>
+                            <div id="certUploadArea" style="border:2px dashed #cbd5e0;border-radius:10px;padding:20px;text-align:center;cursor:pointer;transition:all 0.3s;" onclick="document.getElementById('certFiles').click()">
+                                <span style="font-size:32px;display:block;margin-bottom:8px;">&#128196;</span>
+                                <p style="color:#718096;font-size:14px;margin:0;">Click to upload certificates (PDF, JPG, PNG)</p>
+                                <p style="color:#a0aec0;font-size:12px;margin-top:4px;">You can upload multiple files. Max 10MB each.</p>
+                                <input type="file" name="cert_documents" id="certFiles" multiple accept=".pdf,.jpg,.jpeg,.png" style="display:none;" onchange="showUploadedFiles(this)">
+                            </div>
+                            <div id="certFileList" style="margin-top:10px;"></div>
+                        </div>
+                    </div>
+
+                    <hr class="section-divider">
+
+                    <!-- Experience Section -->
+                    <h3 class="section-title">&#128188; Experience & Preferences</h3>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Years of Experience *</label>
+                            <select name="years_of_experience" required>
+                                <option value="">-- Select --</option>
+                                <option value="0-1" {% if years_exp == '0-1' %}selected{% endif %}>0-1 years</option>
+                                <option value="1-3" {% if years_exp == '1-3' %}selected{% endif %}>1-3 years</option>
+                                <option value="3-5" {% if years_exp == '3-5' %}selected{% endif %}>3-5 years</option>
+                                <option value="5-10" {% if years_exp == '5-10' %}selected{% endif %}>5-10 years</option>
+                                <option value="10+" {% if years_exp == '10+' %}selected{% endif %}>10+ years</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Preferred Assignment Type *</label>
+                            <div class="radio-group">
+                                <label class="radio-option">
+                                    <input type="radio" name="preferred_assignment_type" value="On-site" {% if preferred_type == 'On-site' %}checked{% endif %} required> On-site
+                                </label>
+                                <label class="radio-option">
+                                    <input type="radio" name="preferred_assignment_type" value="Remote" {% if preferred_type == 'Remote' %}checked{% endif %}> Remote
+                                </label>
+                                <label class="radio-option">
+                                    <input type="radio" name="preferred_assignment_type" value="Both" {% if preferred_type == 'Both' %}checked{% endif %}> Both
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Types of Assignments *</label>
+                        <div class="checkbox-group">
+                            {% with types="Medical,Workers Comp,Court,Legal,Government,Remote/Video" %}
+                            {% for type in types|make_list %}
+                            {% endfor %}
+                            {% endwith %}
+                            <label class="checkbox-option">
+                                <input type="checkbox" name="assignment_types" value="Medical" {% if 'Medical' in assignment_types %}checked{% endif %}> Medical
+                            </label>
+                            <label class="checkbox-option">
+                                <input type="checkbox" name="assignment_types" value="Workers Comp" {% if 'Workers Comp' in assignment_types %}checked{% endif %}> Workers Comp
+                            </label>
+                            <label class="checkbox-option">
+                                <input type="checkbox" name="assignment_types" value="Court" {% if 'Court' in assignment_types %}checked{% endif %}> Court
+                            </label>
+                            <label class="checkbox-option">
+                                <input type="checkbox" name="assignment_types" value="Legal" {% if 'Legal' in assignment_types %}checked{% endif %}> Legal
+                            </label>
+                            <label class="checkbox-option">
+                                <input type="checkbox" name="assignment_types" value="Government" {% if 'Government' in assignment_types %}checked{% endif %}> Government
+                            </label>
+                            <label class="checkbox-option">
+                                <input type="checkbox" name="assignment_types" value="Remote/Video" {% if 'Remote/Video' in assignment_types %}checked{% endif %}> Remote/Video
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Maximum Travel Distance (miles) *</label>
+                            <input type="number" name="radius_of_service" min="0" max="500" value="{{ radius }}" required placeholder="e.g. 50">
+                        </div>
+                        <div class="form-group">
+                            <label>Cities Willing to Cover *</label>
+                            <textarea name="cities_willing_to_cover" required placeholder="Boston, Cambridge, Worcester...">{{ cities }}</textarea>
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 40px; text-align: center;">
+                        <button type="submit" class="btn btn-green" onclick="return validateProfileForm()">
+                            Save Profile & Continue to Agreement &#8594;
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <script>
+        // ========== SLIDE NAVIGATION ==========
+        let currentSlide = 1;
+        const totalSlides = 5;
+
+        function updateSlides() {
+            document.querySelectorAll('.slide').forEach(s => {
+                s.classList.remove('active', 'slide-back');
+            });
+            const activeSlide = document.querySelector(`.slide[data-slide="${currentSlide}"]`);
+            if (activeSlide) activeSlide.classList.add('active');
+
+            // Update dots
+            document.querySelectorAll('.dot').forEach((d, i) => {
+                d.classList.toggle('active', i === currentSlide - 1);
+            });
+
+            // Update nav buttons
+            const prevBtn = document.getElementById('btnPrevSlide');
+            const nextBtn = document.getElementById('btnNextSlide');
+            if (prevBtn) prevBtn.style.visibility = currentSlide === 1 ? 'hidden' : 'visible';
+            if (nextBtn) nextBtn.style.display = currentSlide === totalSlides ? 'none' : 'inline-flex';
+
+            // Update progress
+            updateProgress();
+        }
+
+        function nextSlide() {
+            if (currentSlide < totalSlides) {
+                currentSlide++;
+                updateSlides();
+            }
+        }
+
+        function prevSlide() {
+            if (currentSlide > 1) {
+                currentSlide--;
+                const activeSlide = document.querySelector(`.slide[data-slide="${currentSlide}"]`);
+                document.querySelectorAll('.slide').forEach(s => s.classList.remove('active', 'slide-back'));
+                if (activeSlide) {
+                    activeSlide.classList.add('active', 'slide-back');
+                }
+                document.querySelectorAll('.dot').forEach((d, i) => {
+                    d.classList.toggle('active', i === currentSlide - 1);
+                });
+                const prevBtn = document.getElementById('btnPrevSlide');
+                const nextBtn = document.getElementById('btnNextSlide');
+                if (prevBtn) prevBtn.style.visibility = currentSlide === 1 ? 'hidden' : 'visible';
+                if (nextBtn) nextBtn.style.display = 'inline-flex';
+                updateProgress();
+            }
+        }
+
+        function goToSlide(n) {
+            currentSlide = n;
+            updateSlides();
+        }
+
+        // ========== PROGRESS BAR ==========
+        function updateProgress() {
+            const phase = '{{ phase }}';
+            let progress = 0;
+
+            if (phase === 'welcome') {
+                progress = (currentSlide / totalSlides) * 25;
+            } else if (phase === 'account') {
+                progress = 25;
+            } else if (phase === 'profile') {
+                progress = 50;
+            }
+
+            const fill = document.getElementById('progressFill');
+            if (fill) fill.style.width = progress + '%';
+        }
+
+        // ========== PASSWORD STRENGTH ==========
+        function checkPasswordStrength(password) {
+            const indicator = document.getElementById('passwordStrength');
+            if (!indicator) return;
+
+            if (password.length < 8) {
+                indicator.textContent = 'Too short (min 8 characters)';
+                indicator.className = 'password-strength strength-weak';
+            } else if (password.length < 12 || !/[A-Z]/.test(password) || !/[0-9]/.test(password)) {
+                indicator.textContent = 'Medium strength';
+                indicator.className = 'password-strength strength-medium';
+            } else {
+                indicator.textContent = 'Strong password';
+                indicator.className = 'password-strength strength-strong';
+            }
+        }
+
+        // ========== FORM VALIDATION ==========
+        function validateAccountForm() {
+            const p1 = document.getElementById('password1');
+            const p2 = document.getElementById('password2');
+            if (p1 && p2 && p1.value !== p2.value) {
+                alert('Passwords do not match.');
+                return false;
+            }
+            if (p1 && p1.value.length < 8) {
+                alert('Password must be at least 8 characters.');
+                return false;
+            }
+            return true;
+        }
+
+        function validateProfileForm() {
+            const langs = document.getElementById('languages');
+            if (langs && langs.selectedOptions.length === 0) {
+                alert('Please select at least one language.');
+                return false;
+            }
+
+            const assignmentTypes = document.querySelectorAll('input[name="assignment_types"]:checked');
+            if (assignmentTypes.length === 0) {
+                alert('Please select at least one assignment type.');
+                return false;
+            }
+
+            return true;
+        }
+
+        // ========== PHOTO PREVIEW ==========
+        function previewPhoto(input) {
+            if (input.files && input.files[0]) {
+                if (input.files[0].size > 5 * 1024 * 1024) {
+                    alert('Photo must be less than 5MB.');
+                    input.value = '';
+                    return;
+                }
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const img = document.getElementById('previewImg');
+                    const placeholder = document.getElementById('photoPlaceholder');
+                    if (img) { img.src = e.target.result; img.style.display = 'block'; }
+                    if (placeholder) placeholder.style.display = 'none';
+                };
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+
+        // ========== CERT FILE LIST ==========
+        function showUploadedFiles(input) {
+            const list = document.getElementById('certFileList');
+            if (!list) return;
+            list.innerHTML = '';
+            for (let i = 0; i < input.files.length; i++) {
+                const f = input.files[i];
+                if (f.size > 10 * 1024 * 1024) {
+                    alert(f.name + ' exceeds 10MB limit.');
+                    input.value = '';
+                    list.innerHTML = '';
+                    return;
+                }
+                const div = document.createElement('div');
+                div.style.cssText = 'padding:6px 12px;background:#f7fafc;border-radius:6px;margin-bottom:4px;font-size:13px;color:#4a5568;display:flex;align-items:center;gap:8px;';
+                const icon = document.createTextNode('\u{1F4C4} ');
+                const nameSpan = document.createElement('span');
+                nameSpan.textContent = f.name;
+                const sizeSpan = document.createElement('span');
+                sizeSpan.style.color = '#a0aec0';
+                sizeSpan.textContent = '(' + (f.size / 1024).toFixed(1) + ' KB)';
+                div.appendChild(icon);
+                div.appendChild(nameSpan);
+                div.appendChild(document.createTextNode(' '));
+                div.appendChild(sizeSpan);
+                list.appendChild(div);
+            }
+        }
+
+        // ========== CERTIFICATION TOGGLE ==========
+        function toggleCertDetails() {
+            const certYes = document.querySelector('input[name="certified"][value="yes"]');
+            const details = document.getElementById('cert-details');
+            if (certYes && details) {
+                details.style.display = certYes.checked ? 'block' : 'none';
+            }
+        }
+
+        // Initialize
+        updateProgress();
+    </script>
+</body>
+</html>

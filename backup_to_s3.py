@@ -76,7 +76,7 @@ class DatabaseBackupToS3:
         try:
             # Check if bucket exists
             self.s3_client.head_bucket(Bucket=self.bucket_name)
-            logger.info(f"✓ Bucket '{self.bucket_name}' already exists")
+            logger.info(f"[OK] Bucket '{self.bucket_name}' already exists")
             return True
             
         except ClientError as e:
@@ -116,13 +116,13 @@ class DatabaseBackupToS3:
                         LifecycleConfiguration=lifecycle_policy
                     )
                     
-                    logger.info(f"✓ Bucket '{self.bucket_name}' created successfully")
-                    logger.info("✓ Versioning enabled")
-                    logger.info("✓ Lifecycle policy configured (30 days retention)")
+                    logger.info(f"[OK] Bucket '{self.bucket_name}' created successfully")
+                    logger.info("[OK] Versioning enabled")
+                    logger.info("[OK] Lifecycle policy configured (30 days retention)")
                     return True
                     
                 except ClientError as create_error:
-                    logger.error(f"✗ Failed to create bucket: {create_error}")
+                    logger.error(f"[ERROR] Failed to create bucket: {create_error}")
                     raise
             else:
                 logger.error(f"✗ Error accessing bucket: {e}")
@@ -153,17 +153,17 @@ class DatabaseBackupToS3:
             if result.returncode != 0:
                 raise Exception(f"Connection test failed: {result.stderr}")
             
-            logger.info(f"✓ Successfully connected to {self.db_host}:{self.db_port}")
+            logger.info(f"[OK] Successfully connected to {self.db_host}:{self.db_port}")
             return True
             
         except subprocess.TimeoutExpired:
             logger.error("✗ Connection timeout")
             raise
         except FileNotFoundError:
-            logger.error("✗ MySQL client not found. Please install MySQL client.")
+            logger.error("[ERROR] MySQL client not found. Please install MySQL client.")
             raise
         except Exception as e:
-            logger.error(f"✗ Connection failed: {e}")
+            logger.error(f"[ERROR] Connection failed: {e}")
             raise
     
     def create_backup(self):
@@ -235,7 +235,7 @@ class DatabaseBackupToS3:
             file_size = backup_file.stat().st_size
             file_size_mb = file_size / (1024 * 1024)
             
-            logger.info(f"✓ Backup created: {file_size_mb:.2f} MB")
+            logger.info(f"[OK] Backup created: {file_size_mb:.2f} MB")
             return backup_file
             
         except Exception as e:
@@ -329,7 +329,7 @@ class DatabaseBackupToS3:
             if uploaded_size != local_size:
                 raise Exception(f"Upload verification failed: sizes don't match ({local_size} != {uploaded_size})")
             
-            logger.info(f"✓ Upload successful: {uploaded_size / (1024*1024):.2f} MB")
+            logger.info(f"[OK] Upload successful: {uploaded_size / (1024*1024):.2f} MB")
             
             # Generate download URL (valid for 7 days)
             download_url = self.s3_client.generate_presigned_url(
@@ -361,7 +361,7 @@ class DatabaseBackupToS3:
                 deleted += 1
                 logger.info(f"  Deleted: {backup_file.name}")
         
-        logger.info(f"✓ Cleaned up {deleted} old backup(s)")
+        logger.info(f"[OK] Cleaned up {deleted} old backup(s)")
     
     def run(self):
         """Execute complete backup process with full progress tracking"""
@@ -396,7 +396,7 @@ class DatabaseBackupToS3:
             
             logger.info("")
             logger.info("=" * 80)
-            logger.info("BACKUP COMPLETED SUCCESSFULLY ✓")
+            logger.info("BACKUP COMPLETED SUCCESSFULLY [OK]")
             logger.info("=" * 80)
             logger.info(f"Local file: {backup_file}")
             logger.info(f"S3 location: s3://{self.bucket_name}/{upload_info['s3_key']}")

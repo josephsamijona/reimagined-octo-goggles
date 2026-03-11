@@ -3,7 +3,6 @@ import io
 import hashlib
 import uuid
 import requests
-import qrcode
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import inch
 from reportlab.lib.colors import HexColor, Color, white, black
@@ -140,7 +139,6 @@ By signing below, Interpreter acknowledges that they have read, understood, and 
         self.logo_url = 'https://jhbridgetranslation.com/images/logo.png'  # dont touch that at all keep it as it is
         self.doc_uuid = str(uuid.uuid4())[:12].upper()
         self._logo_image = None
-        self._qr_image = None
         self._load_logo()
 
     # ─── Helpers ────────────────────────────────────────────────
@@ -162,23 +160,6 @@ By signing below, Interpreter acknowledges that they have read, understood, and 
             f"{self.contract_text}"
         )
         return hashlib.sha256(content.encode()).hexdigest()[:16].upper()
-
-    def generate_qr_code(self, request):
-        """Generate QR code for contract verification."""
-        from django.urls import reverse
-        verification_url = request.build_absolute_uri(
-            reverse('dbdint:contract_public_verify',
-                    kwargs={'invitation_number': self.invitation.invitation_number})
-        )
-        qr = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_L,
-                            box_size=10, border=1)
-        qr.add_data(verification_url)
-        qr.make(fit=True)
-        img = qr.make_image(fill_color="black", back_color="white")
-        buf = io.BytesIO()
-        img.save(buf, format='PNG')
-        buf.seek(0)
-        return buf
 
     # ─── Page decoration callbacks ──────────────────────────────
 
@@ -467,34 +448,172 @@ By signing below, Interpreter acknowledges that they have read, understood, and 
 
         story.append(KeepTogether([sig_table]))
 
-        # ── QR Code & verification block ──
+        # ── Interpreter Profile Section ──
+        story.append(Spacer(1, 16))
+        story.append(HRFlowable(width="100%", thickness=1, color=BRAND_GOLD, spaceAfter=10))
+        story.append(Paragraph(
+            "&nbsp;&nbsp;INTERPRETER PROFILE&nbsp;&nbsp;",
+            ParagraphStyle('ProfileTitle', parent=s['section'], fontSize=11,
+                           spaceBefore=0, spaceAfter=12)
+        ))
+
+        try:
+            interpreter = self.invitation.interpreter
+            from app.models import InterpreterLanguage
+
+            # Personal info
+            user = interpreter.user
+            addr_parts = [interpreter.address or '', interpreter.city or '',
+                          interpreter.state or '', interpreter.zip_code or '']
+            full_address = ', '.join([p for p in addr_parts if p]) or 'N/A'
+
+            profile_rows = [
+                ['Name', user.get_full_name()],
+                ['Email', user.email],
+                ['Phone', interpreter.phone or 'N/A'],
+                ['Address', full_address],
+            ]
+            if interpreter.date_of_birth:
+                profile_rows.append(['Date of Birth', interpreter.date_of_birth.strftime('%B %d, %Y')])
+
+            # Languages
+            langs = InterpreterLanguage.objects.filter(interpreter=interpreter).select_related('language')
+            lang_names = [il.language.name for il in langs]
+            primary = langs.filter(is_primary=True).first()
+            if lang_names:
+                profile_rows.append(['Languages', ', '.join(lang_names)])
+            if primary:
+                profile_rows.append(['Primary Language', primary.language.name])
+
+            # Certification
+            certs = interpreter.certifications or {}
+            if certs.get('certified'):
+                cert_str = f"{certs.get('type', '')} #{certs.get('number', '')}"
+                profile_rows.append(['Certification', cert_str])
+
+            # Experience
+            if interpreter.years_of_experience:
+                profile_rows.append(['Experience', f"{interpreter.years_of_experience} years"])
+            if interpreter.preferred_assignment_type:
+                profile_rows.append(['Preferred Type', interpreter.preferred_assignment_type])
+            if interpreter.assignment_types:
+                atypes = interpreter.assignment_types
+                profile_rows.append(['Assignment Types', ', '.join(atypes) if isinstance(atypes, list) else str(atypes)])
+            if interpreter.radius_of_service:
+                profile_rows.append(['Travel Radius', f"{interpreter.radius_of_service} miles"])
+            if interpreter.cities_willing_to_cover:
+                cities = interpreter.cities_willing_to_cover
+                profile_rows.append(['Cities', ', '.join(cities) if isinstance(cities, list) else str(cities)])
+
+            # Build table
+            profile_table_data = []
+            for label, value in profile_rows:
+                profile_table_data.append([
+                    Paragraph(f"<b>{label}:</b>", s['sig_label']),
+                    Paragraph(str(value), s['sig_value']),
+                ])
+
+            profile_table = Table(profile_table_data, colWidths=[120, 360])
+            profile_table.setStyle(TableStyle([
+                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                ('LEFTPADDING', (0, 0), (-1, -1), 4),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+                ('TOPPADDING', (0, 0), (-1, -1), 3),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+                ('LINEBELOW', (0, 0), (-1, -2), 0.5, HexColor('#E0E0E0')),
+                ('BACKGROUND', (0, 0), (-1, 0), BRAND_LIGHT_BG),
+            ]))
+            story.append(profile_table)
+        except Exception as e:
+            logger.error(f"Failed to add interpreter profile to PDF: {e}")
+
+        # ── Direct Deposit Section ──
+        story.append(Spacer(1, 16))
+        story.append(HRFlowable(width="100%", thickness=1, color=BRAND_GOLD, spaceAfter=10))
+        story.append(Paragraph(
+            "&nbsp;&nbsp;DIRECT DEPOSIT AUTHORIZATION&nbsp;&nbsp;",
+            ParagraphStyle('DepositTitle', parent=s['section'], fontSize=11,
+                           spaceBefore=0, spaceAfter=12)
+        ))
+
+        try:
+            from app.models import InterpreterContractSignature
+            interpreter = self.invitation.interpreter
+
+            bank_name = interpreter.bank_name or 'N/A'
+            account_holder = interpreter.account_holder_name or 'N/A'
+            acct_type = interpreter.account_type or 'N/A'
+
+            # Mask sensitive numbers
+            routing_raw = ''
+            account_raw = ''
+            try:
+                if interpreter.routing_number:
+                    val = interpreter.routing_number
+                    if isinstance(val, str):
+                        val = val.encode()
+                    routing_raw = InterpreterContractSignature.decrypt_data(val) or ''
+                if interpreter.account_number:
+                    val = interpreter.account_number
+                    if isinstance(val, str):
+                        val = val.encode()
+                    account_raw = InterpreterContractSignature.decrypt_data(val) or ''
+            except Exception:
+                pass
+
+            masked_routing = f"••••••{routing_raw[-3:]}" if len(routing_raw) >= 3 else '••••••'
+            masked_account = f"••••{account_raw[-4:]}" if len(account_raw) >= 4 else '••••'
+
+            deposit_rows = [
+                ['Bank Name', bank_name],
+                ['Account Holder', account_holder],
+                ['Account Type', acct_type.title()],
+                ['Routing Number', masked_routing],
+                ['Account Number', masked_account],
+            ]
+
+            deposit_table_data = []
+            for label, value in deposit_rows:
+                deposit_table_data.append([
+                    Paragraph(f"<b>{label}:</b>", s['sig_label']),
+                    Paragraph(str(value), s['sig_value']),
+                ])
+
+            deposit_table = Table(deposit_table_data, colWidths=[120, 360])
+            deposit_table.setStyle(TableStyle([
+                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                ('LEFTPADDING', (0, 0), (-1, -1), 4),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+                ('TOPPADDING', (0, 0), (-1, -1), 3),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+                ('LINEBELOW', (0, 0), (-1, -2), 0.5, HexColor('#E0E0E0')),
+                ('BACKGROUND', (0, 0), (-1, 0), BRAND_LIGHT_BG),
+            ]))
+            story.append(deposit_table)
+
+            story.append(Spacer(1, 8))
+            story.append(Paragraph(
+                '<font size="7" color="#888888">'
+                'I hereby authorize JHBridge Translation Services to deposit payments directly '
+                'into my bank account as provided above.'
+                '</font>',
+                s['sig_value']
+            ))
+        except Exception as e:
+            logger.error(f"Failed to add deposit info to PDF: {e}")
+
+        # ── Document verification footer ──
         story.append(Spacer(1, 16))
         story.append(HRFlowable(width="100%", thickness=0.5, color=HexColor('#E0E0E0'),
                                 spaceAfter=8))
-
-        try:
-            qr_buf = self.generate_qr_code(request)
-            qr_img = RLImage(qr_buf, width=55, height=55)
-
-            verify_text = Paragraph(
-                '<b>Verify this document</b><br/>'
-                '<font size="7" color="#888888">'
-                'Scan the QR code or visit the verification URL<br/>'
-                f'Agreement: {self.invitation.invitation_number}<br/>'
-                f'Document ID: {self.doc_uuid}<br/>'
-                f'SHA-256: {self._compute_hash()}'
-                '</font>',
-                s['sig_value']
-            )
-
-            qr_table = Table([[qr_img, verify_text]], colWidths=[70, 400])
-            qr_table.setStyle(TableStyle([
-                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                ('LEFTPADDING', (0, 0), (-1, -1), 4),
-            ]))
-            story.append(qr_table)
-        except Exception as e:
-            logger.error(f"Failed to add QR code to PDF: {e}")
+        story.append(Paragraph(
+            f'<font size="7" color="#888888">'
+            f'Agreement: {self.invitation.invitation_number} | '
+            f'Document ID: {self.doc_uuid} | '
+            f'SHA-256: {self._compute_hash()}'
+            f'</font>',
+            s['sig_value']
+        ))
 
         return story
 

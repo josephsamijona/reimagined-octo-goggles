@@ -2,7 +2,13 @@
 env/
 venv/
 ENV/
-
+todo.md
+test_socket.py
+test_pymysql.py
+test_db.py
+local_db_backup.py
+backup_to_s3.py
+venv_broken/
 # Python
 *.py[cod]
 *$py.class

@@ -10,6 +10,30 @@ from ...models import InterpreterContractSignature
 
 logger = logging.getLogger(__name__)
 
+
+def _encrypt_value(value):
+    """Encrypt a value using Fernet encryption."""
+    if not value:
+        return value
+    try:
+        encrypted = InterpreterContractSignature.encrypt_data(value)
+        return encrypted.decode() if isinstance(encrypted, bytes) else encrypted
+    except Exception as e:
+        logger.error(f"Encryption failed for sensitive data: {e}", exc_info=True)
+        raise ValueError("Failed to encrypt sensitive data. Please try again or contact support.")
+
+
+def _decrypt_value(value):
+    """Decrypt a value using Fernet encryption."""
+    if not value:
+        return ''
+    try:
+        if isinstance(value, str):
+            value = value.encode()
+        return InterpreterContractSignature.decrypt_data(value) or ''
+    except Exception:
+        return value if isinstance(value, str) else ''
+
 @method_decorator(never_cache, name='dispatch')
 class ContractWizardView(View):
     template_name = 'contract/wizard.html'
@@ -65,14 +89,104 @@ class ContractWizardView(View):
                 messages.error(request, 'Invalid access. Please use the link from your email.')
                 return render(request, self.template_name_error, {'error': 'Invalid access'})
                 
+            # Prepare data for wizard
+            from ...models import InterpreterLanguage
+            interpreter = invitation.interpreter if invitation else (contract.interpreter if contract else None)
+
+            bank_name = ''
+            account_holder_name = ''
+            account_type = ''
+            routing_number = ''
+            account_number = ''
+
+            # Recap / review data
+            interpreter_email = ''
+            interpreter_phone = ''
+            interpreter_dob = ''
+            interpreter_address = ''
+            interpreter_languages_display = ''
+            interpreter_primary_language = ''
+            interpreter_certified = 'No'
+            interpreter_cert_type = ''
+            interpreter_cert_number = ''
+            interpreter_experience = ''
+            interpreter_preferred_type = ''
+            interpreter_radius = ''
+            interpreter_assignment_types = ''
+            interpreter_cities = ''
+
+            if interpreter:
+                # Banking (pre-fill from existing data)
+                bank_name = interpreter.bank_name or ''
+                account_holder_name = interpreter.account_holder_name or ''
+                account_type = interpreter.account_type or ''
+                routing_number = _decrypt_value(interpreter.routing_number)
+                account_number = _decrypt_value(interpreter.account_number)
+
+                # Profile info for recap step
+                interpreter_email = interpreter.user.email if interpreter.user else ''
+                # On va chercher le téléphone dans l'objet User lié
+                interpreter_phone = interpreter.user.phone or ''
+                interpreter_dob = interpreter.date_of_birth.strftime('%B %d, %Y') if interpreter.date_of_birth else ''
+
+                addr_parts = [interpreter.address or '', interpreter.city or '', interpreter.state or '', interpreter.zip_code or '']
+                interpreter_address = ', '.join([p for p in addr_parts if p])
+
+                # Languages
+                langs = InterpreterLanguage.objects.filter(interpreter=interpreter).select_related('language')
+                lang_names = [il.language.name for il in langs]
+                interpreter_languages_display = ', '.join(lang_names) if lang_names else ''
+                primary_lang = langs.filter(is_primary=True).first()
+                interpreter_primary_language = primary_lang.language.name if primary_lang else ''
+
+                # Certification
+                existing_cert = interpreter.certifications or {}
+                if existing_cert.get('certified'):
+                    interpreter_certified = 'Yes'
+                    interpreter_cert_type = existing_cert.get('type', '')
+                    interpreter_cert_number = existing_cert.get('number', '')
+
+                # Experience
+                interpreter_experience = interpreter.years_of_experience or ''
+                interpreter_preferred_type = interpreter.preferred_assignment_type or ''
+                interpreter_radius = interpreter.radius_of_service or ''
+
+                atypes = interpreter.assignment_types or []
+                interpreter_assignment_types = ', '.join(atypes) if isinstance(atypes, list) else str(atypes)
+
+                cities_list = interpreter.cities_willing_to_cover or []
+                interpreter_cities = ', '.join(cities_list) if isinstance(cities_list, list) else str(cities_list)
+
             context = {
                 'contract': contract,
                 'invitation': invitation,
                 'interpreter_name': interpreter_name,
                 'agreement_number': agreement_number,
                 'contract_date': timezone.now().strftime('%B %d, %Y'),
+                'interpreter': interpreter,
+                # Banking data (editable in step 8)
+                'bank_name': bank_name,
+                'account_holder_name': account_holder_name,
+                'account_type': account_type,
+                'routing_number': routing_number,
+                'account_number': account_number,
+                # Recap data (read-only in step 9, from profile)
+                'interpreter_email': interpreter_email,
+                'interpreter_phone': interpreter_phone,
+                'interpreter_dob': interpreter_dob,
+                'interpreter_address': interpreter_address,
+                'interpreter_languages_display': interpreter_languages_display,
+                'interpreter_primary_language': interpreter_primary_language,
+                'interpreter_certified': interpreter_certified,
+                'interpreter_cert_type': interpreter_cert_type,
+                'interpreter_cert_number': interpreter_cert_number,
+                'interpreter_experience': interpreter_experience,
+                'interpreter_preferred_type': interpreter_preferred_type,
+                'interpreter_radius': interpreter_radius,
+                'interpreter_assignment_types': interpreter_assignment_types,
+                'interpreter_cities': interpreter_cities,
             }
-            
+
             return render(request, self.template_name, context)
             
         except Exception as e:
@@ -102,18 +216,67 @@ class ContractWizardView(View):
             if request.POST.get('agreement') != 'yes':
                 messages.error(request, 'You must agree to the terms to proceed.')
                 return self.get(request)
-            
+
+            # Process banking data (only field collected in wizard now)
+            interpreter = invitation.interpreter
+
+            bank_name = request.POST.get('bank_name', '').strip()
+            account_holder_name = request.POST.get('account_holder_name', '').strip()
+            account_type = request.POST.get('account_type', '')
+            routing_number = request.POST.get('routing_number', '').strip()
+            account_number = request.POST.get('account_number', '').strip()
+
+            # Update banking info (encrypt sensitive fields)
+            interpreter.bank_name = bank_name
+            interpreter.account_holder_name = account_holder_name
+            interpreter.account_type = account_type
+            interpreter.routing_number = _encrypt_value(routing_number)
+            interpreter.account_number = _encrypt_value(account_number)
+
+            interpreter.save(update_fields=[
+                'bank_name', 'account_holder_name', 'account_type',
+                'routing_number', 'account_number',
+            ])
+
             # Sign the contract using helper
             from .tracking import create_and_sign_contract
-            create_and_sign_contract(invitation, request, signature_method='DIGITAL_CHECKBOX')
-            
+            create_and_sign_contract(invitation, request, signature_method='WIZARD')
+
             # Clear session data
             request.session.pop('invitation_id', None)
             request.session.pop('wizard_tracked', None)
-            
+
+            # Check if this is part of an onboarding flow
+            onboarding_id = request.session.get('dbdint:onboarding_invitation_id')
+            if onboarding_id:
+                try:
+                    from ...models import OnboardingInvitation, OnboardingTrackingEvent
+                    onboarding = OnboardingInvitation.objects.get(id=onboarding_id)
+                    onboarding.current_phase = 'COMPLETED'
+                    onboarding.completed_at = timezone.now()
+                    onboarding.save(update_fields=['current_phase', 'completed_at'])
+
+                    OnboardingTrackingEvent.objects.create(
+                        invitation=onboarding,
+                        event_type='ONBOARDING_COMPLETED',
+                        metadata={'contract_invitation': str(invitation.invitation_number)}
+                    )
+
+                    # Enable dashboard access
+                    user = invitation.interpreter.user
+                    if not user.registration_complete:
+                        user.registration_complete = True
+                        user.contract_acceptance_date = timezone.now()
+                        user.save(update_fields=['registration_complete', 'contract_acceptance_date'])
+
+                    request.session.pop('dbdint:onboarding_invitation_id', None)
+                    return redirect('dbdint:onboarding_complete')
+                except Exception as onb_err:
+                    logger.error(f"Failed to finalize onboarding: {onb_err}", exc_info=True)
+
             # Set flag for success view security
             request.session['contract_just_signed'] = True
-            
+
             return redirect('dbdint:contract_success')
                 
         except Exception as e:

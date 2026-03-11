@@ -176,11 +176,20 @@ urlpatterns = [
     
     
 
+    # Onboarding (specific routes first, then catch-all token route)
+    path('onboarding/welcome/', views.OnboardingWelcomeView.as_view(), name='onboarding_welcome'),
+    path('onboarding/create-account/', views.OnboardingAccountView.as_view(), name='onboarding_account'),
+    path('onboarding/profile/', views.OnboardingProfileView.as_view(), name='onboarding_profile'),
+    path('onboarding/contract/', views.OnboardingContractBridgeView.as_view(), name='onboarding_contract'),
+    path('onboarding/complete/', views.OnboardingCompleteView.as_view(), name='onboarding_complete'),
+    path('onboarding/track/<str:token>/pixel.png', views.OnboardingTrackingPixelView.as_view(), name='onboarding_tracking_pixel'),
+    path('onboarding/<str:token>/', views.OnboardingEntryView.as_view(), name='onboarding_entry'),
+
     # Contract Tracking
     path('contracts/track/<str:token>/pixel.png', views.EmailTrackingPixelView.as_view(), name='contract_tracking_pixel'),
     path('contracts/accept/<str:accept_token>/', views.DirectAcceptView.as_view(), name='contract_direct_accept'),
     path('contracts/review/<str:review_token>/', views.ReviewLinkView.as_view(), name='contract_review_link'),
     path('contracts/download/<uuid:invitation_id>/', views.ContractPDFDownloadView.as_view(), name='contract_pdf_download'),
-    path('verify/<str:invitation_number>/', views.ContractPublicVerifyView.as_view(), name='contract_public_verify'),
+    # path('verify/<str:invitation_number>/', views.ContractPublicVerifyView.as_view(), name='contract_public_verify'),  # Removed
     
 ]

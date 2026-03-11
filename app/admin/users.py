@@ -93,13 +93,19 @@ class InterpreterAdmin(admin.ModelAdmin):
     fieldsets = (
         ('Status', {'fields': (('user', 'active'),)}),
         ('Profile Information', {'fields': ('profile_image', 'bio')}),
+        ('Personal Information', {'fields': ('date_of_birth', 'years_of_experience'),
+                                  'classes': ('collapse',)}),
         ('Contact Information', {'fields': ('address', ('city', 'state', 'zip_code'), 'radius_of_service')}),
         ('Professional Information', {'fields': ('hourly_rate', 'certifications', 'specialties', 'availability')}),
+        ('Assignment Preferences', {'fields': ('assignment_types', 'preferred_assignment_type', 'cities_willing_to_cover'),
+                                    'classes': ('collapse',)}),
         ('Compliance', {'fields': (('background_check_date', 'background_check_status'), 'w9_on_file'),
                         'classes': ('collapse',)}),
         ('Banking Information (ACH)', {'fields': ('bank_name', 'account_holder_name', 'routing_number', 'account_number', 'account_type'),
                                          'classes': ('collapse',),
                                          'description': 'Secure banking information for ACH payments.'}),
+        ('Contract Invitation', {'fields': ('contract_invite_token', 'contract_invite_expires_at', 'signature_ip'),
+                                 'classes': ('collapse',)}),
     )
     def get_full_name(self, obj):
         return f"{obj.user.first_name} {obj.user.last_name}"
@@ -130,9 +136,10 @@ class InterpreterAdmin(admin.ModelAdmin):
                     form.base_fields[field].disabled = True
         return form
     actions = [
-        'activate_interpreters', 
-        'deactivate_interpreters', 
+        'activate_interpreters',
+        'deactivate_interpreters',
         'send_contract_invitation',
+        'send_onboarding_invitation',
         'block_interpreters',
         'unblock_interpreters',
         'send_reminder_level_1',
@@ -228,6 +235,73 @@ class InterpreterAdmin(admin.ModelAdmin):
         else:
             self.message_user(request, msg, level=messages.SUCCESS)
     send_contract_invitation.short_description = "Send 2026 Contract Invitation"
+
+    def send_onboarding_invitation(self, request, queryset):
+        """Send onboarding invitations to selected interpreters (existing accounts)."""
+        from app.models import OnboardingInvitation, OnboardingTrackingEvent
+        from app.services.email_service import OnboardingEmailService
+        from django.utils import timezone
+
+        sent_count = 0
+        skipped_count = 0
+        error_count = 0
+
+        for interpreter in queryset:
+            # Check for active onboarding invitation
+            active = OnboardingInvitation.objects.filter(
+                interpreter=interpreter,
+                current_phase__in=['INVITED', 'EMAIL_OPENED', 'WELCOME_VIEWED', 'ACCOUNT_CREATED', 'PROFILE_COMPLETED', 'CONTRACT_STARTED']
+            ).exists()
+
+            if active:
+                skipped_count += 1
+                continue
+
+            try:
+                invitation = OnboardingInvitation.objects.create(
+                    email=interpreter.user.email,
+                    first_name=interpreter.user.first_name,
+                    last_name=interpreter.user.last_name,
+                    phone=getattr(interpreter.user, 'phone', ''),
+                    user=interpreter.user,
+                    interpreter=interpreter,
+                    created_by=request.user,
+                    email_sent_at=timezone.now(),
+                )
+
+                OnboardingTrackingEvent.objects.create(
+                    invitation=invitation,
+                    event_type='EMAIL_SENT',
+                    performed_by=request.user,
+                    metadata={'source': 'admin_interpreter_action'}
+                )
+
+                if OnboardingEmailService.send_invitation_email(invitation, request):
+                    sent_count += 1
+                else:
+                    error_count += 1
+
+            except Exception as e:
+                error_count += 1
+                import logging
+                logging.getLogger(__name__).error(f"Failed to send onboarding invitation to {interpreter}: {e}")
+
+        msg_parts = []
+        if sent_count:
+            msg_parts.append(f"Onboarding invitation sent to {sent_count} interpreter(s).")
+        if skipped_count:
+            msg_parts.append(f"Skipped {skipped_count} (already have active invitations).")
+        if error_count:
+            msg_parts.append(f"Failed for {error_count} interpreter(s).")
+
+        msg = " ".join(msg_parts)
+        if error_count:
+            self.message_user(request, msg, level=messages.ERROR)
+        elif skipped_count:
+            self.message_user(request, msg, level=messages.WARNING)
+        else:
+            self.message_user(request, msg, level=messages.SUCCESS)
+    send_onboarding_invitation.short_description = "Send Onboarding Invitation"
 
     def block_interpreters(self, request, queryset):
         from django.utils import timezone

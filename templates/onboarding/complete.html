@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome Aboard! - JHBridge</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --deep-blue: #1d3557;
+            --action-blue: #2b50a1;
+            --growth-green: #76b041;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #1d3557 0%, #2b50a1 50%, #76b041 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .success-card {
+            background: white;
+            border-radius: 24px;
+            padding: 60px;
+            text-align: center;
+            max-width: 550px;
+            width: 90%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+            position: relative;
+            z-index: 10;
+            animation: scaleIn 0.5s ease;
+        }
+
+        @keyframes scaleIn {
+            from { opacity: 0; transform: scale(0.8); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        .success-icon {
+            width: 100px;
+            height: 100px;
+            background: linear-gradient(135deg, var(--growth-green), #5a9c2e);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 30px;
+            font-size: 50px;
+            animation: bounceIn 0.6s ease 0.3s both;
+        }
+
+        @keyframes bounceIn {
+            0% { transform: scale(0); }
+            50% { transform: scale(1.2); }
+            100% { transform: scale(1); }
+        }
+
+        h1 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 32px;
+            color: var(--deep-blue);
+            margin-bottom: 16px;
+        }
+
+        p {
+            color: #718096;
+            font-size: 16px;
+            line-height: 1.7;
+            margin-bottom: 20px;
+        }
+
+        .checklist {
+            text-align: left;
+            margin: 30px auto;
+            max-width: 350px;
+        }
+
+        .checklist-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 0;
+            font-size: 15px;
+            color: #2d3748;
+        }
+
+        .check-icon {
+            width: 28px;
+            height: 28px;
+            background: #c6f6d5;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--growth-green);
+            font-weight: bold;
+            flex-shrink: 0;
+        }
+
+        .btn-dashboard {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 18px 40px;
+            background: linear-gradient(135deg, var(--action-blue), var(--deep-blue));
+            color: white;
+            border: none;
+            border-radius: 14px;
+            font-size: 17px;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.3s;
+            margin-top: 20px;
+        }
+
+        .btn-dashboard:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(43,80,161,0.4);
+        }
+
+        /* Confetti */
+        .confetti-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        .confetti {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            top: -10px;
+            animation: confettiFall linear forwards;
+        }
+
+        @keyframes confettiFall {
+            0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+            100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+        }
+
+        @media (max-width: 768px) {
+            .success-card { padding: 40px 24px; }
+            h1 { font-size: 24px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="confetti-container" id="confetti"></div>
+
+    <div class="success-card">
+        <div style="margin-bottom: 20px;">
+            <img src="https://jhbridgetranslation.com/images/logo.png" alt="JHBridge" style="height: 45px;">
+        </div>
+        <div class="success-icon">&#10004;</div>
+        <h1>You're All Set, {{ first_name }}!</h1>
+        <p>Your onboarding is complete. Your account is fully set up and your contract has been signed. You're ready to start receiving assignments!</p>
+
+        <div class="checklist">
+            <div class="checklist-item">
+                <div class="check-icon">&#10003;</div>
+                <span>Account created</span>
+            </div>
+            <div class="checklist-item">
+                <div class="check-icon">&#10003;</div>
+                <span>Profile completed</span>
+            </div>
+            <div class="checklist-item">
+                <div class="check-icon">&#10003;</div>
+                <span>Bank details saved</span>
+            </div>
+            <div class="checklist-item">
+                <div class="check-icon">&#10003;</div>
+                <span>Contract signed</span>
+            </div>
+        </div>
+
+        <a href="{% url 'dbdint:new_interpreter_dashboard' %}" class="btn-dashboard">
+            Go to My Dashboard &#8594;
+        </a>
+    </div>
+
+    <script>
+        // Generate confetti
+        const colors = ['#76b041', '#2b50a1', '#1d3557', '#FFD700', '#FF6B6B', '#4ECDC4'];
+        const container = document.getElementById('confetti');
+
+        for (let i = 0; i < 60; i++) {
+            const confetti = document.createElement('div');
+            confetti.className = 'confetti';
+            confetti.style.left = Math.random() * 100 + '%';
+            confetti.style.background = colors[Math.floor(Math.random() * colors.length)];
+            confetti.style.width = (Math.random() * 8 + 5) + 'px';
+            confetti.style.height = (Math.random() * 8 + 5) + 'px';
+            confetti.style.borderRadius = Math.random() > 0.5 ? '50%' : '2px';
+            confetti.style.animationDuration = (Math.random() * 2 + 2) + 's';
+            confetti.style.animationDelay = Math.random() * 3 + 's';
+            container.appendChild(confetti);
+        }
+    </script>
+</body>
+</html>

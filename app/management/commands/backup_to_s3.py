@@ -136,7 +136,7 @@ class Command(BaseCommand):
             # Success summary
             total_duration = time.perf_counter() - start_time_total
             self.stdout.write("\n" + "=" * 80)
-            self.log("BACKUP COMPLETED SUCCESSFULLY ✓", style=self.STYLE_SUCCESS)
+            self.log("[OK] BACKUP COMPLETED SUCCESSFULLY", style=self.STYLE_SUCCESS)
             self.stdout.write("=" * 80)
             self.log(f"Total time: {total_duration:.2f} seconds")
             self.log(f"Local file: {backup_file}")
@@ -171,7 +171,7 @@ class Command(BaseCommand):
         
         try:
             self.s3_client.head_bucket(Bucket=self.bucket_name)
-            self.log(f"   ✓ Bucket exists", style=self.STYLE_SUCCESS)
+            self.log(f"   [OK] Bucket exists", style=self.STYLE_SUCCESS)
             
         except ClientError as e:
             if e.response['Error']['Code'] == '404':
@@ -201,7 +201,7 @@ class Command(BaseCommand):
                         }]
                     }
                 )
-                self.log(f"   ✓ Bucket created with versioning", style=self.STYLE_SUCCESS)
+                self.log(f"   [OK] Bucket created with versioning", style=self.STYLE_SUCCESS)
             else:
                 raise
 
@@ -232,7 +232,7 @@ class Command(BaseCommand):
                 )
             
             json_size = json_file.stat().st_size
-            self.log(f"   ✓ JSON export complete ({json_size / (1024*1024):.2f} MB)")
+            self.log(f"   [OK] JSON export complete ({json_size / (1024*1024):.2f} MB)")
             
             # Compress with progress
             self.log("   -> Compressing file...")
@@ -253,7 +253,7 @@ class Command(BaseCommand):
             compressed_size = backup_file.stat().st_size
             ratio = (1 - compressed_size / json_size) * 100
             
-            self.log(f"   ✓ Compression complete ({compressed_size / (1024*1024):.2f} MB, {ratio:.1f}% reduced)", 
+            self.log(f"   [OK] Compression complete ({compressed_size / (1024*1024):.2f} MB, {ratio:.1f}% reduced)", 
                      style=self.STYLE_SUCCESS)
             
             return backup_file
@@ -278,7 +278,7 @@ class Command(BaseCommand):
                     pbar.update(len(chunk))
         
         checksum = sha256_hash.hexdigest()
-        self.log(f"   ✓ Checksum: {checksum[:16]}...", style=self.STYLE_SUCCESS)
+        self.log(f"   [OK] Checksum: {checksum[:16]}...", style=self.STYLE_SUCCESS)
         return checksum
 
     def _verify_backup(self, file_path):
@@ -288,7 +288,7 @@ class Command(BaseCommand):
         try:
             with gzip.open(file_path, 'rb') as f:
                 f.read(1024 * 1024) # Test read first MB
-            self.log("   ✓ Integrity check passed", style=self.STYLE_SUCCESS)
+            self.log("   [OK] Integrity check passed", style=self.STYLE_SUCCESS)
         except Exception as e:
             raise CommandError(f"Integrity verification failed: {e}")
 
@@ -322,7 +322,7 @@ class Command(BaseCommand):
             if response['ContentLength'] != file_size:
                 raise CommandError("Upload size mismatch!")
             
-            self.log(f"   ✓ Upload successful", style=self.STYLE_SUCCESS)
+            self.log(f"   [OK] Upload successful", style=self.STYLE_SUCCESS)
             return {'s3_key': s3_key, 'size': file_size}
             
         except Exception as e:
@@ -340,5 +340,5 @@ class Command(BaseCommand):
                 f.unlink()
                 deleted += 1
         
-        self.log(f"   ✓ Removed {deleted} old local files", style=self.STYLE_SUCCESS)
+        self.log(f"   [OK] Removed {deleted} old local files", style=self.STYLE_SUCCESS)
 

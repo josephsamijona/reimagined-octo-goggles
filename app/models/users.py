@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.utils.translation import gettext_lazy as _
+import uuid
 
 class User(AbstractUser):
     class Roles(models.TextChoices):
@@ -8,27 +9,20 @@ class User(AbstractUser):
         INTERPRETER = 'INTERPRETER', _('Interprète')
         ADMIN = 'ADMIN', _('Administrateur')
 
-    # Ajout des related_name pour éviter les conflits
     groups = models.ManyToManyField(
         'auth.Group',
         verbose_name=_('groups'),
         blank=True,
-        help_text=_(
-            'The groups this user belongs to. A user will get all permissions '
-            'granted to each of their groups.'
-        ),
-        related_name='custom_user_set'  # Ajout du related_name personnalisé
+        related_name='custom_user_set'
     )
     user_permissions = models.ManyToManyField(
         'auth.Permission',
         verbose_name=_('user permissions'),
         blank=True,
-        help_text=_('Specific permissions for this user.'),
-        related_name='custom_user_set'  # Ajout du related_name personnalisé
+        related_name='custom_user_set'
     )
 
     email = models.EmailField(unique=True)
-    # Dans models.py, classe User
     phone = models.CharField(
         max_length=20, 
         blank=True, 
@@ -42,7 +36,6 @@ class User(AbstractUser):
     last_login_ip = models.GenericIPAddressField(null=True, blank=True)
     registration_complete = models.BooleanField(default=False)
     
-    # Nouveaux champs demandés
     contract_acceptance_date = models.DateTimeField(null=True, blank=True, help_text="Date d'acceptation du contrat")
     is_dashboard_enabled = models.BooleanField(default=False, help_text="Accès au tableau de bord activé")
 
@@ -58,8 +51,8 @@ class Client(models.Model):
     city = models.CharField(max_length=100)
     state = models.CharField(max_length=50)
     zip_code = models.CharField(max_length=20)
-    phone = models.CharField(max_length=20, blank=True, null=True)  # Nouveau champ ajouté
-    email = models.EmailField(blank=True, null=True)  # Nouveau champ ajouté
+    phone = models.CharField(max_length=20, blank=True, null=True)
+    email = models.EmailField(blank=True, null=True)
     billing_address = models.TextField(blank=True, null=True)
     billing_city = models.CharField(max_length=100, blank=True, null=True)
     billing_state = models.CharField(max_length=50, blank=True, null=True)
@@ -76,19 +69,18 @@ class Client(models.Model):
 class Interpreter(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='interpreter_profile')
     languages = models.ManyToManyField('Language', through='InterpreterLanguage')
-    profile_image = models.ImageField(upload_to='interpreter_profiles/', null=True, blank=True)
+    profile_image = models.TextField(null=True, blank=True)
     bio = models.TextField(blank=True, null=True)
     address = models.TextField()
     city = models.CharField(max_length=100)
     state = models.CharField(max_length=50)
     zip_code = models.CharField(max_length=20)
-    certifications = models.JSONField(null=True, blank=True)  # Format: [{"name": "CCHI", "expiry_date": "2025-01-01"}]
-    specialties = models.JSONField(null=True, blank=True)  # Format: ["Medical", "Legal"]
-    availability = models.JSONField(null=True, blank=True)  # Format: {"monday": ["9:00-17:00"]}
+    certifications = models.JSONField(null=True, blank=True)
+    specialties = models.JSONField(null=True, blank=True)
+    availability = models.JSONField(null=True, blank=True)
     radius_of_service = models.IntegerField(null=True, blank=True)
     hourly_rate = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     
-    # Informations bancaires pour ACH
     bank_name = models.CharField(max_length=100, null=True, blank=True)
     account_holder_name = models.CharField(max_length=100, null=True, blank=True)
     routing_number = models.CharField(max_length=100, null=True, blank=True)
@@ -105,13 +97,22 @@ class Interpreter(models.Model):
     w9_on_file = models.BooleanField(default=False)
     active = models.BooleanField(default=True)
     
-    # Contract & Dashboard Access
+    date_of_birth = models.DateField(null=True, blank=True)
+    years_of_experience = models.CharField(max_length=20, null=True, blank=True)
+
+    assignment_types = models.JSONField(null=True, blank=True)
+    preferred_assignment_type = models.CharField(max_length=20, null=True, blank=True)
+    cities_willing_to_cover = models.JSONField(null=True, blank=True)
+
     contract_acceptance_date = models.DateTimeField(null=True, blank=True)
     contract_rejection_reason = models.TextField(null=True, blank=True)
     has_accepted_contract = models.BooleanField(default=False)
     is_dashboard_enabled = models.BooleanField(default=False)
-    
-    # Manual Blocking & Sanctions
+    contract_invite_token = models.CharField(max_length=64, unique=True, null=True, blank=True)
+    contract_invite_expires_at = models.DateTimeField(null=True, blank=True)
+
+    signature_ip = models.CharField(max_length=45, null=True, blank=True)
+
     is_manually_blocked = models.BooleanField(default=False, help_text="Bloqué manuellement par un administrateur")
     blocked_reason = models.TextField(null=True, blank=True, help_text="Raison du blocage")
     blocked_at = models.DateTimeField(null=True, blank=True)
@@ -122,24 +123,47 @@ class Interpreter(models.Model):
         blank=True,
         related_name='blocked_interpreters'
     )
-    
+
+    # --- AJOUT DES PROPRIÉTÉS POUR ÉVITER LES BUGS ---
+    @property
+    def phone(self):
+        """Redirige vers le téléphone de l'utilisateur."""
+        return self.user.phone if self.user else ""
+
+    @property
+    def email(self):
+        """Redirige vers l'email de l'utilisateur."""
+        return self.user.email if self.user else ""
+
+    @property
+    def first_name(self):
+        return self.user.first_name if self.user else ""
+
+    @property
+    def last_name(self):
+        return self.user.last_name if self.user else ""
+
+    # --- SOLUTION MAGIQUE POUR TOUS LES AUTRES CHAMPS ---
+    def __getattr__(self, name):
+        """Récupère dynamiquement les attributs du User s'ils manquent sur l'Interpreter."""
+        if name.startswith('_'):
+            return super().__getattribute__(name)
+        try:
+            return getattr(self.user, name)
+        except (AttributeError, User.DoesNotExist):
+            raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
+
     class Meta:
         db_table = 'app_interpreter'
     
     def __str__(self):
-        """Retourne une représentation lisible de l'interprète"""
         if self.user:
-            # Format: Nom Prénom - Email - Langues - Adresse
             languages_str = ', '.join([lang.name for lang in self.languages.all()[:3]])
             if self.languages.count() > 3:
                 languages_str += f" +{self.languages.count() - 3} autres"
-            
             address_str = f"{self.address}, {self.city}, {self.state} {self.zip_code}" if self.address else "Pas d'adresse"
-                
             return f"{self.user.first_name} {self.user.last_name} ({self.user.email}) - {address_str}"
         return f"Interprète #{self.id}"
         
     def get_full_details(self):
-        """Retourne des détails complets pour l'affichage dans les formulaires administratifs"""
-        languages = ', '.join([lang.name for lang in self.languages.all()])
-        return f"{self.user.first_name} {self.user.last_name} - {languages} - {self.city}, {self.state}"
+        return f"{self.user.first_name} {self.user.last_name} - {self.city}, {self.state}"
