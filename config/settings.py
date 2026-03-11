@@ -29,7 +29,9 @@ ENCRYPTION_KEY=os.getenv('ENCRYPTION_KEY')
 DEBUG = os.getenv('DEBUG', 'True') == 'True'
 
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '').split(',') if os.getenv('ALLOWED_HOSTS') else []
-SITE_URL = os.getenv('SITE_URL', 'https://jhbridgetranslation.com')
+SESSION_COOKIE_DOMAIN = '.jhbridgetranslation.com'
+CSRF_COOKIE_DOMAIN = '.jhbridgetranslation.com'
+SITE_URL = os.getenv('SITE_URL', 'https://portal.jhbridgetranslation.com')
 
 # Configuration pour l'authentification par clé API
 API_KEY_HEADER = os.environ.get('API_KEY_HEADER', 'X-API-Key')
@@ -395,3 +397,9 @@ MASTER_KEY = os.environ.get('MASTER_KEY', '')
 PDF_GENERATOR_API_KEY = os.getenv('PDF_GENERATOR_API_KEY')
 API_URL_PDF_GENERATOR=os.getenv('API_URL_PDF_GENERATOR')
 
+if not DEBUG:
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    USE_X_FORWARDED_HOST = True
+    USE_X_FORWARDED_PORT = True
+    CSRF_COOKIE_SECURE = True
+    SESSION_COOKIE_SECURE = True
