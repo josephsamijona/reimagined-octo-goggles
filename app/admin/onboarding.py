@@ -1,3 +1,5 @@
+import logging
+import json
 from django.contrib import admin
 from django.utils.html import mark_safe
 from django.utils import timezone
@@ -5,8 +7,8 @@ from django.contrib import messages
 from django.shortcuts import render, redirect
 from django.urls import path, reverse
 from app.models import OnboardingInvitation, OnboardingTrackingEvent
-import json
 
+logger = logging.getLogger(__name__)
 
 class OnboardingTrackingEventInline(admin.TabularInline):
     model = OnboardingTrackingEvent
@@ -88,6 +90,55 @@ class OnboardingInvitationAdmin(admin.ModelAdmin):
     )
 
     actions = ['void_invitations', 'resend_invitations']
+
+    def save_model(self, request, obj, form, change):
+        """
+        Gère la sauvegarde et l'envoi automatique de l'email 
+        lors de la création d'une invitation via l'admin standard.
+        """
+        is_new = not change
+        
+        if is_new:
+            # Assigner l'administrateur actuel
+            if not obj.created_by:
+                obj.created_by = request.user
+            
+            # Liaison préventive si l'utilisateur existe déjà
+            from app.models import User
+            existing_user = User.objects.filter(email=obj.email).first()
+            if existing_user:
+                obj.user = existing_user
+                obj.interpreter = getattr(existing_user, 'interpreter', None)
+
+        # Sauvegarde initiale pour générer l'ID et le token si nécessaire
+        super().save_model(request, obj, form, change)
+
+        # Déclenchement de l'email automatique à la création
+        if is_new:
+            try:
+                from app.services.email_service import OnboardingEmailService
+                
+                # On marque l'envoi avant de tenter pour éviter les boucles, 
+                # puis on met à jour selon le résultat du service.
+                email_sent = OnboardingEmailService.send_invitation_email(obj, request)
+
+                if email_sent:
+                    obj.email_sent_at = timezone.now()
+                    obj.save(update_fields=['email_sent_at'])
+                    
+                    OnboardingTrackingEvent.objects.create(
+                        invitation=obj,
+                        event_type='EMAIL_SENT',
+                        performed_by=request.user,
+                        metadata={'source': 'admin_save_model'}
+                    )
+                    messages.success(request, f"Invitation email successfully sent to {obj.email}.")
+                else:
+                    messages.warning(request, f"Invitation created for {obj.email} but the email failed to send.")
+            
+            except Exception as e:
+                logger.error(f"Automatic email failed in save_model: {e}", exc_info=True)
+                messages.error(request, f"Automatic email error: {e}")
 
     def full_name_display(self, obj):
         return obj.full_name
@@ -205,7 +256,6 @@ class OnboardingInvitationAdmin(admin.ModelAdmin):
 
         self.message_user(request, f"{count} invitation(s) resent.", level=messages.SUCCESS)
 
-    # Custom admin URL for sending new invitations
     def get_urls(self):
         custom_urls = [
             path('send-invitation/',
@@ -232,7 +282,6 @@ class OnboardingInvitationAdmin(admin.ModelAdmin):
                     'phone': phone,
                 })
 
-            # Check for existing active invitation
             active = OnboardingInvitation.objects.filter(
                 email=email,
                 current_phase__in=['INVITED', 'EMAIL_OPENED', 'WELCOME_VIEWED', 'ACCOUNT_CREATED', 'PROFILE_COMPLETED', 'CONTRACT_STARTED']
@@ -255,7 +304,6 @@ class OnboardingInvitationAdmin(admin.ModelAdmin):
                     email_sent_at=timezone.now(),
                 )
 
-                # Check if user already exists with this email
                 existing_user = User.objects.filter(email=email).first()
                 if existing_user:
                     invitation.user = existing_user
@@ -279,8 +327,6 @@ class OnboardingInvitationAdmin(admin.ModelAdmin):
                     messages.warning(request, f'Invitation created but email failed to send to {email}.')
 
             except Exception as e:
-                import logging
-                logger = logging.getLogger(__name__)
                 logger.error(f"Failed to send onboarding invitation: {e}", exc_info=True)
                 messages.error(request, f'Error: {e}')
 
