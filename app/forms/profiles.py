@@ -150,7 +150,7 @@ class InterpreterProfileForm(forms.ModelForm):
             self.fields['first_name'].initial = user.first_name
             self.fields['last_name'].initial = user.last_name
             self.fields['email'].initial = user.email
-            self.fields['phone_number'].initial = user.phone_number
+            self.fields['phone_number'].initial = user.phone
 
             interpreter = getattr(user, 'interpreter_profile', None)
             if interpreter:

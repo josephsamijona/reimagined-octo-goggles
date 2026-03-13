@@ -52,14 +52,32 @@ def get_client_ip(request):
 
 
 def get_onboarding_invitation(request):
-    """Helper to load onboarding invitation from session."""
+    """Helper to load onboarding invitation from session or user."""
     invitation_id = request.session.get('dbdint:onboarding_invitation_id')
-    if not invitation_id:
-        return None
-    try:
-        return OnboardingInvitation.objects.get(id=invitation_id)
-    except OnboardingInvitation.DoesNotExist:
-        return None
+    logger.info(f"get_onboarding_invitation: session invitation_id='{invitation_id}'")
+    if invitation_id:
+        try:
+            inv = OnboardingInvitation.objects.get(id=invitation_id)
+            logger.info(f"get_onboarding_invitation: Found invitation {inv.invitation_number} in session.")
+            return inv
+        except OnboardingInvitation.DoesNotExist:
+            logger.warning(f"get_onboarding_invitation: Invitation ID '{invitation_id}' not found in DB.")
+            
+    # Fallback: Look up by authenticated user if available
+    logger.info(f"get_onboarding_invitation: Falling back to authenticated user (is_auth={request.user.is_authenticated})")
+    if request.user.is_authenticated:
+        # Get the most recent invitation for this user
+        invitation = OnboardingInvitation.objects.filter(user=request.user).order_by('-created_at').first()
+        if invitation:
+            logger.info(f"get_onboarding_invitation: Found invitation {invitation.invitation_number} via user {request.user.email}")
+            # Restore session variable for subsequent calls
+            request.session['dbdint:onboarding_invitation_id'] = str(invitation.id)
+            return invitation
+        else:
+            logger.warning(f"get_onboarding_invitation: No invitation found for authenticated user {request.user.email}")
+            
+    logger.error("get_onboarding_invitation: No invitation found in session OR via authenticated user.")
+    return None
 
 
 # Phase routing map
@@ -81,42 +99,52 @@ class OnboardingEntryView(View):
     URL: /onboarding/<str:token>/
     """
     def get(self, request, token):
+        logger.info(f"OnboardingEntryView.get: Received token='{token[:8]}...'")
         invitation = get_object_or_404(OnboardingInvitation, token=token)
+        logger.info(f"OnboardingEntryView.get: Loaded invitation {invitation.invitation_number} (Phase: {invitation.current_phase})")
 
-        # Check expired/voided
+        # Check expired/voided (but allow completed ones to pass)
         if invitation.current_phase == 'VOIDED':
+            logger.warning(f"OnboardingEntryView.get: Invitation {invitation.invitation_number} is VOIDED.")
             return render(request, 'contract/wrongclick.html', {'error': 'This invitation has been voided.'})
-
-        if invitation.is_expired():
-            invitation.current_phase = 'EXPIRED'
-            invitation.save(update_fields=['current_phase'])
+            
+        if invitation.is_expired() and invitation.current_phase != 'COMPLETED':
+            logger.warning(f"OnboardingEntryView.get: Invitation {invitation.invitation_number} is EXPIRED (expires_at={invitation.expires_at}).")
+            if invitation.current_phase != 'EXPIRED':
+                invitation.current_phase = 'EXPIRED'
+                invitation.save(update_fields=['current_phase'])
             return render(request, 'contract/wrongclick.html', {'error': 'This invitation has expired.'})
 
         if invitation.current_phase == 'EXPIRED':
-            return render(request, 'contract/wrongclick.html', {'error': 'This invitation has expired.'})
+             logger.warning(f"OnboardingEntryView.get: Invitation {invitation.invitation_number} has EXPIRED phase.")
+             return render(request, 'contract/wrongclick.html', {'error': 'This invitation has expired.'})
 
         # Store invitation in session
         request.session['dbdint:onboarding_invitation_id'] = str(invitation.id)
+        logger.info(f"OnboardingEntryView.get: Stored invitation.id={invitation.id} in session.")
 
         # Track link click (first time only)
         if invitation.current_phase == 'INVITED':
+            logger.info(f"OnboardingEntryView.get: Tracking LINK_CLICKED for {invitation.invitation_number}")
             OnboardingTrackingEvent.objects.create(
                 invitation=invitation,
                 event_type='LINK_CLICKED',
                 metadata={'ip': get_client_ip(request), 'user_agent': request.META.get('HTTP_USER_AGENT', '')}
             )
 
-        # If account already created, auto-login the user
-        if invitation.user and invitation.current_phase in ('ACCOUNT_CREATED', 'PROFILE_COMPLETED', 'CONTRACT_STARTED'):
+        # If account already created or completed, auto-login the user
+        if invitation.user and invitation.current_phase in ('ACCOUNT_CREATED', 'PROFILE_COMPLETED', 'CONTRACT_STARTED', 'COMPLETED'):
+            logger.info(f"OnboardingEntryView.get: Attempting auto-login for user {invitation.user.email}")
             if not request.user.is_authenticated or request.user != invitation.user:
                 login(request, invitation.user, backend='django.contrib.auth.backends.ModelBackend')
+                logger.info("OnboardingEntryView.get: Auto-login successful.")
                 # Re-store invitation ID after login (session rotation)
                 request.session['dbdint:onboarding_invitation_id'] = str(invitation.id)
 
         # Route to correct phase
         redirect_name = PHASE_REDIRECT_MAP.get(invitation.current_phase, 'dbdint:onboarding_welcome')
+        logger.info(f"OnboardingEntryView.get: Redirecting to {redirect_name} based on phase {invitation.current_phase}")
         return redirect(redirect_name)
-
 
 @method_decorator(never_cache, name='dispatch')
 class OnboardingWelcomeView(View):
@@ -129,6 +157,7 @@ class OnboardingWelcomeView(View):
     def get(self, request):
         invitation = get_onboarding_invitation(request)
         if not invitation:
+            logger.error("OnboardingWelcomeView.get: Invitation not found. Redirecting to contract_error.")
             return redirect('dbdint:contract_error')
 
         context = {
@@ -168,6 +197,7 @@ class OnboardingAccountView(View):
     def get(self, request):
         invitation = get_onboarding_invitation(request)
         if not invitation:
+            logger.error("OnboardingAccountView.get: Invitation not found. Redirecting to contract_error.")
             return redirect('dbdint:contract_error')
 
         # If account already created, skip to next phase
@@ -210,8 +240,19 @@ class OnboardingAccountView(View):
             # Link existing user/interpreter to onboarding
             invitation.user = existing_user
             interpreter = getattr(existing_user, 'interpreter', None)
-            if interpreter:
-                invitation.interpreter = interpreter
+            
+            # --- FIX: Ensure interpreter profile exists ---
+            interpreter, created = Interpreter.objects.get_or_create(
+                user=existing_user,
+                defaults={'active': True}
+            )
+            if created:
+                logger.info(f"OnboardingAccountView.post: Created new interpreter profile for existing user {existing_user.email}")
+            else:
+                logger.info(f"OnboardingAccountView.post: Found existing interpreter profile for user {existing_user.email}")
+            
+            invitation.interpreter = interpreter
+            # -----------------------------------------------
 
             invitation.current_phase = 'ACCOUNT_CREATED'
             invitation.account_created_at = timezone.now()
@@ -308,6 +349,7 @@ class OnboardingProfileView(View):
     def get(self, request):
         invitation = get_onboarding_invitation(request)
         if not invitation or not invitation.interpreter:
+            logger.error(f"OnboardingProfileView.get: Invalid state (invITATION={'Yes' if invitation else 'No'}, interpreter={'Yes' if invitation and invitation.interpreter else 'No'}). Redirecting to contract_error.")
             return redirect('dbdint:contract_error')
 
         interpreter = invitation.interpreter
@@ -371,7 +413,7 @@ class OnboardingProfileView(View):
                 storage = MediaStorage()
                 filename = f"profiles/{interpreter.id}/{photo.name}"
                 saved_path = storage.save(filename, photo)
-                interpreter.profile_image = storage.url(saved_path)
+                interpreter.profile_image = saved_path
 
             # Languages
             languages_ids = request.POST.getlist('languages')
@@ -393,7 +435,11 @@ class OnboardingProfileView(View):
             interpreter.years_of_experience = years_exp
             interpreter.assignment_types = assignment_types
             interpreter.preferred_assignment_type = preferred_type
-            interpreter.radius_of_service = int(radius) if radius else None
+            try:
+                interpreter.radius_of_service = int(radius) if radius else None
+            except (ValueError, TypeError):
+                interpreter.radius_of_service = None
+                logger.warning(f"Invalid radius value provided: {radius}")
             interpreter.cities_willing_to_cover = [c.strip() for c in cities.split(',') if c.strip()]
             interpreter.certifications = {
                 'certified': certified,
@@ -474,6 +520,7 @@ class OnboardingContractBridgeView(View):
     def get(self, request):
         invitation = get_onboarding_invitation(request)
         if not invitation or not invitation.interpreter:
+            logger.error(f"OnboardingContractBridgeView.get: Invalid state (invITATION={'Yes' if invitation else 'No'}, interpreter={'Yes' if invitation and invitation.interpreter else 'No'}). Redirecting to contract_error.")
             return redirect('dbdint:contract_error')
 
         # Create ContractInvitation if not exists

@@ -29,8 +29,8 @@ ENCRYPTION_KEY=os.getenv('ENCRYPTION_KEY')
 DEBUG = os.getenv('DEBUG', 'True') == 'True'
 
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '').split(',') if os.getenv('ALLOWED_HOSTS') else []
-SESSION_COOKIE_DOMAIN = '.jhbridgetranslation.com'
-CSRF_COOKIE_DOMAIN = '.jhbridgetranslation.com'
+SESSION_COOKIE_DOMAIN = None if DEBUG else '.jhbridgetranslation.com'
+CSRF_COOKIE_DOMAIN = None if DEBUG else '.jhbridgetranslation.com'
 SITE_URL = os.getenv('SITE_URL', 'https://portal.jhbridgetranslation.com')
 
 # Configuration pour l'authentification par clé API
@@ -372,8 +372,9 @@ IMAGE_MAX_SIZE = 5 * 1024 * 1024   # 5MB pour les images
 
 
 # Configuration AWS S3 pour django-storages
-AWS_ACCESS_KEY_ID = os.getenv('AWS_KEY_ID') or os.getenv('AWS_ACCESS_KEY_ID')
-AWS_SECRET_ACCESS_KEY = os.getenv('AWS_KEY_SECRET') or os.getenv('AWS_SECRET_ACCESS_KEY')
+AWS_ACCESS_KEY_ID = os.getenv('AWS_KEY_ID')
+AWS_SECRET_ACCESS_KEY = os.getenv('AWS_KEY_SECRET')
+AWS_STORAGE_BUCKET_NAME = os.getenv('AWS_STORAGE_BUCKET_NAME', 'jhbridge-documents-prod')
 AWS_S3_REGION_NAME = os.getenv('AWS_S3_REGION_NAME', 'us-east-1')
 AWS_S3_SIGNATURE_VERSION = 's3v4'
 AWS_QUERYSTRING_AUTH = True  # Par défaut, liens signés (sécurité)

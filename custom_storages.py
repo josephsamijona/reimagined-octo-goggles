@@ -5,17 +5,23 @@ from django.conf import settings
 class MediaStorage(S3Boto3Storage):
     """
     Default storage for general media files.
-    Maps to 'jhbridge-documents-prod' for compatibility with migrated data.
-    Location 'media' matches the B2 structure.
     """
-    bucket_name = 'jhbridge-documents-prod'
+    bucket_name = getattr(settings, 'AWS_STORAGE_BUCKET_NAME', 'jhbridge-documents-prod')
     location = 'media'
+
+class PublicMediaStorage(S3Boto3Storage):
+    """
+    Storage for files that should be publicly accessible (e.g., profile pictures).
+    """
+    bucket_name = getattr(settings, 'AWS_STORAGE_BUCKET_NAME', 'jhbridge-documents-prod')
+    location = 'media'
+    querystring_auth = False
 
 class DocumentStorage(S3Boto3Storage):
     """
     Storage for general documents.
     """
-    bucket_name = 'jhbridge-documents-prod'
+    bucket_name = getattr(settings, 'AWS_STORAGE_BUCKET_NAME', 'jhbridge-documents-prod')
     location = 'media'
 
 class ContractStorage(S3Boto3Storage):

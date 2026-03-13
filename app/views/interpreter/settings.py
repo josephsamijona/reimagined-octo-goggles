@@ -79,7 +79,7 @@ class InterpreterSettingsView(LoginRequiredMixin, UserPassesTestMixin, TemplateV
                 user.first_name = profile_form.cleaned_data['first_name']
                 user.last_name = profile_form.cleaned_data['last_name']
                 user.email = profile_form.cleaned_data['email']
-                user.phone_number = profile_form.cleaned_data['phone_number']
+                user.phone = profile_form.cleaned_data['phone_number']
                 user.save()
                 
                 # Mise à jour des informations bancaires

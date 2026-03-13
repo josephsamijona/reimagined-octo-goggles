@@ -441,7 +441,7 @@ class PaymentListView(ListView):
     def dispatch(self, request, *args, **kwargs):
         """Check if user has interpreter profile before proceeding"""
         if not request.user.is_authenticated:
-            return redirect('login')
+            return redirect('dbdint:login')
             
         if not request.user.registration_complete:
         # Affichage de la page de complétion d'inscription

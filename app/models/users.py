@@ -83,8 +83,8 @@ class Interpreter(models.Model):
     
     bank_name = models.CharField(max_length=100, null=True, blank=True)
     account_holder_name = models.CharField(max_length=100, null=True, blank=True)
-    routing_number = models.CharField(max_length=100, null=True, blank=True)
-    account_number = models.CharField(max_length=100, null=True, blank=True)
+    routing_number = models.CharField(max_length=255, null=True, blank=True)
+    account_number = models.CharField(max_length=255, null=True, blank=True)
     account_type = models.CharField(
         max_length=10, 
         choices=[('checking', 'Checking'), ('savings', 'Savings')],

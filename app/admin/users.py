@@ -11,6 +11,45 @@ class InterpreterLanguageInline(admin.TabularInline):
     classes = ['collapse']
     fields = ('language', 'proficiency', 'is_primary', 'certified', 'certification_details')
 
+class InterpreterInline(admin.StackedInline):
+    model = models.Interpreter
+    can_delete = False
+    verbose_name_plural = 'Interpreter Profile'
+    fk_name = 'user'
+    extra = 0
+    fieldsets = (
+        ('Profile Information', {'fields': ('profile_photo_preview', 'profile_image', 'bio')}),
+        ('Contact Information', {'fields': ('address', ('city', 'state', 'zip_code'), 'radius_of_service')}),
+    )
+    readonly_fields = ('profile_photo_preview',)
+
+    def profile_photo_preview(self, obj):
+        if obj.profile_image:
+            import re
+            url = obj.profile_image
+            # Extraction du chemin relatif si c'est une URL signée S3/B2
+            if url.startswith('http'):
+                # Regex pour capturer le chemin après le nom du bucket/domaine et avant les paramètres query
+                match = re.search(r'https?://[^/]+/(?:media/)?([^?]+)', url)
+                if match:
+                    url = match.group(1)
+            
+            # Si on a un chemin relatif (ou extrait), on génère une URL non signée
+            if not url.startswith('http'):
+                from custom_storages import PublicMediaStorage
+                try:
+                    storage = PublicMediaStorage()
+                    # On s'assure de ne pas doubler 'media/' si déjà présent dans custom_storages
+                    path = url
+                    if path.startswith('media/'):
+                        path = path.replace('media/', '', 1)
+                    url = storage.url(path)
+                except Exception:
+                    pass
+            return mark_safe(f'<img src="{url}" width="150" style="border-radius: 10px; border: 1px solid #ccc;" />')
+        return "No photo"
+    profile_photo_preview.short_description = 'Photo Preview'
+
 @admin.register(models.User)
 class CustomUserAdmin(UserAdmin):
     # AJOUT DES NOUVELLES COLONNES DEMANDÉES
@@ -19,6 +58,13 @@ class CustomUserAdmin(UserAdmin):
     search_fields = ('username', 'email', 'first_name', 'last_name')
     ordering = ('-date_joined',)
     actions = [reset_password, mark_as_active, mark_as_inactive]
+    inlines = [] # Will be populated in get_inlines
+
+    def get_inlines(self, request, obj=None):
+        inlines = super().get_inlines(request, obj)
+        if obj and obj.role == models.User.Roles.INTERPRETER:
+            return inlines + [InterpreterInline]
+        return inlines
     fieldsets = (
         (None, {'fields': ('username', 'password')}),
         (_('Personal Information'), {'fields': ('first_name', 'last_name', 'email', 'phone')}),
@@ -92,7 +138,7 @@ class InterpreterAdmin(admin.ModelAdmin):
     inlines = [InterpreterLanguageInline]
     fieldsets = (
         ('Status', {'fields': (('user', 'active'),)}),
-        ('Profile Information', {'fields': ('profile_image', 'bio')}),
+        ('Profile Information', {'fields': (('profile_photo_preview', 'profile_image'), 'bio')}),
         ('Personal Information', {'fields': ('date_of_birth', 'years_of_experience'),
                                   'classes': ('collapse',)}),
         ('Contact Information', {'fields': ('address', ('city', 'state', 'zip_code'), 'radius_of_service')}),
@@ -107,6 +153,34 @@ class InterpreterAdmin(admin.ModelAdmin):
         ('Contract Invitation', {'fields': ('contract_invite_token', 'contract_invite_expires_at', 'signature_ip'),
                                  'classes': ('collapse',)}),
     )
+    readonly_fields = ('profile_photo_preview',)
+
+    def profile_photo_preview(self, obj):
+        if obj.profile_image:
+            import re
+            url = obj.profile_image
+            # Extraction du chemin relatif si c'est une URL signée S3/B2
+            if url.startswith('http'):
+                # Regex pour capturer le chemin après le nom du bucket/domaine et avant les paramètres query
+                match = re.search(r'https?://[^/]+/(?:media/)?([^?]+)', url)
+                if match:
+                    url = match.group(1)
+            
+            # Si on a un chemin relatif (ou extrait), on génère une URL non signée
+            if not url.startswith('http'):
+                from custom_storages import PublicMediaStorage
+                try:
+                    storage = PublicMediaStorage()
+                    # On s'assure de ne pas doubler 'media/' si déjà présent dans custom_storages
+                    path = url
+                    if path.startswith('media/'):
+                        path = path.replace('media/', '', 1)
+                    url = storage.url(path)
+                except Exception:
+                    pass
+            return mark_safe(f'<img src="{url}" width="150" style="border-radius: 10px; border: 1px solid #ccc;" />')
+        return "No photo"
+    profile_photo_preview.short_description = 'Photo Preview'
     def get_full_name(self, obj):
         return f"{obj.user.first_name} {obj.user.last_name}"
     get_full_name.short_description = 'Interpreter Name'
@@ -121,9 +195,10 @@ class InterpreterAdmin(admin.ModelAdmin):
         return mark_safe("<br>".join(language_list))
     get_languages.short_description = 'Languages'
     def get_readonly_fields(self, request, obj=None):
+        readonly = ('profile_photo_preview',)
         if obj:
-            return ('user',)
-        return ()
+            return readonly + ('user',)
+        return readonly
     def save_model(self, request, obj, form, change):
         if not change:
             obj.active = True
