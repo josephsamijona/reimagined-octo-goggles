@@ -6,22 +6,10 @@ from django.utils import timezone
 from django.core.exceptions import ValidationError
 from datetime import datetime
 
-# =======================================================
-# 1. UTILITAIRES POUR LE FUSEAU HORAIRE
-# =======================================================
-# On force ici l'heure du Massachusetts (America/New_York)
-BOSTON_TZ = pytz.timezone('America/New_York')
-
-def format_boston_datetime(dt):
-    """
-    Convertit une datetime (stockée en UTC) en heure locale de Boston
-    et la formate au format US : MM/DD/YYYY HH:MM AM/PM TZ.
-    Exemple : "03/25/2025 02:30 PM EDT"
-    """
-    if not dt:
-        return ""
-    local_dt = timezone.localtime(dt, BOSTON_TZ)
-    return local_dt.strftime("%m/%d/%Y %I:%M %p %Z")
+from app.utils.timezone import (
+    BOSTON_TZ,
+    format_boston_datetime,
+)
 
 # =======================================================
 # 2. WIDGET PERSONNALISÉ POUR LA SAISIE DE DATE/HEURE AVEC FLATPICKR

@@ -21,9 +21,9 @@ import uuid
 import logging
 from datetime import datetime, timedelta
 
-logger = logging.getLogger(__name__)
+from app.utils.timezone import BOSTON_TZ, get_interpreter_timezone, format_local_datetime
 
-BOSTON_TZ = pytz.timezone('America/New_York')  # Fuseau horaire de Boston
+logger = logging.getLogger(__name__)
 
 class AssignmentAdminMixin:
     """Mixin for handling all assignment-related administrative tasks."""
