@@ -167,3 +167,27 @@ class Interpreter(models.Model):
         
     def get_full_details(self):
         return f"{self.user.first_name} {self.user.last_name} - {self.city}, {self.state}"
+    
+    
+# app/models/users.py — AJOUTER
+
+class InterpreterLocation(models.Model):
+    interpreter = models.ForeignKey('Interpreter', on_delete=models.CASCADE, related_name='locations')
+    
+    latitude = models.FloatField()
+    longitude = models.FloatField()
+    accuracy = models.FloatField(null=True)  # Précision GPS en mètres
+    
+    is_on_mission = models.BooleanField(default=False)
+    current_assignment = models.ForeignKey('Assignment', on_delete=models.SET_NULL, null=True, blank=True)
+    
+    timestamp = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'app_interpreter_location'
+        ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['interpreter', '-timestamp']),
+        ]
+        # On ne garde que la dernière position
+        # Les positions historiques sont purgées par un Celery task

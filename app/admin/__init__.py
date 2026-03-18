@@ -8,6 +8,7 @@ from .security import AuditLogAdmin, APIKeyAdmin, PGPKeyAdmin
 from .documents import InterpreterContractSignatureAdmin, DocumentAdmin
 from .contracts import ContractInvitationAdmin
 from .onboarding import OnboardingInvitationAdmin
+from .marketing import LeadAdmin, CampaignAdmin
 
 # =======================================================
 # CONFIGURATION DU SITE ADMIN

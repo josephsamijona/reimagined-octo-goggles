@@ -391,3 +391,40 @@ class Deduction(models.Model):
 
     def __str__(self):
         return f"{self.get_deduction_type_display()}: {self.description} - ${self.amount}"
+
+
+# app/models/finance.py — AJOUTER
+
+class Invoice(models.Model):
+    class Status(models.TextChoices):
+        DRAFT = 'DRAFT'
+        SENT = 'SENT'
+        PAID = 'PAID'
+        OVERDUE = 'OVERDUE'
+        CANCELLED = 'CANCELLED'
+        DISPUTED = 'DISPUTED'
+
+    invoice_number = models.CharField(max_length=50, unique=True)  # INV-2026-0001
+    client = models.ForeignKey('Client', on_delete=models.PROTECT)
+    assignments = models.ManyToManyField('Assignment', blank=True)  # Missions facturées
+    
+    subtotal = models.DecimalField(max_digits=10, decimal_places=2)
+    tax_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    total = models.DecimalField(max_digits=10, decimal_places=2)
+    
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.DRAFT)
+    issued_date = models.DateField(null=True, blank=True)
+    due_date = models.DateField()
+    paid_date = models.DateField(null=True, blank=True)
+    payment_method = models.CharField(max_length=50, blank=True)
+    
+    notes = models.TextField(blank=True)
+    pdf_file = models.FileField(upload_to='invoices/', null=True, blank=True)
+    
+    created_by = models.ForeignKey('User', on_delete=models.PROTECT)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    # Tracking relances
+    last_reminder_sent = models.DateTimeField(null=True, blank=True)
+    reminder_count = models.IntegerField(default=0)

@@ -144,3 +144,51 @@ class AssignmentFeedback(models.Model):
 
     class Meta:
         db_table = 'app_assignmentfeedback'
+
+# app/models/communication.py — AJOUTER
+
+class EmailLog(models.Model):
+    class Category(models.TextChoices):
+        INTERPRETATION = 'INTERPRETATION'
+        QUOTE = 'QUOTE'
+        HIRING = 'HIRING'
+        CONFIRMATION = 'CONFIRMATION'
+        PAYMENT = 'PAYMENT'
+        OTHER = 'OTHER'
+
+    class Priority(models.TextChoices):
+        URGENT = 'URGENT'
+        HIGH = 'HIGH'
+        MEDIUM = 'MEDIUM'
+        LOW = 'LOW'
+
+    gmail_id = models.CharField(max_length=100, unique=True)  # Gmail message ID
+    gmail_thread_id = models.CharField(max_length=100, blank=True)
+    
+    from_email = models.EmailField()
+    from_name = models.CharField(max_length=200, blank=True)
+    subject = models.CharField(max_length=500)
+    body_preview = models.TextField(blank=True)  # Premiers 500 chars
+    received_at = models.DateTimeField()
+    
+    # AI Classification
+    category = models.CharField(max_length=20, choices=Category.choices, null=True)
+    priority = models.CharField(max_length=10, choices=Priority.choices, null=True)
+    ai_confidence = models.FloatField(null=True)  # 0.0 à 1.0
+    ai_extracted_data = models.JSONField(default=dict)  # Données extraites par l'AI
+    ai_suggested_actions = models.JSONField(default=list)  # Actions recommandées
+    
+    # Processing
+    is_read = models.BooleanField(default=False)
+    is_processed = models.BooleanField(default=False)
+    processed_by = models.ForeignKey('User', on_delete=models.SET_NULL, null=True, blank=True)
+    processed_at = models.DateTimeField(null=True, blank=True)
+    
+    # Relations (si l'email est lié à une entité existante)
+    linked_client = models.ForeignKey('Client', on_delete=models.SET_NULL, null=True, blank=True)
+    linked_assignment = models.ForeignKey('Assignment', on_delete=models.SET_NULL, null=True, blank=True)
+    linked_quote_request = models.ForeignKey('QuoteRequest', on_delete=models.SET_NULL, null=True, blank=True)
+    linked_onboarding = models.ForeignKey('OnboardingInvitation', on_delete=models.SET_NULL, null=True, blank=True)
+    
+    has_attachments = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)

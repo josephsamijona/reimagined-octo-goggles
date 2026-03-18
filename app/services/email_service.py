@@ -150,7 +150,7 @@ class OnboardingEmailService:
     """Service for sending onboarding invitation emails."""
 
     @classmethod
-    def send_invitation_email(cls, onboarding_invitation, request=None):
+    def send_invitation_email(cls, onboarding_invitation, request=None, template_type=None):
         """Send the onboarding invitation email with tracking pixel."""
         try:
             base_url = getattr(settings, 'SITE_URL', 'https://jhbridges.up.railway.app').rstrip('/')
@@ -170,12 +170,31 @@ class OnboardingEmailService:
                 'invitation_number': onboarding_invitation.invitation_number,
             }
 
-            html_message = render_to_string('emails/onboarding/invitation.html', context)
+            template_name = 'emails/onboarding/invitation.html'
+            subject = 'Welcome to JHBridge Translation Services!'
+
+            if template_type == 'RESEND_ISSUE':
+                template_name = 'emails/onboarding/resend_issue.html'
+                subject = 'Help with your JHBridge Onboarding'
+            elif template_type == 'STUCK_WELCOME':
+                template_name = 'emails/onboarding/resend_stuck_welcome.html'
+                subject = 'Action Required: Finish your Welcome Tour'
+            elif template_type == 'STUCK_ACCOUNT':
+                template_name = 'emails/onboarding/resend_stuck_account.html'
+                subject = 'Reminder: Complete your JHBridge Profile'
+            elif template_type == 'STUCK_CONTRACT':
+                template_name = 'emails/onboarding/resend_stuck_contract.html'
+                subject = 'One last step: Sign your Agreement'
+            elif template_type == 'STUCK_OPENED':
+                template_name = 'emails/onboarding/resend_stuck_opened.html'
+                subject = 'Ready to start your JHBridge Onboarding?'
+
+            html_message = render_to_string(template_name, context)
 
             logger.info(f"Sending onboarding invitation {onboarding_invitation.invitation_number} to {onboarding_invitation.email}")
 
             sent_count = send_mail(
-                subject='Welcome to JHBridge Translation Services!',
+                subject=subject,
                 message='',
                 html_message=html_message,
                 from_email='JHBridge Team <team@jhbridgetranslation.com>',

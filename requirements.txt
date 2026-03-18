@@ -77,3 +77,9 @@ python-gnupg
 pgpy
 cryptography
 requests
+django-filter                  # Filtres avancés DRF
+drf-spectacular                # Auto-documentation API
+psycopg2-binary                # PostgreSQL driver
+django-redis                   # Redis cache/sessions
+channels                       # WebSocket support (optionnel)
+channels-redis

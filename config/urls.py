@@ -8,5 +8,6 @@ handler400 = 'app.views.errors.error_400'
 
 urlpatterns = [
     path("admin/", admin.site.urls),
+    path('api/v1/', include('app.api.urls')),
     path('', include('app.urls')),  # Inclure les URLs de l'application app
 ]
