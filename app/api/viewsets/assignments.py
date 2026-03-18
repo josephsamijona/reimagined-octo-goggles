@@ -27,6 +27,7 @@ from app.api.services.assignment_service import (
     create_expense_for_assignment,
     add_assignment_to_google_calendar,
 )
+import app.services.assignment_email_service as email_svc
 from app.models import Assignment, Notification
 
 logger = logging.getLogger(__name__)
@@ -95,6 +96,7 @@ class AssignmentViewSet(ModelViewSet):
                 logger.error(f"Failed to create interpreter payment for assignment {pk}: {e}")
 
         add_assignment_to_google_calendar(assignment.id)
+        email_svc.send_assignment_email(assignment, 'confirmed')
 
         serializer = AssignmentDetailSerializer(assignment)
         return Response(serializer.data)
@@ -104,7 +106,7 @@ class AssignmentViewSet(ModelViewSet):
     # ------------------------------------------------------------------
     @action(detail=True, methods=['post'])
     def cancel(self, request, pk=None):
-        """Cancel an assignment and void any pending payment."""
+        """Cancel an assignment, void payment, and notify interpreter."""
         assignment = self.get_object()
         if not assignment.can_be_cancelled():
             return Response(
@@ -114,8 +116,8 @@ class AssignmentViewSet(ModelViewSet):
 
         old_interpreter = assignment.cancel()
 
-        # Cancel interpreter payment
         cancel_interpreter_payment(assignment)
+        email_svc.send_assignment_email(assignment, 'cancelled')
 
         serializer = AssignmentDetailSerializer(assignment)
         return Response(serializer.data)
@@ -125,7 +127,7 @@ class AssignmentViewSet(ModelViewSet):
     # ------------------------------------------------------------------
     @action(detail=True, methods=['post'])
     def complete(self, request, pk=None):
-        """Mark an assignment as completed, update payment, create expense."""
+        """Mark assignment completed, create expense, and notify interpreter."""
         assignment = self.get_object()
         if not assignment.can_be_completed():
             return Response(
@@ -143,6 +145,8 @@ class AssignmentViewSet(ModelViewSet):
                 create_expense_for_assignment(assignment)
             except Exception as e:
                 logger.error(f"Failed to create expense for completed assignment {pk}: {e}")
+
+        email_svc.send_assignment_email(assignment, 'completed')
 
         serializer = AssignmentDetailSerializer(assignment)
         return Response(serializer.data)
@@ -177,7 +181,7 @@ class AssignmentViewSet(ModelViewSet):
             assignment.status = Assignment.Status.PENDING
         assignment.save()
 
-        # Send notification to new interpreter     # we need to use the view and template we already have
+        # In-app notification
         try:
             Notification.objects.create(
                 recipient=new_interpreter.user,
@@ -188,6 +192,9 @@ class AssignmentViewSet(ModelViewSet):
             )
         except Exception as e:
             logger.error(f"Failed to create notification for reassignment: {e}")
+
+        # Email with accept/decline token links
+        email_svc.send_assignment_email(assignment, 'new')
 
         serializer = AssignmentDetailSerializer(assignment)
         return Response(serializer.data)
