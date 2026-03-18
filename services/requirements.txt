@@ -1,0 +1,36 @@
+# Google ADK & AI
+google-adk>=1.27.0
+google-genai
+
+# FastAPI
+fastapi>=0.115.0
+uvicorn[standard]
+
+# Database (async MySQL - same DB as Django)
+sqlalchemy[asyncio]
+aiomysql
+
+# Pydantic & Validation
+pydantic>=2.0
+pydantic-settings
+
+# Auth
+python-jose[cryptography]
+
+# HTTP client (for calling Django DRF API)
+httpx
+
+# Google APIs (Gmail, Calendar)
+google-api-python-client
+google-auth-oauthlib
+google-auth-httplib2
+
+# Redis (pub/sub, cache)
+redis[hiredis]
+
+# WebSocket
+websockets
+
+# Utils
+python-dotenv
+python-multipart

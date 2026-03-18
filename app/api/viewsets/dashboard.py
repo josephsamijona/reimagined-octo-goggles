@@ -262,3 +262,91 @@ class DashboardViewSet(ViewSet):
             })
 
         return Response(data)
+
+    # ------------------------------------------------------------------
+    # Payroll KPIs
+    # ------------------------------------------------------------------
+    @action(detail=False, methods=['get'], url_path='payroll-kpis')
+    def payroll_kpis(self, request):
+        """Payroll summary KPIs for the admin dashboard."""
+        now = timezone.now()
+        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+        pending_agg = InterpreterPayment.objects.filter(
+            status='PENDING',
+        ).aggregate(
+            total=Sum('amount'),
+            count=Count('id'),
+            interpreters=Count('interpreter', distinct=True),
+        )
+
+        paid_this_month = InterpreterPayment.objects.filter(
+            status='COMPLETED',
+            processed_date__gte=month_start,
+        ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
+
+        avg_payment = InterpreterPayment.objects.filter(
+            status__in=['PENDING', 'PROCESSING', 'COMPLETED'],
+        ).aggregate(avg=Avg('amount'))['avg'] or Decimal('0')
+
+        processing_agg = InterpreterPayment.objects.filter(
+            status='PROCESSING',
+        ).aggregate(total=Sum('amount'), count=Count('id'))
+
+        return Response({
+            'total_pending_payments': str(pending_agg['total'] or Decimal('0')),
+            'pending_payments_count': pending_agg['count'] or 0,
+            'interpreters_pending_payment': pending_agg['interpreters'] or 0,
+            'total_paid_this_month': str(paid_this_month),
+            'total_processing_payments': str(processing_agg['total'] or Decimal('0')),
+            'processing_payments_count': processing_agg['count'] or 0,
+            'average_payment_amount': str(round(avg_payment, 2)),
+        })
+
+    # ------------------------------------------------------------------
+    # Quote pipeline summary
+    # ------------------------------------------------------------------
+    @action(detail=False, methods=['get'], url_path='quote-pipeline-summary')
+    def quote_pipeline_summary(self, request):
+        """Quote requests grouped by status for pipeline/funnel view."""
+        now = timezone.now()
+        thirty_days_ago = now - timedelta(days=30)
+
+        by_status = (
+            QuoteRequest.objects
+            .values('status')
+            .annotate(count=Count('id'))
+            .order_by('status')
+        )
+        status_map = {row['status']: row['count'] for row in by_status}
+
+        recent_total = QuoteRequest.objects.filter(created_at__gte=thirty_days_ago).count()
+        recent_accepted = QuoteRequest.objects.filter(
+            status='ACCEPTED', updated_at__gte=thirty_days_ago
+        ).count()
+        recent_rejected = QuoteRequest.objects.filter(
+            status='REJECTED', updated_at__gte=thirty_days_ago
+        ).count()
+
+        conversion_rate = (
+            round(recent_accepted / recent_total * 100, 1)
+            if recent_total > 0
+            else 0
+        )
+
+        return Response({
+            'by_status': {
+                'PENDING': status_map.get('PENDING', 0),
+                'PROCESSING': status_map.get('PROCESSING', 0),
+                'QUOTED': status_map.get('QUOTED', 0),
+                'ACCEPTED': status_map.get('ACCEPTED', 0),
+                'REJECTED': status_map.get('REJECTED', 0),
+                'EXPIRED': status_map.get('EXPIRED', 0),
+            },
+            'last_30_days': {
+                'total': recent_total,
+                'accepted': recent_accepted,
+                'rejected': recent_rejected,
+                'conversion_rate': conversion_rate,
+            },
+        })
