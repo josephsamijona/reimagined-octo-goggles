@@ -33,6 +33,9 @@ SESSION_COOKIE_DOMAIN = None if DEBUG else '.jhbridgetranslation.com'
 CSRF_COOKIE_DOMAIN = None if DEBUG else '.jhbridgetranslation.com'
 SITE_URL = os.getenv('SITE_URL', 'https://portal.jhbridgetranslation.com')
 
+# FastAPI microservice base URL (calendar sync, AI agent, etc.)
+FASTAPI_BASE_URL = os.getenv('FASTAPI_BASE_URL', 'http://localhost:8001')
+
 # Configuration pour l'authentification par clé API
 API_KEY_HEADER = os.environ.get('API_KEY_HEADER', 'X-API-Key')
 API_KEY_QUERY_PARAM = os.environ.get('API_KEY_QUERY_PARAM', 'api_key')
@@ -135,6 +138,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'rest_framework',
     'rest_framework_simplejwt',
+    'django_filters',
     'crispy_tailwind',
     'django_celery_beat',
     'social_django',
@@ -264,6 +268,16 @@ REST_FRAMEWORK = {
         'rest_framework.authentication.SessionAuthentication',
         #"app.api_auth.authentication.APIKeyAuthentication",
     ),
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
+    'DEFAULT_PAGINATION_CLASS': 'app.api.pagination.StandardPagination',
+    'PAGE_SIZE': 25,
+    'DEFAULT_FILTER_BACKENDS': [
+        'django_filters.rest_framework.DjangoFilterBackend',
+        'rest_framework.filters.SearchFilter',
+        'rest_framework.filters.OrderingFilter',
+    ],
     'DATETIME_FORMAT': '%Y-%m-%dT%H:%M:%S%z',
     'DATE_FORMAT': '%Y-%m-%d',
     'TIME_FORMAT': '%H:%M:%S',

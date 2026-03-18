@@ -22,6 +22,12 @@ import logging
 from datetime import datetime, timedelta
 
 from app.utils.timezone import BOSTON_TZ, get_interpreter_timezone, format_local_datetime
+from app.api.services.assignment_service import (
+    create_interpreter_payment as svc_create_payment,
+    cancel_interpreter_payment as svc_cancel_payment,
+    create_expense_for_assignment,
+    add_assignment_to_google_calendar,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -81,23 +87,25 @@ class AssignmentAdminMixin:
             messages.error(request, _("Error processing changes. Please check the logs."))
 
     def handle_status_change(self, request, obj, old_status):
-        """
-        Gère les changements de statut et les actions de paiement associées.
-        Ne crée un nouveau paiement que lors de la confirmation initiale.
+        """Gère les changements de statut et délègue au service partagé.
+
+        Règles de paiement :
+        - CONFIRMED → crée InterpreterPayment (PENDING) + push Google Calendar
+        - COMPLETED → crée seulement l'Expense ; le paiement reste PENDING
+                      (l'admin change le statut manuellement)
+        - CANCELLED → annule paiement + dépense existants
         """
         try:
-            # Création du paiement uniquement lors de la confirmation initiale
             if obj.status == 'CONFIRMED' and old_status != 'CONFIRMED':
-                self.create_interpreter_payment(request, obj, 'PENDING')
+                svc_create_payment(obj, request.user)
+                add_assignment_to_google_calendar(obj.id)
 
-            # Mise à jour du statut du paiement existant lors de la complétion
             elif obj.status == 'COMPLETED' and old_status != 'COMPLETED':
-                self.update_interpreter_payment(request, obj, 'PROCESSING')
-                self.create_expense(request, obj)
+                # Payment stays PENDING — admin controls payout manually
+                create_expense_for_assignment(obj)
 
-            # Annulation du paiement existant si assignment annulé
             elif obj.status == 'CANCELLED' and old_status != 'CANCELLED':
-                self.cancel_interpreter_payment(request, obj)
+                svc_cancel_payment(obj)
 
         except Exception as e:
             logger.error(f"Error handling status change: {str(e)}", exc_info=True)
