@@ -7,6 +7,7 @@ from django.contrib import messages
 from django.shortcuts import render, redirect
 from django.urls import path, reverse
 from app.models import OnboardingInvitation, OnboardingTrackingEvent
+import app.services.onboarding_service as onboarding_svc
 
 logger = logging.getLogger(__name__)
 
@@ -89,56 +90,44 @@ class OnboardingInvitationAdmin(admin.ModelAdmin):
         }),
     )
 
-    actions = ['void_invitations', 'resend_invitations']
+    actions = [
+        'void_invitations', 
+        'resend_invitations',
+        'resend_issue_email',
+        'resend_stuck_welcome_email',
+        'resend_stuck_account_email',
+        'resend_stuck_contract_email',
+        'resend_stuck_opened_email',
+    ]
 
     def save_model(self, request, obj, form, change):
-        """
-        Gère la sauvegarde et l'envoi automatique de l'email 
-        lors de la création d'une invitation via l'admin standard.
-        """
-        is_new = not change
-        
-        if is_new:
-            # Assigner l'administrateur actuel
-            if not obj.created_by:
-                obj.created_by = request.user
-            
-            # Liaison préventive si l'utilisateur existe déjà
-            from app.models import User
-            existing_user = User.objects.filter(email=obj.email).first()
-            if existing_user:
-                obj.user = existing_user
-                obj.interpreter = getattr(existing_user, 'interpreter', None)
+        """Auto-send invitation email on creation via the admin form."""
+        if change:
+            super().save_model(request, obj, form, change)
+            return
 
-        # Sauvegarde initiale pour générer l'ID et le token si nécessaire
-        super().save_model(request, obj, form, change)
-
-        # Déclenchement de l'email automatique à la création
-        if is_new:
-            try:
-                from app.services.email_service import OnboardingEmailService
-                
-                # On marque l'envoi avant de tenter pour éviter les boucles, 
-                # puis on met à jour selon le résultat du service.
-                email_sent = OnboardingEmailService.send_invitation_email(obj, request)
-
-                if email_sent:
-                    obj.email_sent_at = timezone.now()
-                    obj.save(update_fields=['email_sent_at'])
-                    
-                    OnboardingTrackingEvent.objects.create(
-                        invitation=obj,
-                        event_type='EMAIL_SENT',
-                        performed_by=request.user,
-                        metadata={'source': 'admin_save_model'}
-                    )
-                    messages.success(request, f"Invitation email successfully sent to {obj.email}.")
-                else:
-                    messages.warning(request, f"Invitation created for {obj.email} but the email failed to send.")
-            
-            except Exception as e:
-                logger.error(f"Automatic email failed in save_model: {e}", exc_info=True)
-                messages.error(request, f"Automatic email error: {e}")
+        # New invitation: delegate entirely to the service (creates + links + emails)
+        try:
+            invitation = onboarding_svc.create_invitation(
+                first_name=obj.first_name,
+                last_name=obj.last_name,
+                email=obj.email,
+                phone=obj.phone or '',
+                created_by=request.user,
+                request=request,
+            )
+            # Copy auto-generated fields back so Django admin shows the saved object
+            obj.pk = invitation.pk
+            obj.token = invitation.token
+            obj.invitation_number = invitation.invitation_number
+            obj.email_sent_at = invitation.email_sent_at
+            obj.created_by = invitation.created_by
+            messages.success(request, f"Invitation email successfully sent to {obj.email}.")
+        except Exception as e:
+            logger.error("Automatic email failed in save_model: %s", e, exc_info=True)
+            # Still save the object so the invitation isn't lost
+            super().save_model(request, obj, form, change)
+            messages.error(request, f"Automatic email error: {e}")
 
     def full_name_display(self, obj):
         return obj.full_name
@@ -208,53 +197,56 @@ class OnboardingInvitationAdmin(admin.ModelAdmin):
         count = 0
         for inv in queryset:
             if inv.current_phase not in ('VOIDED', 'EXPIRED', 'COMPLETED'):
-                inv.current_phase = 'VOIDED'
-                inv.voided_by = request.user
-                inv.voided_at = timezone.now()
-                inv.void_reason = "Voided by admin bulk action"
-                inv.save()
-                OnboardingTrackingEvent.objects.create(
-                    invitation=inv,
-                    event_type='VOIDED',
-                    performed_by=request.user,
-                    metadata={'reason': 'Admin bulk action'}
-                )
-                count += 1
+                try:
+                    onboarding_svc.void_invitation(inv, voided_by=request.user, reason='Voided by admin bulk action')
+                    count += 1
+                except ValueError:
+                    pass
         self.message_user(request, f"{count} invitation(s) voided.", level=messages.SUCCESS)
 
-    @admin.action(description="Resend invitations (new version)")
+    @admin.action(description="Resend invitations (Standard)")
     def resend_invitations(self, request, queryset):
-        from app.services.email_service import OnboardingEmailService
+        count = self._resend_with_template(request, queryset, None)
+        self.message_user(request, f"{count} invitation(s) resent.", level=messages.SUCCESS)
 
+    def _resend_with_template(self, request, queryset, template_type):
+        """Void old invitation and create a new one — delegates to onboarding_service."""
         count = 0
         for old_inv in queryset:
             if old_inv.current_phase not in ('VOIDED', 'EXPIRED'):
-                old_inv.current_phase = 'VOIDED'
-                old_inv.voided_by = request.user
-                old_inv.voided_at = timezone.now()
-                old_inv.void_reason = "Voided for resending"
-                old_inv.save()
+                onboarding_svc.resend_invitation(
+                    old_inv,
+                    created_by=request.user,
+                    template_type=template_type,
+                    request=request,
+                )
+                count += 1
+        return count
 
-            new_inv = OnboardingInvitation.objects.create(
-                email=old_inv.email,
-                first_name=old_inv.first_name,
-                last_name=old_inv.last_name,
-                phone=old_inv.phone,
-                created_by=request.user,
-                version=old_inv.version + 1,
-            )
+    @admin.action(description="Resend: Help/Issue")
+    def resend_issue_email(self, request, queryset):
+        count = self._resend_with_template(request, queryset, 'RESEND_ISSUE')
+        self.message_user(request, f"{count} issue help email(s) sent.", level=messages.SUCCESS)
 
-            OnboardingTrackingEvent.objects.create(
-                invitation=new_inv,
-                event_type='RESENT',
-                performed_by=request.user,
-                metadata={'original_invitation_id': str(old_inv.id)}
-            )
+    @admin.action(description="Resend: Stuck in Welcome")
+    def resend_stuck_welcome_email(self, request, queryset):
+        count = self._resend_with_template(request, queryset, 'STUCK_WELCOME')
+        self.message_user(request, f"{count} welcome nudge email(s) sent.", level=messages.SUCCESS)
 
-            OnboardingEmailService.send_invitation_email(new_inv, request)
-            count += 1
+    @admin.action(description="Resend: Stuck in Account")
+    def resend_stuck_account_email(self, request, queryset):
+        count = self._resend_with_template(request, queryset, 'STUCK_ACCOUNT')
+        self.message_user(request, f"{count} account nudge email(s) sent.", level=messages.SUCCESS)
 
-        self.message_user(request, f"{count} invitation(s) resent.", level=messages.SUCCESS)
+    @admin.action(description="Resend: Stuck in Contract")
+    def resend_stuck_contract_email(self, request, queryset):
+        count = self._resend_with_template(request, queryset, 'STUCK_CONTRACT')
+        self.message_user(request, f"{count} contract nudge email(s) sent.", level=messages.SUCCESS)
+
+    @admin.action(description="Resend: Stuck Email Opened")
+    def resend_stuck_opened_email(self, request, queryset):
+        count = self._resend_with_template(request, queryset, 'STUCK_OPENED')
+        self.message_user(request, f"{count} orientation nudge email(s) sent.", level=messages.SUCCESS)
 
     def get_urls(self):
         custom_urls = [
@@ -292,36 +284,16 @@ class OnboardingInvitationAdmin(admin.ModelAdmin):
                 return redirect('admin:app_onboardinginvitation_changelist')
 
             try:
-                from app.services.email_service import OnboardingEmailService
-                from app.models import User
-
-                invitation = OnboardingInvitation.objects.create(
+                invitation = onboarding_svc.create_invitation(
                     first_name=first_name,
                     last_name=last_name,
                     email=email,
                     phone=phone,
                     created_by=request.user,
-                    email_sent_at=timezone.now(),
+                    request=request,
                 )
 
-                existing_user = User.objects.filter(email=email).first()
-                if existing_user:
-                    invitation.user = existing_user
-                    interpreter = getattr(existing_user, 'interpreter', None)
-                    if interpreter:
-                        invitation.interpreter = interpreter
-                    invitation.save()
-
-                OnboardingTrackingEvent.objects.create(
-                    invitation=invitation,
-                    event_type='EMAIL_SENT',
-                    performed_by=request.user,
-                    metadata={'source': 'admin_send_form'}
-                )
-
-                email_sent = OnboardingEmailService.send_invitation_email(invitation, request)
-
-                if email_sent:
+                if invitation.email_sent_at:
                     messages.success(request, f'Onboarding invitation sent to {first_name} {last_name} ({email}).')
                 else:
                     messages.warning(request, f'Invitation created but email failed to send to {email}.')
