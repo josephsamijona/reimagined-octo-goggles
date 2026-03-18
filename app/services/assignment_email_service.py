@@ -75,7 +75,7 @@ def verify_assignment_token(token: str, expected_action: str) -> int | None:
         if action != expected_action:
             return None
 
-        token_time = datetime.fromtimestamp(float(timestamp))
+        token_time = datetime.fromtimestamp(float(timestamp), tz=pytz.UTC)
         if timezone.now() - token_time > timedelta(hours=24):
             logger.warning("Assignment token expired for id=%s action=%s", assignment_id, action)
             return None
