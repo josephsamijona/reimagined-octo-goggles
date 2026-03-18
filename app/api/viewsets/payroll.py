@@ -248,22 +248,14 @@ class PayrollViewSet(ViewSet):
             )
 
         try:
-            from django.core.mail import EmailMessage
+            from app.services.email_service import PayrollEmailService
             pdf_buffer = generate_payroll_pdf(stub)
-
-            email = EmailMessage(
-                subject=f'Pay Stub {stub.document_number} - JH Bridge Translation',
-                body=f'Dear {stub.interpreter_name},\n\nPlease find your pay stub attached.\n\nBest regards,\nJH Bridge Translation',
-                from_email='payroll@jhbridgetranslation.com',
-                to=[stub.interpreter_email],
-            )
-            email.attach(
-                f'paystub-{stub.document_number}.pdf',
-                pdf_buffer.getvalue(),
-                'application/pdf',
-            )
-            email.send()
-
+            ok = PayrollEmailService.send_stub(stub, pdf_buffer.getvalue())
+            if not ok:
+                return Response(
+                    {'detail': 'Failed to send email.'},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
             return Response({'detail': f'Pay stub emailed to {stub.interpreter_email}.'})
         except Exception as e:
             logger.error(f"Failed to email stub {stub_id}: {e}")

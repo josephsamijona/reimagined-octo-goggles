@@ -1,6 +1,6 @@
 import logging
 from django.template.loader import render_to_string
-from django.core.mail import send_mail, EmailMultiAlternatives
+from django.core.mail import send_mail, EmailMessage, EmailMultiAlternatives
 from django.conf import settings
 from django.urls import reverse
 from app.models import ContractTrackingEvent, ContractReminder
@@ -258,18 +258,22 @@ class ContractReminderService:
         try:
             user = interpreter.user
             
-            # Use invitation context if available, otherwise fallback
-            contract_url = "https://jhbridgetranslation.com/dashboard/" # Default fallback
+            base_url = getattr(settings, 'SITE_URL', 'https://jhbridges.up.railway.app').rstrip('/')
             if invitation:
-                 # TODO: Ideally should pass request object here for absolute URI, 
-                 # but for background tasks or admin actions, we might need SITE_URL
-                 # For now, simplistic approach using dashboard or direct link if possible
-                 pass 
+                review_path = reverse('dbdint:contract_review_link', kwargs={'review_token': invitation.review_token})
+                accept_path = reverse('dbdint:contract_direct_accept', kwargs={'accept_token': invitation.accept_token})
+                contract_url = f"{base_url}{review_path}"
+                accept_url = f"{base_url}{accept_path}"
+            else:
+                dashboard_path = reverse('dbdint:interpreter_dashboard')
+                contract_url = f"{base_url}{dashboard_path}"
+                accept_url = contract_url
 
             context = {
                 'interpreter_name': user.get_full_name(),
-                'contract_url': contract_url, # Template should handle the precise link logic or updated later
-                'days_pending': [3, 7, 14][level-1]
+                'contract_url': contract_url,
+                'accept_url': accept_url,
+                'days_pending': [3, 7, 14][level-1],
             }
             
             html_message = render_to_string(template, context)
@@ -329,9 +333,64 @@ class ContractViolationService:
             # Log event (using ContractTrackingEvent if invitation exists, or custom log)
             # For now just log to file
             logger.info(f"Suspension email sent to {user.email} for reason: {reason}")
-            
+
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to send suspension email: {e}")
+            return False
+
+
+class PayrollEmailService:
+    """Send pay stub emails with HTML body and PDF attachment."""
+
+    FROM_EMAIL = 'JHBridge Payroll <payroll@jhbridgetranslation.com>'
+
+    @classmethod
+    def send_stub(cls, stub, pdf_bytes: bytes) -> bool:
+        """
+        Send a pay stub email to the interpreter.
+
+        Args:
+            stub: PayrollDocument instance (with prefetched services/reimbursements/deductions)
+            pdf_bytes: Raw PDF content as bytes
+        Returns:
+            True on success, False on failure
+        """
+        try:
+            services = list(stub.services.all())
+            reimbursements = list(stub.reimbursements.all())
+            deductions = list(stub.deductions.all())
+
+            context = {
+                'interpreter_name': stub.interpreter_name,
+                'document_number': stub.document_number,
+                'services': services,
+                'reimbursements': reimbursements,
+                'deductions': deductions,
+                'total_amount': stub.total_amount,
+                'company_address': stub.company_address,
+            }
+
+            html_body = render_to_string('emails/payroll_stub.html', context)
+
+            email = EmailMessage(
+                subject=f'Pay Stub {stub.document_number} — JHBridge Translation',
+                body=html_body,
+                from_email=cls.FROM_EMAIL,
+                to=[stub.interpreter_email],
+            )
+            email.content_subtype = 'html'
+            email.attach(
+                f'paystub-{stub.document_number}.pdf',
+                pdf_bytes,
+                'application/pdf',
+            )
+            email.send(fail_silently=False)
+
+            logger.info(f"Pay stub {stub.document_number} emailed to {stub.interpreter_email}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to email pay stub {stub.document_number}: {e}")
             return False

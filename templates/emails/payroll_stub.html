@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pay Stub {{ document_number }}</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f4f4f4; margin: 0; padding: 0; color: #333; }
+    .wrapper { max-width: 600px; margin: 32px auto; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,.1); }
+    .header { background: #1a3c5e; padding: 24px 32px; }
+    .header h1 { color: #fff; margin: 0; font-size: 20px; }
+    .header p { color: #b0c4d8; margin: 4px 0 0; font-size: 14px; }
+    .body { padding: 32px; }
+    .greeting { font-size: 16px; margin-bottom: 24px; }
+    h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .05em; color: #1a3c5e; border-bottom: 2px solid #e0e8f0; padding-bottom: 6px; margin: 24px 0 12px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { text-align: left; padding: 8px 10px; background: #f0f4f8; color: #555; }
+    td { padding: 8px 10px; border-bottom: 1px solid #eee; }
+    .amount { text-align: right; }
+    .total-row td { font-weight: bold; border-top: 2px solid #1a3c5e; border-bottom: none; font-size: 14px; }
+    .footer { background: #f0f4f8; padding: 20px 32px; font-size: 12px; color: #888; }
+    .footer p { margin: 4px 0; }
+  </style>
+</head>
+<body>
+<div class="wrapper">
+  <div class="header">
+    <h1>JHBridge Translation</h1>
+    <p>Pay Stub — {{ document_number }}</p>
+  </div>
+  <div class="body">
+    <p class="greeting">Dear {{ interpreter_name }},</p>
+    <p>Please find your pay stub for document <strong>{{ document_number }}</strong> attached to this email as a PDF. A summary is provided below for your records.</p>
+
+    {% if services %}
+    <h2>Services</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Client</th>
+          <th>Languages</th>
+          <th>Duration (h)</th>
+          <th>Rate</th>
+          <th class="amount">Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in services %}
+        <tr>
+          <td>{{ s.date|date:"M d, Y" }}</td>
+          <td>{{ s.client }}</td>
+          <td>{{ s.source_language }} → {{ s.target_language }}</td>
+          <td>{{ s.duration }}</td>
+          <td>${{ s.rate }}</td>
+          <td class="amount">${{ s.amount }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+
+    {% if reimbursements %}
+    <h2>Reimbursements</h2>
+    <table>
+      <thead>
+        <tr><th>Description</th><th class="amount">Amount</th></tr>
+      </thead>
+      <tbody>
+        {% for r in reimbursements %}
+        <tr><td>{{ r.description }}</td><td class="amount">${{ r.amount }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+
+    {% if deductions %}
+    <h2>Deductions</h2>
+    <table>
+      <thead>
+        <tr><th>Description</th><th class="amount">Amount</th></tr>
+      </thead>
+      <tbody>
+        {% for d in deductions %}
+        <tr><td>{{ d.description }}</td><td class="amount">-${{ d.amount }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+
+    <table style="margin-top:16px;">
+      <tbody>
+        <tr class="total-row">
+          <td>Total Payable</td>
+          <td class="amount">${{ total_amount }}</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p style="margin-top:32px;">If you have any questions about this pay stub, please contact us at <a href="mailto:payroll@jhbridgetranslation.com">payroll@jhbridgetranslation.com</a>.</p>
+    <p>Thank you for your continued work with JHBridge Translation.</p>
+    <p>Best regards,<br><strong>JHBridge Payroll Team</strong></p>
+  </div>
+  <div class="footer">
+    {% if company_address %}<p>{{ company_address }}</p>{% endif %}
+    <p>This email and any attachments are confidential and intended solely for the recipient.</p>
+  </div>
+</div>
+</body>
+</html>
