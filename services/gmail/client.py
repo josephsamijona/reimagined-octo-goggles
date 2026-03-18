@@ -54,7 +54,15 @@ class GmailClient:
                     )
                     return False
                 flow = InstalledAppFlow.from_client_secrets_file(creds_path, SCOPES)
-                creds = flow.run_local_server(port=0)
+                try:
+                    creds = flow.run_local_server(port=0)
+                except Exception as e:
+                    logger.warning(
+                        "Gmail OAuth interactive flow unavailable (no browser/port): %s. "
+                        "Gmail integration disabled. Provide a pre-authorized token.json.",
+                        e,
+                    )
+                    return False
 
             with open(token_path, "w") as token_file:
                 token_file.write(creds.to_json())

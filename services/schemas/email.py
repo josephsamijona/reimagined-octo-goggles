@@ -74,3 +74,26 @@ class InboxResponse(BaseModel):
     total: int
     page: int = 1
     page_size: int = 20
+
+
+class EmailReadUpdate(BaseModel):
+    is_read: bool = True
+
+
+class EmailProcessedUpdate(BaseModel):
+    is_processed: bool = True
+
+
+class BatchClassifyRequest(BaseModel):
+    limit: int = 20  # max 50
+
+
+class BatchClassifyResponse(BaseModel):
+    classified: int
+    skipped: int
+    failed: int
+
+
+class AuthStatusResponse(BaseModel):
+    configured: bool
+    reason: str = ""

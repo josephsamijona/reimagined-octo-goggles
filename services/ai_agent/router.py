@@ -29,10 +29,20 @@ from services.schemas.ai import (
     SuggestRequest,
     SuggestResponse,
 )
+from services.schemas.email import BatchClassifyRequest, BatchClassifyResponse
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/ai", tags=["AI Agent"])
+
+# DB factory injected at startup (same pattern as gmail router)
+_db_factory = None
+
+
+def set_db_factory(factory):
+    global _db_factory
+    _db_factory = factory
+
 
 APP_NAME = "jhbridge_ai"
 _session_service = InMemorySessionService()
@@ -244,3 +254,46 @@ async def chat_with_agent(req: ChatRequest):
         response=response,
         session_id=session_id,
     )
+
+
+@router.post("/classify-batch", response_model=BatchClassifyResponse)
+async def classify_batch(req: BatchClassifyRequest):
+    """Retroactively classify EmailLog records that have no category yet."""
+    if not _db_factory:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=503, detail="Database not available")
+
+    from services.db import queries
+
+    limit = min(req.limit, 50)
+    classified = 0
+    skipped = 0
+    failed = 0
+
+    async with _db_factory() as db:
+        unclassified = await queries.get_unclassified_emails(db, limit=limit)
+
+    for email_log in unclassified:
+        try:
+            prompt = (
+                f"Classify this email. Use the email_classifier sub-agent.\n\n"
+                f"From: {email_log.from_name} <{email_log.from_email}>\n"
+                f"Subject: {email_log.subject}\n\n"
+                f"{email_log.body_preview}"
+            )
+            response = await _invoke_agent(prompt)
+            data = _parse_json_response(response)
+
+            if not data or "category" not in data:
+                skipped += 1
+                continue
+
+            async with _db_factory() as db:
+                await queries.update_email_classification(db, email_log.gmail_id, data)
+            classified += 1
+
+        except Exception as e:
+            logger.error("classify-batch failed for %s: %s", email_log.gmail_id, e)
+            failed += 1
+
+    return BatchClassifyResponse(classified=classified, skipped=skipped, failed=failed)

@@ -362,7 +362,115 @@ async def get_pending_quote_requests(db: AsyncSession) -> list[dict]:
     return internal + public
 
 
-# ── EmailLog (write) ─────────────────────────────────────────────
+# ── EmailLog (read/write) ────────────────────────────────────────
+
+async def get_email_logs(
+    db: AsyncSession,
+    category: str | None = None,
+    priority: str | None = None,
+    is_read: bool | None = None,
+    is_processed: bool | None = None,
+    from_email: str | None = None,
+    page: int = 1,
+    page_size: int = 20,
+) -> tuple[list, int]:
+    """Query EmailLog with optional filters. Returns (rows, total_count)."""
+    stmt = select(EmailLog)
+    count_stmt = select(func.count()).select_from(EmailLog)
+
+    filters = []
+    if category:
+        filters.append(EmailLog.category == category.upper())
+    if priority:
+        filters.append(EmailLog.priority == priority.upper())
+    if is_read is not None:
+        filters.append(EmailLog.is_read == is_read)
+    if is_processed is not None:
+        filters.append(EmailLog.is_processed == is_processed)
+    if from_email:
+        filters.append(func.lower(EmailLog.from_email).contains(from_email.lower()))
+
+    if filters:
+        stmt = stmt.where(and_(*filters))
+        count_stmt = count_stmt.where(and_(*filters))
+
+    total_result = await db.execute(count_stmt)
+    total = total_result.scalar_one()
+
+    offset = (page - 1) * page_size
+    stmt = stmt.order_by(EmailLog.received_at.desc()).offset(offset).limit(page_size)
+    result = await db.execute(stmt)
+    rows = result.scalars().all()
+    return rows, total
+
+
+async def mark_email_read(db: AsyncSession, gmail_id: str, is_read: bool = True) -> bool:
+    """Update is_read on an EmailLog. Returns True if record found."""
+    from sqlalchemy import update
+    stmt = (
+        update(EmailLog)
+        .where(EmailLog.gmail_id == gmail_id)
+        .values(is_read=is_read)
+    )
+    result = await db.execute(stmt)
+    await db.commit()
+    return result.rowcount > 0
+
+
+async def mark_email_processed(
+    db: AsyncSession,
+    gmail_id: str,
+    is_processed: bool = True,
+    processed_by_id: int | None = None,
+) -> bool:
+    """Update is_processed on an EmailLog. Returns True if record found."""
+    from sqlalchemy import update
+    from datetime import timezone
+    values = {"is_processed": is_processed}
+    if is_processed:
+        values["processed_at"] = datetime.now(timezone.utc)
+        if processed_by_id:
+            values["processed_by_id"] = processed_by_id
+    stmt = (
+        update(EmailLog)
+        .where(EmailLog.gmail_id == gmail_id)
+        .values(**values)
+    )
+    result = await db.execute(stmt)
+    await db.commit()
+    return result.rowcount > 0
+
+
+async def get_unclassified_emails(db: AsyncSession, limit: int = 20) -> list:
+    """Fetch EmailLog rows that have no category yet."""
+    stmt = (
+        select(EmailLog)
+        .where(EmailLog.category == None)
+        .order_by(EmailLog.received_at.desc())
+        .limit(min(limit, 50))
+    )
+    result = await db.execute(stmt)
+    return result.scalars().all()
+
+
+async def update_email_classification(db: AsyncSession, gmail_id: str, classification: dict) -> bool:
+    """Save AI classification result back to EmailLog."""
+    from sqlalchemy import update
+    stmt = (
+        update(EmailLog)
+        .where(EmailLog.gmail_id == gmail_id)
+        .values(
+            category=classification.get("category"),
+            priority=classification.get("priority"),
+            ai_confidence=classification.get("confidence"),
+            ai_extracted_data=classification.get("extracted_data", {}),
+            ai_suggested_actions=classification.get("suggested_actions", []),
+        )
+    )
+    result = await db.execute(stmt)
+    await db.commit()
+    return result.rowcount > 0
+
 
 async def save_email_log(db: AsyncSession, data: dict) -> int:
     """Insert a new email log entry and return its ID."""
