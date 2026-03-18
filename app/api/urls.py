@@ -17,6 +17,9 @@ from app.api.viewsets.onboarding import OnboardingViewSet
 from app.api.viewsets.notifications import NotificationViewSet
 from app.api.viewsets.marketing import LeadViewSet, CampaignViewSet, MarketingAnalyticsViewSet
 from app.api.viewsets.audit import AuditLogViewSet
+from app.api.viewsets.settings import (
+    ServiceTypeViewSet, LanguageViewSet, CompanyInfoView, APIKeyViewSet,
+)
 
 app_name = 'api'
 
@@ -46,6 +49,11 @@ router.register(r'leads', LeadViewSet, basename='lead')
 router.register(r'campaigns', CampaignViewSet, basename='campaign')
 router.register(r'marketing-analytics', MarketingAnalyticsViewSet, basename='marketing-analytics')
 
+# ── Settings ────────────────────────────────────────────────────
+router.register(r'service-types', ServiceTypeViewSet, basename='service-type')
+router.register(r'languages', LanguageViewSet, basename='language')
+router.register(r'api-keys', APIKeyViewSet, basename='api-key')
+
 # ── Security / Audit ────────────────────────────────────────────
 router.register(r'audit-logs', AuditLogViewSet, basename='audit-log')
 
@@ -62,6 +70,9 @@ urlpatterns = [
     path('dashboard/today-missions/', DashboardViewSet.as_view({'get': 'today_missions'}), name='dashboard-today-missions'),
     path('dashboard/payroll-kpis/', DashboardViewSet.as_view({'get': 'payroll_kpis'}), name='dashboard-payroll-kpis'),
     path('dashboard/quote-pipeline-summary/', DashboardViewSet.as_view({'get': 'quote_pipeline_summary'}), name='dashboard-quote-pipeline'),
+
+    # ── Settings (non-router) ───────────────────────────────────
+    path('settings/company/', CompanyInfoView.as_view(), name='settings-company'),
 
     # ── Router-generated URLs ───────────────────────────────────
     path('', include(router.urls)),
