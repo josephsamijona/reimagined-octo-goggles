@@ -4,6 +4,51 @@ No Django or FastAPI dependency — pure Python only.
 """
 
 # ---------------------------------------------------------------------------
+# User roles
+# ---------------------------------------------------------------------------
+# Canonical role strings used across Django and FastAPI.
+# Django models define TextChoices that reference these values.
+
+ROLE_CLIENT = 'CLIENT'
+ROLE_INTERPRETER = 'INTERPRETER'
+ROLE_ADMIN = 'ADMIN'
+
+USER_ROLES = (ROLE_CLIENT, ROLE_INTERPRETER, ROLE_ADMIN)
+
+# ---------------------------------------------------------------------------
+# Quote request statuses
+# ---------------------------------------------------------------------------
+
+QUOTE_REQUEST_PENDING = 'PENDING'
+QUOTE_REQUEST_PROCESSING = 'PROCESSING'
+QUOTE_REQUEST_QUOTED = 'QUOTED'
+QUOTE_REQUEST_ACCEPTED = 'ACCEPTED'
+QUOTE_REQUEST_REJECTED = 'REJECTED'
+QUOTE_REQUEST_EXPIRED = 'EXPIRED'
+
+# ---------------------------------------------------------------------------
+# Quote statuses
+# ---------------------------------------------------------------------------
+
+QUOTE_DRAFT = 'DRAFT'
+QUOTE_SENT = 'SENT'
+QUOTE_ACCEPTED = 'ACCEPTED'
+QUOTE_REJECTED = 'REJECTED'
+QUOTE_EXPIRED = 'EXPIRED'
+QUOTE_CANCELLED = 'CANCELLED'
+
+# ---------------------------------------------------------------------------
+# Assignment statuses
+# ---------------------------------------------------------------------------
+
+ASSIGNMENT_PENDING = 'PENDING'
+ASSIGNMENT_CONFIRMED = 'CONFIRMED'
+ASSIGNMENT_IN_PROGRESS = 'IN_PROGRESS'
+ASSIGNMENT_COMPLETED = 'COMPLETED'
+ASSIGNMENT_CANCELLED = 'CANCELLED'
+ASSIGNMENT_NO_SHOW = 'NO_SHOW'
+
+# ---------------------------------------------------------------------------
 # US state → IANA timezone mapping (all 50 states + DC)
 # ---------------------------------------------------------------------------
 # Kept in sync with app/utils/timezone.py STATE_TIMEZONES.

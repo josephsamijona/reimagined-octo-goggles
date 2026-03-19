@@ -23,6 +23,7 @@ class Notification(models.Model):
         ASSIGNMENT_OFFER = 'ASSIGNMENT_OFFER', _('Assignment Offer')
         ASSIGNMENT_REMINDER = 'ASSIGNMENT_REMINDER', _('Assignment Reminder')
         PAYMENT_RECEIVED = 'PAYMENT_RECEIVED', _('Payment Received')
+        PAYMENT_REMINDER = 'PAYMENT_REMINDER', _('Payment Reminder')
         SYSTEM = 'SYSTEM', _('System')
 
     recipient = models.ForeignKey('User', on_delete=models.CASCADE)

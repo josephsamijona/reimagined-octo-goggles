@@ -25,11 +25,12 @@ logger = logging.getLogger(__name__)
 # Interpreter payment helpers
 # ---------------------------------------------------------------------------
 
-def create_interpreter_payment(assignment, created_by):
-    """Create InterpreterPayment (status=PENDING) when assignment is confirmed.
+def _create_payment(assignment, status, created_by):
+    """Create a FinancialTransaction + InterpreterPayment pair.
 
     Args:
         assignment: Assignment model instance.
+        status: Initial payment status string (e.g. 'PENDING', 'PROCESSING').
         created_by: User instance who triggered the action.
 
     Returns:
@@ -48,10 +49,23 @@ def create_interpreter_payment(assignment, created_by):
         assignment=assignment,
         amount=assignment.total_interpreter_payment,
         payment_method='ACH',
-        status='PENDING',
+        status=status,
         scheduled_date=due_date,
         reference_number=f"INT-{assignment.id}-{uuid.uuid4().hex[:6].upper()}",
     )
+
+
+def create_interpreter_payment(assignment, created_by):
+    """Create InterpreterPayment (status=PENDING) when assignment is confirmed.
+
+    Args:
+        assignment: Assignment model instance.
+        created_by: User instance who triggered the action.
+
+    Returns:
+        The newly created InterpreterPayment instance.
+    """
+    return _create_payment(assignment, 'PENDING', created_by)
 
 
 def update_interpreter_payment(assignment, new_status, created_by=None):
@@ -86,22 +100,7 @@ def update_interpreter_payment(assignment, new_status, created_by=None):
             "No payment for assignment %s — creating one with status %s",
             assignment.id, new_status,
         )
-        transaction = FinancialTransaction.objects.create(
-            type='EXPENSE',
-            amount=assignment.total_interpreter_payment,
-            description=f"Interpreter payment for assignment #{assignment.id}",
-            created_by=created_by,
-        )
-        return InterpreterPayment.objects.create(
-            transaction=transaction,
-            interpreter=assignment.interpreter,
-            assignment=assignment,
-            amount=assignment.total_interpreter_payment,
-            payment_method='ACH',
-            status=new_status,
-            scheduled_date=timezone.now() + timezone.timedelta(days=14),
-            reference_number=f"INT-{assignment.id}-{uuid.uuid4().hex[:6].upper()}",
-        )
+        return _create_payment(assignment, new_status, created_by)
 
 
 def cancel_interpreter_payment(assignment):

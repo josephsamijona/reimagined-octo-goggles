@@ -21,6 +21,7 @@ from app.api.serializers.finance import (
     PayrollDocumentCreateSerializer,
 )
 from app.api.services.payroll_service import generate_payroll_pdf
+from app.api.services.reference_service import generate_unique_reference
 from app.models import (
     InterpreterPayment, PayrollDocument, Service, Interpreter,
 )
@@ -144,9 +145,7 @@ class PayrollViewSet(ViewSet):
 
         created_stubs = []
         for interp in interpreters:
-            import random
-            year = timezone.now().year
-            doc_num = f"PS-{year}-{random.randint(10000, 99999)}"
+            doc_num = generate_unique_reference('PS', PayrollDocument, 'document_number')
 
             stub = PayrollDocument.objects.create(
                 interpreter_name=f"{interp.user.first_name} {interp.user.last_name}",

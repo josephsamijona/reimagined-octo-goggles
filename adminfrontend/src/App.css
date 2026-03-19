@@ -1,0 +1,120 @@
+/* JHBridge Command Center - Custom Styles */
+
+/* Base App Reset */
+.App {
+    min-height: 100vh;
+}
+
+/* Utility Classes for Navy Brand Color */
+.bg-navy {
+    background-color: hsl(214, 53%, 23%);
+}
+
+.text-navy {
+    color: hsl(214, 53%, 23%);
+}
+
+.border-navy {
+    border-color: hsl(214, 53%, 23%);
+}
+
+.bg-navy-light {
+    background-color: hsl(214, 45%, 33%);
+}
+
+.hover\:bg-navy-light:hover {
+    background-color: hsl(214, 45%, 33%);
+}
+
+/* Gold Accent */
+.bg-gold {
+    background-color: hsl(41, 53%, 50%);
+}
+
+.text-gold {
+    color: hsl(41, 53%, 50%);
+}
+
+.border-gold {
+    border-color: hsl(41, 53%, 50%);
+}
+
+/* Dark Mode Navy Override */
+.dark .bg-navy {
+    background-color: hsl(220, 30%, 8%);
+}
+
+.dark .text-navy {
+    color: hsl(41, 53%, 50%);
+}
+
+/* Smooth Transitions */
+* {
+    transition-property: color, background-color, border-color;
+    transition-duration: 150ms;
+    transition-timing-function: ease;
+}
+
+/* Animation Override for Performance */
+.transition-all {
+    transition-property: all;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 150ms;
+}
+
+/* Card Hover Effect */
+.card-hover {
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card-hover:hover {
+    border-color: hsl(41, 53%, 50%);
+    box-shadow: 0 0 0 1px hsl(41, 53%, 50%, 0.1);
+}
+
+/* Table Zebra Striping (Optional) */
+.table-striped tbody tr:nth-child(even) {
+    background-color: hsl(var(--muted) / 0.3);
+}
+
+/* Custom Focus Ring */
+*:focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+}
+
+/* Sidebar Active State Glow */
+.nav-active {
+    box-shadow: inset 3px 0 0 hsl(41, 53%, 50%);
+}
+
+/* Map Dot Pulse Animation */
+@keyframes map-pulse {
+    0%, 100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+    50% {
+        transform: scale(1.2);
+        opacity: 0.7;
+    }
+}
+
+.map-dot-pulse {
+    animation: map-pulse 2s ease-in-out infinite;
+}
+
+/* Print Styles */
+@media print {
+    .no-print {
+        display: none !important;
+    }
+    
+    body {
+        background: white !important;
+    }
+    
+    .shadow-sm, .shadow-md {
+        box-shadow: none !important;
+    }
+}

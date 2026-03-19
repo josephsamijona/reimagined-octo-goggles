@@ -3,11 +3,13 @@ from django.contrib.auth.models import AbstractUser
 from django.utils.translation import gettext_lazy as _
 import uuid
 
+from shared.constants import ROLE_CLIENT, ROLE_INTERPRETER, ROLE_ADMIN
+
 class User(AbstractUser):
     class Roles(models.TextChoices):
-        CLIENT = 'CLIENT', _('Client')
-        INTERPRETER = 'INTERPRETER', _('Interprète')
-        ADMIN = 'ADMIN', _('Administrateur')
+        CLIENT = ROLE_CLIENT, _('Client')
+        INTERPRETER = ROLE_INTERPRETER, _('Interprète')
+        ADMIN = ROLE_ADMIN, _('Administrateur')
 
     groups = models.ManyToManyField(
         'auth.Group',

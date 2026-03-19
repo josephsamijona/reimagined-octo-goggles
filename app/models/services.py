@@ -3,6 +3,15 @@ from django.utils.translation import gettext_lazy as _
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 
+from shared.constants import (
+    QUOTE_REQUEST_PENDING, QUOTE_REQUEST_PROCESSING, QUOTE_REQUEST_QUOTED,
+    QUOTE_REQUEST_ACCEPTED, QUOTE_REQUEST_REJECTED, QUOTE_REQUEST_EXPIRED,
+    QUOTE_DRAFT, QUOTE_SENT, QUOTE_ACCEPTED, QUOTE_REJECTED,
+    QUOTE_EXPIRED, QUOTE_CANCELLED,
+    ASSIGNMENT_PENDING, ASSIGNMENT_CONFIRMED, ASSIGNMENT_IN_PROGRESS,
+    ASSIGNMENT_COMPLETED, ASSIGNMENT_CANCELLED, ASSIGNMENT_NO_SHOW,
+)
+
 class ServiceType(models.Model):
     name = models.CharField(max_length=100)
     description = models.TextField()
@@ -20,12 +29,16 @@ class ServiceType(models.Model):
 
 class QuoteRequest(models.Model):
     class Status(models.TextChoices):
-        PENDING = 'PENDING', _('Pending')
-        PROCESSING = 'PROCESSING', _('Processing')
-        QUOTED = 'QUOTED', _('Quoted')
-        ACCEPTED = 'ACCEPTED', _('Accepted')
-        REJECTED = 'REJECTED', _('Rejected')
-        EXPIRED = 'EXPIRED', _('Expired')
+        PENDING = QUOTE_REQUEST_PENDING, _('Pending')
+        PROCESSING = QUOTE_REQUEST_PROCESSING, _('Processing')
+        QUOTED = QUOTE_REQUEST_QUOTED, _('Quoted')
+        ACCEPTED = QUOTE_REQUEST_ACCEPTED, _('Accepted')
+        REJECTED = QUOTE_REQUEST_REJECTED, _('Rejected')
+        EXPIRED = QUOTE_REQUEST_EXPIRED, _('Expired')
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._original_status = self.status if self.pk else None
 
     client = models.ForeignKey('Client', on_delete=models.PROTECT)
     service_type = models.ForeignKey(ServiceType, on_delete=models.PROTECT)
@@ -42,17 +55,29 @@ class QuoteRequest(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        self._original_status = self.status
+
     class Meta:
         db_table = 'app_quoterequest'
 
 class Quote(models.Model):
     class Status(models.TextChoices):
-        DRAFT = 'DRAFT', _('Draft')
-        SENT = 'SENT', _('Sent')
-        ACCEPTED = 'ACCEPTED', _('Accepted')
-        REJECTED = 'REJECTED', _('Rejected')
-        EXPIRED = 'EXPIRED', _('Expired')
-        CANCELLED = 'CANCELLED', _('Cancelled')
+        DRAFT = QUOTE_DRAFT, _('Draft')
+        SENT = QUOTE_SENT, _('Sent')
+        ACCEPTED = QUOTE_ACCEPTED, _('Accepted')
+        REJECTED = QUOTE_REJECTED, _('Rejected')
+        EXPIRED = QUOTE_EXPIRED, _('Expired')
+        CANCELLED = QUOTE_CANCELLED, _('Cancelled')
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._original_status = self.status if self.pk else None
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        self._original_status = self.status
 
     quote_request = models.OneToOneField(QuoteRequest, on_delete=models.PROTECT)
     reference_number = models.CharField(max_length=20, unique=True)
@@ -70,12 +95,16 @@ class Quote(models.Model):
 
 class Assignment(models.Model):
     class Status(models.TextChoices):
-        PENDING = 'PENDING', _('Pending')  # Assigné à un interprète, en attente de confirmation
-        CONFIRMED = 'CONFIRMED', _('Confirmed')  # Accepté par l'interprète
-        IN_PROGRESS = 'IN_PROGRESS', _('In Progress')  # Mission en cours
-        COMPLETED = 'COMPLETED', _('Completed')  # Mission terminée
-        CANCELLED = 'CANCELLED', _('Cancelled')  # Refusé par l'interprète
-        NO_SHOW = 'NO_SHOW', _('No Show')  # Client ou interprète absent
+        PENDING = ASSIGNMENT_PENDING, _('Pending')  # Assigné à un interprète, en attente de confirmation
+        CONFIRMED = ASSIGNMENT_CONFIRMED, _('Confirmed')  # Accepté par l'interprète
+        IN_PROGRESS = ASSIGNMENT_IN_PROGRESS, _('In Progress')  # Mission en cours
+        COMPLETED = ASSIGNMENT_COMPLETED, _('Completed')  # Mission terminée
+        CANCELLED = ASSIGNMENT_CANCELLED, _('Cancelled')  # Refusé par l'interprète
+        NO_SHOW = ASSIGNMENT_NO_SHOW, _('No Show')  # Client ou interprète absent
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._original_status = self.status if self.pk else None
 
     # Relations existantes
     quote = models.OneToOneField(Quote, on_delete=models.PROTECT, null=True, blank=True)
@@ -138,15 +167,14 @@ class Assignment(models.Model):
 
     # Modify save to no longer call clean()
     def save(self, *args, **kwargs):
-        # self.clean()  # Remove this line
-        
         # Clear manual fields if a client is selected
         if self.client:
             self.client_name = None
             self.client_email = None
             self.client_phone = None
-            
+
         super().save(*args, **kwargs)
+        self._original_status = self.status
 
     def can_be_confirmed(self):
         """Vérifie si l'assignment peut être confirmé"""

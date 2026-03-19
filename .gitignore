@@ -77,3 +77,9 @@ testimage2.py
 api_test.py
 testemail.py
 api_connexion_test.py
+
+# Archive (legacy code preserved in git history)
+_archive/
+
+# Binaries
+*.exe

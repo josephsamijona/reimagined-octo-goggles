@@ -22,6 +22,7 @@ from app.api.serializers.services import (
     QuoteDetailSerializer,
     PublicQuoteRequestListSerializer,
 )
+from app.api.services.reference_service import generate_unique_reference
 from app.models import QuoteRequest, Quote, PublicQuoteRequest
 
 logger = logging.getLogger(__name__)
@@ -78,10 +79,8 @@ class QuoteRequestViewSet(ListModelMixin, RetrieveModelMixin, CreateModelMixin, 
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Generate reference number
-        import random
-        year = timezone.now().year
-        ref = f"QT-{year}-{random.randint(10000, 99999)}"
+        # Generate collision-safe reference number
+        ref = generate_unique_reference('QT', Quote)
 
         quote = Quote.objects.create(
             quote_request=quote_request,

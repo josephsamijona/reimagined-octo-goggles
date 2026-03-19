@@ -10,7 +10,7 @@ from app.api.viewsets.dashboard import DashboardViewSet
 from app.api.viewsets.assignments import AssignmentViewSet
 from app.api.viewsets.interpreters import InterpreterViewSet
 from app.api.viewsets.clients import ClientViewSet
-from app.api.viewsets.quotes import QuoteRequestViewSet, PublicQuoteRequestViewSet
+from app.api.viewsets.quotes import QuoteRequestViewSet, QuoteViewSet, PublicQuoteRequestViewSet
 from app.api.viewsets.finance import FinanceViewSet
 from app.api.viewsets.payroll import PayrollViewSet
 from app.api.viewsets.onboarding import OnboardingViewSet
@@ -32,6 +32,7 @@ router.register(r'clients', ClientViewSet, basename='client')
 
 # ── Quotes ──────────────────────────────────────────────────────
 router.register(r'quote-requests', QuoteRequestViewSet, basename='quote-request')
+router.register(r'quotes', QuoteViewSet, basename='quote')
 router.register(r'public-quotes', PublicQuoteRequestViewSet, basename='public-quote')
 
 # ── Finance ─────────────────────────────────────────────────────

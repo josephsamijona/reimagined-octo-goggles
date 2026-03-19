@@ -1,5 +1,6 @@
 """Finance viewset: invoices, expenses, revenue analytics, and summary."""
 import logging
+from datetime import timedelta
 from decimal import Decimal
 
 from django.db.models import Sum, Count, Q, F
@@ -215,7 +216,7 @@ class FinanceViewSet(ViewSet):
             from app.models import Notification
             Notification.objects.create(
                 recipient=invoice.client.user,
-                type='PAYMENT_RECEIVED',
+                type='PAYMENT_REMINDER',
                 title=f'Payment Reminder: Invoice {invoice.invoice_number}',
                 content=f'Reminder: Invoice {invoice.invoice_number} for ${invoice.total} is due on {invoice.due_date}.',
             )
@@ -366,7 +367,7 @@ class FinanceViewSet(ViewSet):
     def pnl(self, request):
         """Profit and loss summary (monthly for last 12 months)."""
         now = timezone.now()
-        twelve_months_ago = now - timezone.timedelta(days=365)
+        twelve_months_ago = now - timedelta(days=365)
 
         revenue = (
             ClientPayment.objects
