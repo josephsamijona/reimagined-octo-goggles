@@ -12,6 +12,10 @@ resend
 # Authentification & Sécurité
 djangorestframework-simplejwt 
 django-cors-headers 
+django-otp
+fido2
+qrcode[pil]
+pyotp
 
 # Interface & Formulaires
 django-crispy-forms

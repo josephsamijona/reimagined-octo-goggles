@@ -5,7 +5,13 @@ All endpoints are prefixed with /api/v1/ (set in config/urls.py).
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 
-from app.api.viewsets.auth import LoginView, TokenRefreshView, MeView
+from app.api.viewsets.auth import (
+    LoginView, TokenRefreshView, MeView,
+    MFASetupView, MFAVerifyView, MFABackupCodesView,
+    WebAuthnRegisterOptionsView, WebAuthnRegisterVerifyView,
+    WebAuthnLoginOptionsView, WebAuthnLoginVerifyView,
+    DeviceTrustView, LogoutView,
+)
 from app.api.viewsets.dashboard import DashboardViewSet
 from app.api.viewsets.assignments import AssignmentViewSet
 from app.api.viewsets.interpreters import InterpreterViewSet
@@ -59,10 +65,25 @@ router.register(r'api-keys', APIKeyViewSet, basename='api-key')
 router.register(r'audit-logs', AuditLogViewSet, basename='audit-log')
 
 urlpatterns = [
-    # ── Auth endpoints (non-router) ─────────────────────────────
+    # ── Auth endpoints ──────────────────────────────────────────
     path('auth/login/', LoginView.as_view(), name='login'),
     path('auth/token/refresh/', TokenRefreshView.as_view(), name='token-refresh'),
     path('auth/me/', MeView.as_view(), name='me'),
+    path('auth/logout/', LogoutView.as_view(), name='logout'),
+
+    # ── MFA ─────────────────────────────────────────────────────
+    path('auth/mfa/setup/', MFASetupView.as_view(), name='mfa-setup'),
+    path('auth/mfa/verify/', MFAVerifyView.as_view(), name='mfa-verify'),
+    path('auth/mfa/backup-codes/', MFABackupCodesView.as_view(), name='mfa-backup-codes'),
+
+    # ── WebAuthn ────────────────────────────────────────────────
+    path('auth/webauthn/register/options/', WebAuthnRegisterOptionsView.as_view(), name='webauthn-register-options'),
+    path('auth/webauthn/register/verify/', WebAuthnRegisterVerifyView.as_view(), name='webauthn-register-verify'),
+    path('auth/webauthn/login/options/', WebAuthnLoginOptionsView.as_view(), name='webauthn-login-options'),
+    path('auth/webauthn/login/verify/', WebAuthnLoginVerifyView.as_view(), name='webauthn-login-verify'),
+
+    # ── Device Trust ────────────────────────────────────────────
+    path('auth/device/trust/', DeviceTrustView.as_view(), name='device-trust'),
 
     # ── Dashboard (non-router, single viewset actions) ──────────
     path('dashboard/kpis/', DashboardViewSet.as_view({'get': 'kpis'}), name='dashboard-kpis'),
