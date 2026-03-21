@@ -17,7 +17,72 @@ const STATUS_COLORS = {
   blocked: { marker: "#ef4444", circle: "#ef4444" },
 };
 
-const COVERAGE_CITY_COLOR = "#6366f1"; // indigo for cities willing to cover
+const COVERAGE_CITY_COLOR = "#6366f1";
+
+// ------------------------------------------------------------------
+// localStorage geocoding cache — 7-day TTL, keyed by address string
+// ------------------------------------------------------------------
+const GEO_CACHE_KEY = "jh_geocode_v1";
+const GEO_TTL = 7 * 24 * 60 * 60 * 1000;
+
+const loadGeoCache = () => {
+  try {
+    const raw = localStorage.getItem(GEO_CACHE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    const now = Date.now();
+    const valid = {};
+    for (const [k, v] of Object.entries(parsed)) {
+      if (v.exp > now) valid[k] = v;
+    }
+    return valid;
+  } catch { return {}; }
+};
+
+const saveGeoCache = (c) => {
+  try { localStorage.setItem(GEO_CACHE_KEY, JSON.stringify(c)); } catch {}
+};
+
+// ------------------------------------------------------------------
+// Geocode a single address
+// ------------------------------------------------------------------
+const geocodeAddress = (geocoder, address) =>
+  new Promise((resolve) => {
+    geocoder.geocode({ address }, (results, s) => {
+      if (s === "OK" && results[0]) {
+        const loc = results[0].geometry.location;
+        resolve({ lat: loc.lat(), lng: loc.lng() });
+      } else {
+        resolve(null);
+      }
+    });
+  });
+
+// Geocode in parallel batches of 5, with 200ms pause between batches.
+// Returns { [key]: { lat, lng } }. Mutates geoCache in place and persists it.
+const geocodeBatch = async (geocoder, items, geoCache) => {
+  const results = {};
+  const now = Date.now();
+  const BATCH = 5;
+
+  for (let i = 0; i < items.length; i += BATCH) {
+    const chunk = items.slice(i, i + BATCH);
+    const resolved = await Promise.all(
+      chunk.map(async ({ key, address }) => {
+        if (geoCache[address]) return { key, pos: geoCache[address].pos };
+        const pos = await geocodeAddress(geocoder, address);
+        if (pos) geoCache[address] = { pos, exp: now + GEO_TTL };
+        return { key, pos };
+      })
+    );
+    for (const { key, pos } of resolved) {
+      if (pos) results[key] = pos;
+    }
+    if (i + BATCH < items.length) await new Promise(r => setTimeout(r, 200));
+  }
+  saveGeoCache(geoCache);
+  return results;
+};
 
 const darkMapStyle = [
   { elementType: "geometry", stylers: [{ color: "#242f3e" }] },
@@ -37,19 +102,6 @@ const darkMapStyle = [
   { featureType: "water", elementType: "labels.text.fill", stylers: [{ color: "#515c6d" }] },
 ];
 
-/** Geocode a text address using the Google Maps Geocoding API */
-const geocodeAddress = (geocoder, address) =>
-  new Promise((resolve) => {
-    geocoder.geocode({ address }, (results, status) => {
-      if (status === "OK" && results[0]) {
-        const loc = results[0].geometry.location;
-        resolve({ lat: loc.lat(), lng: loc.lng() });
-      } else {
-        resolve(null);
-      }
-    });
-  });
-
 export const InterpretersMap = ({ interpreters, onInterpreterClick }) => {
   const { isLoaded, loadError } = useJsApiLoader({
     id: "google-map-script",
@@ -57,70 +109,84 @@ export const InterpretersMap = ({ interpreters, onInterpreterClick }) => {
     libraries: GMAPS_LIBRARIES,
   });
 
-  const [mapData, setMapData] = useState([]); // enriched from /map endpoint
-  const [geocoded, setGeocoded] = useState({}); // { interpreterId: { lat, lng } }
-  const [coverageCities, setCoverageCities] = useState({}); // { interpreterId: [{ lat, lng, name }] }
+  const [mapData, setMapData] = useState([]);
+  const [geocoded, setGeocoded] = useState({});
+  const [coverageCities, setCoverageCities] = useState({});
   const [activeMarker, setActiveMarker] = useState(null);
   const [loadingGeo, setLoadingGeo] = useState(false);
 
-  // Fetch the richer /map endpoint data (radius + cities willing to cover)
   useEffect(() => {
     interpreterService.getMapData?.()
       .then(data => setMapData(Array.isArray(data) ? data : []))
-      .catch(() => {}); // fallback silently — UI works with interpreters prop
+      .catch(() => {});
   }, []);
 
-  // After Google Maps is loaded, geocode all addresses
+  // Geocode interpreter home addresses — cache hits applied immediately, new addresses fetched in parallel
   const geocodeAll = useCallback(async () => {
-    if (!isLoaded || !window.google) return;
+    if (!isLoaded || !window.google || interpreters.length === 0) return;
     const geocoder = new window.google.maps.Geocoder();
+    const geoCache = loadGeoCache();
 
-    const toGeocode = interpreters.filter(i => !i.lat || !i.lng);
-    if (toGeocode.length === 0) return;
+    const cacheHits = {};
+    const toFetch = [];
 
-    setLoadingGeo(true);
-    const results = {};
-    for (const interp of toGeocode) {
-      // Use city + state for geocoding (reliable and fast)
+    for (const interp of interpreters) {
+      if (interp.lat && interp.lng) continue;
       const address = [interp.address, interp.city, interp.state].filter(Boolean).join(", ");
       if (!address) continue;
-      const pos = await geocodeAddress(geocoder, address);
-      if (pos) results[interp.id] = pos;
-      // Small delay to respect geocoding rate limits
-      await new Promise(r => setTimeout(r, 120));
+      if (geoCache[address]) {
+        cacheHits[interp.id] = geoCache[address].pos;
+      } else {
+        toFetch.push({ key: interp.id, address });
+      }
     }
-    setGeocoded(prev => ({ ...prev, ...results }));
+
+    // Apply cache hits immediately (no spinner)
+    if (Object.keys(cacheHits).length > 0) {
+      setGeocoded(prev => ({ ...prev, ...cacheHits }));
+    }
+
+    if (toFetch.length === 0) return;
+
+    setLoadingGeo(true);
+    const fresh = await geocodeBatch(geocoder, toFetch, geoCache);
+    setGeocoded(prev => ({ ...prev, ...fresh }));
     setLoadingGeo(false);
   }, [isLoaded, interpreters]);
 
-  useEffect(() => {
-    geocodeAll();
-  }, [geocodeAll]);
+  useEffect(() => { geocodeAll(); }, [geocodeAll]);
 
-  // Geocode cities willing to cover per interpreter
+  // Geocode cities willing to cover
   const geocodeCoverageCities = useCallback(async () => {
     if (!isLoaded || !window.google || mapData.length === 0) return;
     const geocoder = new window.google.maps.Geocoder();
-    const results = {};
+    const geoCache = loadGeoCache();
 
+    const allItems = [];
     for (const mapInterp of mapData) {
       const cities = mapInterp.cities_willing_to_cover;
-      if (!cities || !Array.isArray(cities) || cities.length === 0) continue;
-      const cityResults = [];
+      if (!Array.isArray(cities) || cities.length === 0) continue;
       for (const cityName of cities) {
         const address = `${cityName}, ${mapInterp.state || "US"}`;
-        const pos = await geocodeAddress(geocoder, address);
-        if (pos) cityResults.push({ lat: pos.lat, lng: pos.lng, name: cityName });
-        await new Promise(r => setTimeout(r, 100));
+        allItems.push({ key: `${mapInterp.id}__${cityName}`, address, interpId: mapInterp.id, cityName });
       }
-      if (cityResults.length > 0) results[mapInterp.id] = cityResults;
     }
-    setCoverageCities(results);
+
+    if (allItems.length === 0) return;
+
+    const results = await geocodeBatch(geocoder, allItems, geoCache);
+
+    const byInterp = {};
+    for (const item of allItems) {
+      const pos = results[item.key];
+      if (!pos) continue;
+      if (!byInterp[item.interpId]) byInterp[item.interpId] = [];
+      byInterp[item.interpId].push({ lat: pos.lat, lng: pos.lng, name: item.cityName });
+    }
+    setCoverageCities(byInterp);
   }, [isLoaded, mapData]);
 
-  useEffect(() => {
-    geocodeCoverageCities();
-  }, [geocodeCoverageCities]);
+  useEffect(() => { geocodeCoverageCities(); }, [geocodeCoverageCities]);
 
   const getMarkerIcon = (status) => {
     const color = STATUS_COLORS[status]?.marker || STATUS_COLORS.available.marker;
@@ -159,11 +225,9 @@ export const InterpretersMap = ({ interpreters, onInterpreterClick }) => {
     );
   }
 
-  // Build the final list of plottable interpreters (GPS or geocoded)
   const plottable = interpreters.map(interp => {
     const lat = interp.lat ?? geocoded[interp.id]?.lat ?? null;
     const lng = interp.lng ?? geocoded[interp.id]?.lng ?? null;
-    // Pull richer map data (radius, cities) from /map endpoint
     const mapExtra = mapData.find(m => m.id === interp.id) || {};
     return { ...interp, lat, lng, _map: mapExtra };
   }).filter(i => i.lat && i.lng);
@@ -172,7 +236,7 @@ export const InterpretersMap = ({ interpreters, onInterpreterClick }) => {
     <div className="relative w-full h-[600px] rounded-lg overflow-hidden border border-border bg-card shadow-sm">
       {loadingGeo && (
         <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 bg-background/90 border border-border rounded-full px-3 py-1 flex items-center gap-2 text-xs text-muted-foreground shadow">
-          <Loader2 className="w-3 h-3 animate-spin" /> Geocoding addresses…
+          <Loader2 className="w-3 h-3 animate-spin" /> Geocoding new addresses…
         </div>
       )}
       {/* Legend */}
@@ -198,7 +262,6 @@ export const InterpretersMap = ({ interpreters, onInterpreterClick }) => {
 
           return (
             <span key={interp.id}>
-              {/* Service radius circle */}
               {radiusMeters && (
                 <Circle
                   center={{ lat: interp.lat, lng: interp.lng }}
@@ -213,17 +276,12 @@ export const InterpretersMap = ({ interpreters, onInterpreterClick }) => {
                 />
               )}
 
-              {/* Cities willing to cover — small markers + subtle circles */}
               {citiesForInterp.map((city, ci) => (
                 <span key={`city-${interp.id}-${ci}`}>
-                  <Marker
-                    position={{ lat: city.lat, lng: city.lng }}
-                    icon={getCoverageCityIcon()}
-                    title={city.name}
-                  />
+                  <Marker position={{ lat: city.lat, lng: city.lng }} icon={getCoverageCityIcon()} title={city.name} />
                   <Circle
                     center={{ lat: city.lat, lng: city.lng }}
-                    radius={20 * MILES_TO_METERS} // 20 mi coverage around each city
+                    radius={20 * MILES_TO_METERS}
                     options={{
                       strokeColor: COVERAGE_CITY_COLOR,
                       strokeOpacity: 0.3,
@@ -235,7 +293,6 @@ export const InterpretersMap = ({ interpreters, onInterpreterClick }) => {
                 </span>
               ))}
 
-              {/* Main interpreter marker */}
               <Marker
                 position={{ lat: interp.lat, lng: interp.lng }}
                 icon={getMarkerIcon(interp.status)}

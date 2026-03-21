@@ -1,321 +1,188 @@
-// JHBridge - Payment Stub Form Modal
-import { useState, useMemo } from "react";
-import { Modal } from "@/components/shared/Modal";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { MOCK } from "@/data/mockData";
-import { showToast } from "@/components/shared/Toast";
-import { User, Calendar, DollarSign, Plus, Minus, Check } from "lucide-react";
-import { cn } from "@/lib/utils";
+// JHBridge — Payment Stub Generation Modal (single interpreter)
+import { useState, useEffect } from 'react';
+import { Modal } from '@/components/shared/Modal';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { showToast } from '@/components/shared/Toast';
+import { interpreterService } from '@/services/interpreterService';
+import { payrollService } from '@/services/payrollService';
+import { User, Calendar, Loader2, Check, AlertCircle } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
-export const PaymentStubModal = ({ 
-  isOpen, 
-  onClose, 
-  onSuccess 
-}) => {
-  const [selectedInterpreter, setSelectedInterpreter] = useState("");
-  const [periodStart, setPeriodStart] = useState("");
-  const [periodEnd, setPeriodEnd] = useState("");
-  const [selectedMissions, setSelectedMissions] = useState([]);
-  const [adjustments, setAdjustments] = useState([]);
-  const [paymentMethod, setPaymentMethod] = useState("ACH");
-  const [loading, setLoading] = useState(false);
+const today        = () => new Date().toISOString().slice(0, 10);
+const firstOfMonth = () => { const d = new Date(); d.setDate(1); return d.toISOString().slice(0, 10); };
+const firstOfYear  = () => `${new Date().getFullYear()}-01-01`;
 
-  // Get interpreter's completed missions
-  const interpreter = MOCK.interpreters.find(i => i.id.toString() === selectedInterpreter);
-  const interpreterMissions = useMemo(() => {
-    if (!interpreter) return [];
-    return MOCK.assignments.filter(
-      a => a.interpreter === interpreter.name && a.status === "COMPLETED"
-    );
-  }, [interpreter]);
+export const PaymentStubModal = ({ isOpen, onClose, onSuccess }) => {
+  const [interpreters, setInterpreters]     = useState([]);
+  const [loadingInterp, setLoadingInterp]   = useState(false);
+  const [selectedId, setSelectedId]         = useState('');
+  const [periodStart, setPeriodStart]       = useState(firstOfMonth());
+  const [periodEnd, setPeriodEnd]           = useState(today());
+  const [preview, setPreview]               = useState(null);
+  const [loadingPreview, setLoadingPreview] = useState(false);
+  const [previewError, setPreviewError]     = useState(null);
+  const [generating, setGenerating]         = useState(false);
+  const [sendAfter, setSendAfter]           = useState(false);
 
-  // Calculate totals
-  const missionTotal = useMemo(() => {
-    return selectedMissions.reduce((sum, missionId) => {
-      const mission = interpreterMissions.find(m => m.id === missionId);
-      return sum + (mission ? mission.rate * 2 : 0); // Assuming 2 hours per mission
-    }, 0);
-  }, [selectedMissions, interpreterMissions]);
+  // Load interpreter list on open
+  useEffect(() => {
+    if (!isOpen) return;
+    setLoadingInterp(true);
+    interpreterService.getInterpreters({ page_size: 200, ordering: 'user__last_name' })
+      .then(data => setInterpreters(data.results || []))
+      .catch(() => showToast.error('Failed to load interpreters'))
+      .finally(() => setLoadingInterp(false));
+  }, [isOpen]);
 
-  const adjustmentTotal = useMemo(() => {
-    return adjustments.reduce((sum, adj) => sum + adj.amount, 0);
-  }, [adjustments]);
+  // Preview: fetch assignment count whenever interpreter + dates change
+  useEffect(() => {
+    if (!isOpen || !selectedId || !periodStart || !periodEnd) { setPreview(null); return; }
+    let cancelled = false;
+    setLoadingPreview(true);
+    setPreviewError(null);
+    payrollService.getEarningsSummary({ interpreter_id: selectedId, period_start: periodStart, period_end: periodEnd })
+      .then(res => { if (!cancelled) setPreview(res.data); })
+      .catch(() => { if (!cancelled) setPreviewError('Could not load assignment preview'); })
+      .finally(() => { if (!cancelled) setLoadingPreview(false); });
+    return () => { cancelled = true; };
+  }, [isOpen, selectedId, periodStart, periodEnd]);
 
-  const grossTotal = missionTotal + adjustmentTotal;
-
-  const toggleMission = (missionId) => {
-    setSelectedMissions(prev => 
-      prev.includes(missionId)
-        ? prev.filter(id => id !== missionId)
-        : [...prev, missionId]
-    );
-  };
-
-  const addAdjustment = (type) => {
-    setAdjustments(prev => [
-      ...prev,
-      { id: Date.now(), type, description: "", amount: type === "bonus" ? 25 : -10 }
-    ]);
-  };
-
-  const updateAdjustment = (id, field, value) => {
-    setAdjustments(prev =>
-      prev.map(adj => adj.id === id ? { ...adj, [field]: value } : adj)
-    );
-  };
-
-  const removeAdjustment = (id) => {
-    setAdjustments(prev => prev.filter(adj => adj.id !== id));
-  };
-
-  const handleSubmit = async () => {
-    if (!selectedInterpreter || selectedMissions.length === 0) {
-      showToast.error("Please select an interpreter and at least one mission");
-      return;
+  const handleGenerate = async () => {
+    if (!selectedId) { showToast.error('Please select an interpreter'); return; }
+    if (!periodStart || !periodEnd) { showToast.error('Please set a period'); return; }
+    setGenerating(true);
+    try {
+      const res = await payrollService.batchStubs({
+        interpreter_ids: [parseInt(selectedId)],
+        period_start: periodStart,
+        period_end: periodEnd,
+      });
+      const created = res.data?.[0];
+      showToast.success(`Stub ${created?.document_number || ''} generated`);
+      if (sendAfter && created?.id) {
+        await payrollService.sendStub(created.id).catch(() => {});
+        showToast.success('Stub sent to interpreter');
+      }
+      onSuccess?.();
+    } catch {
+      showToast.error('Failed to generate stub');
+    } finally {
+      setGenerating(false);
     }
-    
-    setLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const newPayment = {
-      id: `INT-${Date.now().toString(36).toUpperCase()}`,
-      interpreter: interpreter.name,
-      amount: grossTotal,
-      status: "PENDING",
-      date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-      method: paymentMethod,
-    };
-    
-    setLoading(false);
-    showToast.success(`Payment stub created for ${interpreter.name}`);
-    
-    if (onSuccess) {
-      onSuccess(newPayment);
-    }
-    
+  };
+
+  const handleClose = () => {
+    if (generating) return;
+    setSelectedId(''); setPeriodStart(firstOfMonth()); setPeriodEnd(today());
+    setPreview(null); setSendAfter(false);
     onClose();
   };
 
+  const fmtAmt = (v) => v ? `$${parseFloat(v).toLocaleString('en-US', { minimumFractionDigits: 2 })}` : '$0.00';
+
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title="New Payment Stub"
-      subtitle="Create a payment stub for an interpreter"
-      size="lg"
-      footer={
-        <>
-          <Button variant="outline" onClick={onClose} disabled={loading}>
-            Cancel
-          </Button>
-          <Button variant="outline" disabled={loading}>
-            Save Draft
-          </Button>
-          <Button 
-            onClick={handleSubmit} 
-            disabled={loading || !selectedInterpreter || selectedMissions.length === 0}
-            className="bg-navy hover:bg-navy-light"
-            data-testid="payment-form-submit"
-          >
-            {loading ? "Creating..." : "Create & Send"}
-          </Button>
-        </>
-      }
-    >
-      <div className="space-y-6">
-        {/* Interpreter Selection */}
+    <Modal isOpen={isOpen} onClose={handleClose} title="New Payment Stub"
+      subtitle="Generate a pay stub from completed assignments" size="md">
+      <div className="space-y-5">
+
+        {/* Interpreter selector */}
         <div>
           <Label className="flex items-center gap-1.5 mb-1.5">
-            <User className="w-3.5 h-3.5" /> Select Interpreter *
+            <User className="w-3.5 h-3.5" /> Interpreter *
           </Label>
-          <select
-            value={selectedInterpreter}
-            onChange={(e) => {
-              setSelectedInterpreter(e.target.value);
-              setSelectedMissions([]);
-            }}
-            className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
-            data-testid="payment-interpreter-select"
-          >
-            <option value="">Select interpreter...</option>
-            {MOCK.interpreters.map(i => (
-              <option key={i.id} value={i.id}>{i.name} — {i.city}, {i.state}</option>
-            ))}
-          </select>
+          {loadingInterp ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+              <Loader2 className="w-4 h-4 animate-spin" /> Loading interpreters…
+            </div>
+          ) : (
+            <select value={selectedId}
+              onChange={e => { setSelectedId(e.target.value); setPreview(null); }}
+              className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm">
+              <option value="">Select interpreter…</option>
+              {interpreters.map(i => (
+                <option key={i.id} value={i.id}>
+                  {`${i.first_name || ''} ${i.last_name || ''}`.trim() || i.user_email} — {i.city}, {i.state}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
 
         {/* Period */}
         <div>
           <Label className="flex items-center gap-1.5 mb-1.5">
-            <Calendar className="w-3.5 h-3.5" /> Period
+            <Calendar className="w-3.5 h-3.5" /> Period *
           </Label>
-          <div className="flex gap-2 items-center">
-            <Input
-              type="date"
-              value={periodStart}
-              onChange={(e) => setPeriodStart(e.target.value)}
-              className="flex-1"
-            />
-            <span className="text-muted-foreground">to</span>
-            <Input
-              type="date"
-              value={periodEnd}
-              onChange={(e) => setPeriodEnd(e.target.value)}
-              className="flex-1"
-            />
+          <div className="flex gap-2 items-center mb-2">
+            <Input type="date" value={periodStart} onChange={e => setPeriodStart(e.target.value)} className="flex-1" />
+            <span className="text-muted-foreground text-xs">to</span>
+            <Input type="date" value={periodEnd} onChange={e => setPeriodEnd(e.target.value)} className="flex-1" />
+          </div>
+          <div className="flex gap-1.5">
+            {[
+              { label: 'This month', start: firstOfMonth(), end: today() },
+              { label: 'This year',  start: firstOfYear(),  end: today() },
+            ].map(({ label, start, end }) => (
+              <button key={label} type="button"
+                onClick={() => { setPeriodStart(start); setPeriodEnd(end); }}
+                className="text-[11px] px-2 py-1 rounded border border-border text-muted-foreground hover:bg-muted transition-colors">
+                {label}
+              </button>
+            ))}
           </div>
         </div>
 
-        {/* Missions Selection */}
-        {selectedInterpreter && (
-          <div>
-            <Label className="mb-1.5">Missions in Period *</Label>
-            {interpreterMissions.length > 0 ? (
-              <div className="border border-border rounded-md max-h-48 overflow-y-auto">
-                {interpreterMissions.map(mission => (
-                  <button
-                    key={mission.id}
-                    type="button"
-                    onClick={() => toggleMission(mission.id)}
-                    className={cn(
-                      "w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-muted transition-colors border-b border-border last:border-0 text-left",
-                      selectedMissions.includes(mission.id) && "bg-primary/5"
-                    )}
-                  >
-                    <div className={cn(
-                      "w-4 h-4 rounded border flex items-center justify-center",
-                      selectedMissions.includes(mission.id) ? "bg-primary border-primary" : "border-border"
-                    )}>
-                      {selectedMissions.includes(mission.id) && <Check className="w-3 h-3 text-primary-foreground" />}
-                    </div>
-                    <div className="flex-1">
-                      <span className="font-mono text-xs text-navy dark:text-gold">{mission.id}</span>
-                      <span className="mx-2">—</span>
-                      <span>{mission.date}</span>
-                      <span className="mx-2">—</span>
-                      <span className="text-muted-foreground">{mission.client}</span>
-                    </div>
-                    <span className="font-mono font-medium">${mission.rate * 2}</span>
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <div className="p-4 text-center text-sm text-muted-foreground border border-border rounded-md">
-                No completed missions found for this interpreter
+        {/* Assignments preview */}
+        {selectedId && (
+          <div className="rounded-md border border-border bg-muted/30 p-3 min-h-[60px]">
+            {loadingPreview && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" /> Checking assignments…
               </div>
             )}
-            {selectedMissions.length > 0 && (
-              <div className="flex justify-end mt-2">
-                <span className="text-sm text-muted-foreground">
-                  Subtotal: <span className="font-mono font-semibold text-foreground">${missionTotal}</span>
-                </span>
+            {previewError && !loadingPreview && (
+              <div className="flex items-center gap-2 text-sm text-danger">
+                <AlertCircle className="w-3.5 h-3.5" /> {previewError}
+              </div>
+            )}
+            {preview && !loadingPreview && (
+              <div className="text-sm space-y-1">
+                <div className="font-medium">{preview.interpreter_name}</div>
+                <div className="text-muted-foreground">
+                  {preview.total_assignments === 0
+                    ? 'No completed assignments in this period'
+                    : `${preview.total_assignments} completed assignment${preview.total_assignments !== 1 ? 's' : ''}`}
+                </div>
+                {preview.total_assignments > 0 && (
+                  <div className="text-lg font-bold font-mono mt-1">{fmtAmt(preview.total_earnings)}</div>
+                )}
               </div>
             )}
           </div>
         )}
 
-        {/* Adjustments */}
-        <div>
-          <div className="flex items-center justify-between mb-1.5">
-            <Label>Adjustments</Label>
-            <div className="flex gap-1">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-7 text-xs gap-1"
-                onClick={() => addAdjustment("bonus")}
-              >
-                <Plus className="w-3 h-3" /> Bonus
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-7 text-xs gap-1"
-                onClick={() => addAdjustment("deduction")}
-              >
-                <Minus className="w-3 h-3" /> Deduction
-              </Button>
-            </div>
+        {/* Send after generating */}
+        <label className="flex items-center gap-2 cursor-pointer select-none">
+          <div onClick={() => setSendAfter(v => !v)}
+            className={cn('w-4 h-4 rounded border flex items-center justify-center transition-colors cursor-pointer',
+              sendAfter ? 'bg-primary border-primary' : 'border-border')}>
+            {sendAfter && <Check className="w-3 h-3 text-primary-foreground" />}
           </div>
-          {adjustments.length > 0 && (
-            <div className="space-y-2">
-              {adjustments.map(adj => (
-                <div key={adj.id} className="flex items-center gap-2">
-                  <Input
-                    placeholder={adj.type === "bonus" ? "Travel reimbursement" : "Equipment fee"}
-                    value={adj.description}
-                    onChange={(e) => updateAdjustment(adj.id, "description", e.target.value)}
-                    className="flex-1"
-                  />
-                  <div className="relative w-24">
-                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
-                    <Input
-                      type="number"
-                      value={Math.abs(adj.amount)}
-                      onChange={(e) => updateAdjustment(adj.id, "amount", 
-                        adj.type === "bonus" ? parseInt(e.target.value) : -parseInt(e.target.value)
-                      )}
-                      className={cn("pl-6", adj.type === "bonus" ? "text-success" : "text-danger")}
-                    />
-                  </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={() => removeAdjustment(adj.id)}
-                  >
-                    <Minus className="w-4 h-4" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+          <span className="text-sm">Send stub to interpreter after generating</span>
+        </label>
 
-        {/* Summary */}
-        {selectedInterpreter && selectedMissions.length > 0 && (
-          <div className="bg-muted/50 border border-border rounded-md p-4">
-            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-              Summary
-            </h4>
-            <div className="space-y-1 text-sm">
-              <div className="flex justify-between">
-                <span>Gross Pay</span>
-                <span className="font-mono">${missionTotal.toFixed(2)}</span>
-              </div>
-              {adjustmentTotal !== 0 && (
-                <div className="flex justify-between">
-                  <span>Adjustments</span>
-                  <span className={cn("font-mono", adjustmentTotal > 0 ? "text-success" : "text-danger")}>
-                    {adjustmentTotal > 0 ? "+" : ""}{adjustmentTotal.toFixed(2)}
-                  </span>
-                </div>
-              )}
-              <div className="flex justify-between border-t border-border pt-2 mt-2">
-                <span className="font-semibold">NET PAY</span>
-                <span className="font-mono font-bold text-lg">${grossTotal.toFixed(2)}</span>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Payment Method */}
-        <div>
-          <Label className="mb-1.5">Payment Method</Label>
-          <select
-            value={paymentMethod}
-            onChange={(e) => setPaymentMethod(e.target.value)}
-            className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
-          >
-            <option value="ACH">ACH Transfer</option>
-            <option value="Check">Check</option>
-            <option value="Wire">Wire Transfer</option>
-          </select>
+        {/* Actions */}
+        <div className="flex gap-2 pt-1">
+          <Button variant="outline" className="flex-1" onClick={handleClose} disabled={generating}>Cancel</Button>
+          <Button
+            className="flex-1 bg-navy hover:bg-navy-light text-white gap-1.5"
+            onClick={handleGenerate}
+            disabled={generating || !selectedId || !periodStart || !periodEnd || preview?.total_assignments === 0}>
+            {generating && <Loader2 className="w-4 h-4 animate-spin" />}
+            {generating ? 'Generating…' : 'Generate Stub'}
+          </Button>
         </div>
       </div>
     </Modal>

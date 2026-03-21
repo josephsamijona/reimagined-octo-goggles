@@ -215,11 +215,17 @@ class InterpreterPayment(models.Model):
         return False
 
     def mark_as_completed(self):
-        """Marque le paiement comme complété"""
+        """Marque le paiement comme complété et met à jour is_paid sur l'assignment lié."""
         if self.can_be_completed():
             self.status = self.Status.COMPLETED
             self.processed_date = timezone.now()
             self.save()
+            # Cascade: mark the linked assignment as paid
+            if self.assignment_id:
+                try:
+                    self.assignment.__class__.objects.filter(pk=self.assignment_id).update(is_paid=True)
+                except Exception:
+                    pass
             return True
         return False
 

@@ -65,11 +65,12 @@ class InterpreterViewSet(ListModelMixin, RetrieveModelMixin, UpdateModelMixin, G
         return (
             Interpreter.objects
             .select_related('user')
-            .prefetch_related('languages')
+            .prefetch_related('languages', 'locations')   # locations needed for lat/lng/is_on_mission
             .annotate(
                 missions_count=Count(
                     'assignment',
                     filter=Q(assignment__status='COMPLETED'),
+                    distinct=True,
                 ),
                 avg_rating=Avg(
                     'assignment__assignmentfeedback__rating',

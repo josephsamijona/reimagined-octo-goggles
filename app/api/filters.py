@@ -11,6 +11,13 @@ class AssignmentFilter(django_filters.FilterSet):
     start_time_before = django_filters.DateTimeFilter(field_name='start_time', lookup_expr='lte')
     date_from = django_filters.DateFilter(field_name='start_time', lookup_expr='date__gte')
     date_to = django_filters.DateFilter(field_name='start_time', lookup_expr='date__lte')
+    # Convenience: filter only PENDING assignments with no interpreter assigned
+    unassigned = django_filters.BooleanFilter(method='filter_unassigned')
+
+    def filter_unassigned(self, queryset, name, value):
+        if value:
+            return queryset.filter(status='PENDING', interpreter__isnull=True)
+        return queryset
 
     class Meta:
         model = Assignment

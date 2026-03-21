@@ -84,7 +84,7 @@ class ClientListSerializer(serializers.ModelSerializer):
         return Assignment.objects.filter(client=obj).count()
 
     def get_total_revenue(self, obj):
-        result = Invoice.objects.filter(client=obj).aggregate(total=Sum('total_amount'))
+        result = Invoice.objects.filter(client=obj).aggregate(total=Sum('total'))
         return result['total'] or 0
 
     def get_last_mission_date(self, obj):
@@ -142,7 +142,7 @@ class ClientDetailSerializer(serializers.ModelSerializer):
         return Assignment.objects.filter(client=obj).count()
 
     def get_total_revenue(self, obj):
-        result = Invoice.objects.filter(client=obj).aggregate(total=Sum('total_amount'))
+        result = Invoice.objects.filter(client=obj).aggregate(total=Sum('total'))
         return result['total'] or 0
 
     def get_last_mission_date(self, obj):

@@ -41,6 +41,7 @@ class AssignmentListSerializer(serializers.ModelSerializer):
     """Lightweight serializer for table / list views."""
 
     interpreter_name = serializers.SerializerMethodField()
+    interpreter_id = serializers.PrimaryKeyRelatedField(source='interpreter', read_only=True)
     client_display = serializers.SerializerMethodField()
     service_type_name = serializers.StringRelatedField(source='service_type')
     source_language_name = serializers.StringRelatedField(source='source_language')
@@ -52,12 +53,12 @@ class AssignmentListSerializer(serializers.ModelSerializer):
         model = Assignment
         fields = (
             'id', 'status',
-            'client_display', 'interpreter_name',
+            'client_display', 'interpreter_name', 'interpreter_id',
             'service_type_name', 'source_language_name', 'target_language_name',
             'start_time', 'end_time',
             'start_time_local', 'end_time_local',
-            'city', 'state',
-            'interpreter_rate', 'total_interpreter_payment',
+            'location', 'city', 'state', 'zip_code',
+            'interpreter_rate', 'minimum_hours', 'total_interpreter_payment',
             'is_paid', 'created_at',
         )
 
@@ -94,14 +95,14 @@ class AssignmentDetailSerializer(serializers.ModelSerializer):
     """Full assignment representation with nested relations."""
 
     interpreter_name = serializers.SerializerMethodField()
-    interpreter_id = serializers.PrimaryKeyRelatedField(
-        source='interpreter', read_only=True
-    )
+    interpreter_id = serializers.PrimaryKeyRelatedField(source='interpreter', read_only=True)
+    interpreter_detail = serializers.SerializerMethodField()
     client_detail = serializers.SerializerMethodField()
     service_type = _ServiceTypeTinySerializer(read_only=True)
     source_language = _LanguageTinySerializer(read_only=True)
     target_language = _LanguageTinySerializer(read_only=True)
     feedback = serializers.SerializerMethodField()
+    interpreter_payment = serializers.SerializerMethodField()
     start_time_local = serializers.SerializerMethodField()
     end_time_local = serializers.SerializerMethodField()
 
@@ -110,7 +111,7 @@ class AssignmentDetailSerializer(serializers.ModelSerializer):
         fields = (
             'id', 'status',
             'quote',
-            'interpreter_id', 'interpreter_name',
+            'interpreter_id', 'interpreter_name', 'interpreter_detail',
             'client', 'client_detail',
             'client_name', 'client_email', 'client_phone',
             'service_type', 'source_language', 'target_language',
@@ -119,6 +120,7 @@ class AssignmentDetailSerializer(serializers.ModelSerializer):
             'location', 'city', 'state', 'zip_code',
             'is_paid',
             'interpreter_rate', 'minimum_hours', 'total_interpreter_payment',
+            'interpreter_payment',
             'notes', 'special_requirements',
             'created_at', 'updated_at', 'completed_at',
             'feedback',
@@ -130,6 +132,33 @@ class AssignmentDetailSerializer(serializers.ModelSerializer):
             return f"{u.first_name} {u.last_name}".strip()
         return None
 
+    def get_interpreter_detail(self, obj):
+        """Full interpreter contact + profile info for the detail modal."""
+        i = obj.interpreter
+        if not i:
+            return None
+        u = i.user if hasattr(i, 'user') else None
+        langs = []
+        try:
+            langs = [il.language.name for il in i.interpreterlanguage_set.select_related('language').all()]
+        except Exception:
+            pass
+        return {
+            'id': i.id,
+            'first_name': u.first_name if u else '',
+            'last_name': u.last_name if u else '',
+            'email': u.email if u else '',
+            'phone': u.phone if u else '',
+            'city': i.city or '',
+            'state': i.state or '',
+            'address': i.address or '',
+            'hourly_rate': str(i.hourly_rate) if i.hourly_rate else None,
+            'radius_of_service': i.radius_of_service,
+            'languages': langs,
+            'is_manually_blocked': i.is_manually_blocked,
+            'active': i.active,
+        }
+
     def get_client_detail(self, obj):
         if not obj.client:
             return None
@@ -139,6 +168,22 @@ class AssignmentDetailSerializer(serializers.ModelSerializer):
             'email': obj.client.email,
             'phone': obj.client.phone,
         }
+
+    def get_interpreter_payment(self, obj):
+        """Return the linked InterpreterPayment status if it exists."""
+        try:
+            from app.models import InterpreterPayment
+            payment = InterpreterPayment.objects.filter(assignment=obj).order_by('-created_at').first()
+            if payment:
+                return {
+                    'id': payment.id,
+                    'status': payment.status,
+                    'amount': str(payment.amount),
+                    'reference_number': payment.reference_number,
+                }
+        except Exception:
+            pass
+        return None
 
     def get_feedback(self, obj):
         from app.models import AssignmentFeedback
@@ -164,7 +209,7 @@ class AssignmentDetailSerializer(serializers.ModelSerializer):
             'interpreter__user', 'client',
             'service_type', 'source_language', 'target_language',
             'quote', 'assignmentfeedback',
-        )
+        ).prefetch_related('interpreter__interpreterlanguage_set__language')
 
 
 # ---------------------------------------------------------------------------

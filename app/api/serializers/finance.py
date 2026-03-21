@@ -149,13 +149,14 @@ class ClientPaymentSerializer(serializers.ModelSerializer):
 
 class InterpreterPaymentListSerializer(serializers.ModelSerializer):
     interpreter_name = serializers.SerializerMethodField()
+    assignment_info  = serializers.SerializerMethodField()
 
     class Meta:
         model = InterpreterPayment
         fields = (
             'id', 'reference_number',
             'interpreter', 'interpreter_name',
-            'assignment', 'amount',
+            'assignment', 'assignment_info', 'amount',
             'payment_method', 'status',
             'scheduled_date', 'processed_date',
             'created_at',
@@ -167,9 +168,30 @@ class InterpreterPaymentListSerializer(serializers.ModelSerializer):
             return f"{u.first_name} {u.last_name}".strip()
         return None
 
+    def get_assignment_info(self, obj):
+        a = obj.assignment
+        if not a:
+            return None
+        return {
+            'id': a.id,
+            'city': a.city,
+            'state': a.state,
+            'start_time': a.start_time,
+            'rate': str(a.interpreter_rate) if a.interpreter_rate else None,
+            'source_language': a.source_language.name if a.source_language else '',
+            'target_language': a.target_language.name if a.target_language else '',
+            'client': a.client.company_name if a.client else (a.client_name or ''),
+            'is_paid': a.is_paid,
+        }
+
     @staticmethod
     def setup_eager_loading(queryset):
-        return queryset.select_related('interpreter__user', 'transaction')
+        return queryset.select_related(
+            'interpreter__user', 'transaction',
+            'assignment__client',
+            'assignment__source_language',
+            'assignment__target_language',
+        )
 
 
 # ---------------------------------------------------------------------------
