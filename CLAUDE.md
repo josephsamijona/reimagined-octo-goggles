@@ -10,7 +10,7 @@ JHBridge Translation is a Django-based interpretation/translation services platf
 - **MySQL** database (via `dj-database-url`, env var `MYSQL_URL`)
 - **Celery + Redis** for async tasks (email notifications)
 - **Resend** as email backend (custom backend at `app/backends/resend_backend.py`)
-- **S3-compatible storage** (Backblaze B2) via `django-storages` for media, contracts, signatures
+- **S3-compatible storage** we use s3 only via `django-storages` for media, contracts, signatures
 - **DRF + SimpleJWT** for API authentication, plus custom API key auth (`app/api_auth/`)
 - Deployed on **Railway** with **Gunicorn + WhiteNoise**
 

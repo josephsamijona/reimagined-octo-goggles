@@ -1,10 +1,17 @@
 from rest_framework import serializers
 from django.db.models import Count, Avg, Sum, Max, Q
+import boto3
+from django.conf import settings
+import logging
+
+logger = logging.getLogger(__name__)
 
 from app.models import (
     User, Client, Interpreter, InterpreterLocation,
     Language, InterpreterLanguage, Assignment, Invoice,
 )
+from app.models.contracts import ContractInvitation
+from app.models.documents import InterpreterContractSignature
 
 
 # ---------------------------------------------------------------------------
@@ -169,7 +176,7 @@ class InterpreterListSerializer(serializers.ModelSerializer):
         model = Interpreter
         fields = (
             'id', 'user_email', 'first_name', 'last_name', 'phone',
-            'city', 'state', 'hourly_rate', 'active',
+            'address', 'city', 'state', 'radius_of_service', 'hourly_rate', 'active',
             'has_accepted_contract', 'is_dashboard_enabled',
             'is_manually_blocked', 'languages',
             'missions_count', 'avg_rating',
@@ -222,6 +229,10 @@ class InterpreterDetailSerializer(serializers.ModelSerializer):
     lat = serializers.SerializerMethodField()
     lng = serializers.SerializerMethodField()
 
+    recent_assignments = serializers.SerializerMethodField()
+    profile_image_url = serializers.SerializerMethodField()
+    contract_url = serializers.SerializerMethodField()
+
     # Masked banking fields
     routing_number = serializers.SerializerMethodField()
     account_number = serializers.SerializerMethodField()
@@ -230,7 +241,7 @@ class InterpreterDetailSerializer(serializers.ModelSerializer):
         model = Interpreter
         fields = (
             'id', 'user', 'interpreter_languages',
-            'profile_image', 'bio',
+            'profile_image', 'profile_image_url', 'bio',
             'address', 'city', 'state', 'zip_code',
             'certifications', 'specialties', 'availability',
             'radius_of_service', 'hourly_rate',
@@ -241,14 +252,27 @@ class InterpreterDetailSerializer(serializers.ModelSerializer):
             'assignment_types', 'preferred_assignment_type',
             'cities_willing_to_cover',
             'contract_acceptance_date', 'has_accepted_contract',
+            'contract_url',
             'is_dashboard_enabled',
             'is_manually_blocked', 'blocked_reason', 'blocked_at',
             'missions_count', 'avg_rating',
             'is_on_mission', 'lat', 'lng',
+            'recent_assignments',
         )
         read_only_fields = ('id',)
 
-    # -- Mask helpers --
+    # -- Helpers --
+    @staticmethod
+    def _decrypt(value):
+        """Decrypt a Fernet-encrypted banking value stored on the Interpreter model."""
+        if not value:
+            return None
+        try:
+            raw = value.encode() if isinstance(value, str) else value
+            return InterpreterContractSignature.decrypt_data(raw) or value
+        except Exception:
+            return value
+
     @staticmethod
     def _mask(value):
         """Show only last 4 characters, rest replaced with asterisks."""
@@ -259,21 +283,44 @@ class InterpreterDetailSerializer(serializers.ModelSerializer):
             return s
         return '*' * (len(s) - 4) + s[-4:]
 
-    def get_routing_number(self, obj):
-        raw = obj.__class__.routing_number.field.value_from_object(obj) if obj.pk else None
-        # Access the raw DB value, not the property
+    def _generate_presigned_url(self, key, bucket=None):
+        if not key:
+            return None
+        if key.startswith('http'):
+            return key
+
+        target_bucket = bucket or getattr(settings, 'AWS_STORAGE_BUCKET_NAME', 'jhbridge-documents-prod')
+
         try:
-            raw = Interpreter.objects.filter(pk=obj.pk).values_list('routing_number', flat=True).first()
+            s3_client = boto3.client(
+                's3',
+                aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+                aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+                region_name=getattr(settings, 'AWS_S3_REGION_NAME', 'us-east-1'),
+            )
+            url = s3_client.generate_presigned_url(
+                'get_object',
+                Params={'Bucket': target_bucket, 'Key': key},
+                ExpiresIn=3600,
+            )
+            return url
+        except Exception as e:
+            logger.error(f"Error generating presigned URL for key {key} in bucket {target_bucket}: {str(e)}")
+            return None
+
+    def get_routing_number(self, obj):
+        try:
+            encrypted = Interpreter.objects.filter(pk=obj.pk).values_list('routing_number', flat=True).first()
         except Exception:
-            raw = None
-        return self._mask(raw)
+            encrypted = None
+        return self._mask(self._decrypt(encrypted))
 
     def get_account_number(self, obj):
         try:
-            raw = Interpreter.objects.filter(pk=obj.pk).values_list('account_number', flat=True).first()
+            encrypted = Interpreter.objects.filter(pk=obj.pk).values_list('account_number', flat=True).first()
         except Exception:
-            raw = None
-        return self._mask(raw)
+            encrypted = None
+        return self._mask(self._decrypt(encrypted))
 
     def get_missions_count(self, obj):
         return Assignment.objects.filter(
@@ -298,6 +345,28 @@ class InterpreterDetailSerializer(serializers.ModelSerializer):
     def get_lng(self, obj):
         loc = obj.locations.first()
         return float(loc.longitude) if loc else None
+
+    def get_recent_assignments(self, obj):
+        from app.api.serializers.assignments import AssignmentListSerializer
+        qs = Assignment.objects.filter(interpreter=obj).order_by('-created_at')[:5]
+        return AssignmentListSerializer(qs, many=True).data
+        
+    def get_profile_image_url(self, obj):
+        if not obj.profile_image:
+            return None
+        return self._generate_presigned_url(obj.profile_image)
+        
+    def get_contract_url(self, obj):
+        invitation = ContractInvitation.objects.filter(
+            interpreter=obj,
+            status='SIGNED',
+            pdf_s3_key__isnull=False
+        ).order_by('-created_at').first()
+
+        if not invitation:
+            return None
+        # Contracts are stored in the contracts bucket, not the default media bucket
+        return self._generate_presigned_url(invitation.pdf_s3_key, bucket='jhbridge-contracts-prod')
 
     @staticmethod
     def setup_eager_loading(queryset):

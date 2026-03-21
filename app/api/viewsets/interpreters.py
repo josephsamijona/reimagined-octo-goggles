@@ -26,6 +26,18 @@ from app.models import (
     Interpreter, InterpreterLocation, Assignment, AssignmentFeedback,
     InterpreterPayment,
 )
+from app.models.documents import InterpreterContractSignature
+
+
+def _decrypt_banking(value):
+    """Decrypt a Fernet-encrypted banking field stored on the Interpreter model."""
+    if not value:
+        return None
+    try:
+        raw = value.encode() if isinstance(value, str) else value
+        return InterpreterContractSignature.decrypt_data(raw) or value
+    except Exception:
+        return value
 
 logger = logging.getLogger(__name__)
 
@@ -102,6 +114,323 @@ class InterpreterViewSet(ListModelMixin, RetrieveModelMixin, UpdateModelMixin, G
             'is_manually_blocked', 'blocked_reason', 'blocked_at', 'blocked_by',
         ])
         return Response({'detail': 'Interpreter unblocked.'})
+
+    # ------------------------------------------------------------------
+    # Secure Banking Details (Admin Only)
+    # ------------------------------------------------------------------
+    @action(detail=True, methods=['get'], permission_classes=[IsAuthenticated, IsAdminUser])
+    def banking(self, request, pk=None):
+        """Secure endpoint to view unmasked banking information (Admins only)."""
+        interpreter = self.get_object()
+        
+        try:
+            # Fetch directly from DB using values() to bypass any model-level property masking if it exists
+            values = Interpreter.objects.filter(pk=interpreter.pk).values(
+                'bank_name', 'account_holder_name', 'account_type', 'routing_number', 'account_number'
+            ).first()
+        except Exception as e:
+            logger.error(f"Error fetching banking info for interpreter {pk}: {str(e)}")
+            values = {}
+
+        return Response({
+            'bank_name': values.get('bank_name'),
+            'account_holder_name': values.get('account_holder_name'),
+            'account_type': values.get('account_type'),
+            'routing_number': _decrypt_banking(values.get('routing_number')),
+            'account_number': _decrypt_banking(values.get('account_number')),
+        })
+
+    # ------------------------------------------------------------------
+    # Send password reset email (manual token — project uses custom auth URLs)
+    # ------------------------------------------------------------------
+    @action(detail=True, methods=['post'], url_path='send-password-reset')
+    def send_password_reset(self, request, pk=None):
+        """Send a password reset link to the interpreter via the project email backend."""
+        from django.contrib.auth.tokens import default_token_generator
+        from django.utils.http import urlsafe_base64_encode
+        from django.utils.encoding import force_bytes
+        from django.core.mail import send_mail
+        from django.conf import settings as django_settings
+
+        interpreter = self.get_object()
+        user = interpreter.user
+
+        uid = urlsafe_base64_encode(force_bytes(user.pk))
+        token = default_token_generator.make_token(user)
+        site_url = getattr(django_settings, 'SITE_URL', 'https://jhbridges.up.railway.app').rstrip('/')
+        reset_url = f"{site_url}/accounts/reset/{uid}/{token}/"
+
+        try:
+            send_mail(
+                subject='Reset your JHBridge password',
+                message=(
+                    f"Hello {user.first_name},\n\n"
+                    f"A password reset was requested for your JHBridge interpreter account.\n\n"
+                    f"Click the link below to reset your password (valid for 24 hours):\n{reset_url}\n\n"
+                    f"If you did not request this, you can safely ignore this email.\n\n"
+                    f"— JHBridge Team"
+                ),
+                from_email='JHBridge <noreply@jhbridgetranslation.com>',
+                recipient_list=[user.email],
+                fail_silently=False,
+            )
+            logger.info(f"Password reset email sent to {user.email} by admin {request.user.email}")
+            return Response({'detail': 'Password reset email sent.'})
+        except Exception as e:
+            logger.error(f"Failed to send password reset email to {user.email}: {e}")
+            return Response({'detail': 'Failed to send email.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    # ------------------------------------------------------------------
+    # Partial update — also allows updating User-level fields
+    # ------------------------------------------------------------------
+    def partial_update(self, request, *args, **kwargs):
+        interpreter = self.get_object()
+        user_fields = {}
+        for field in ('first_name', 'last_name', 'email', 'phone'):
+            if field in request.data:
+                user_fields[field] = request.data[field]
+        if user_fields:
+            for attr, val in user_fields.items():
+                setattr(interpreter.user, attr, val)
+            interpreter.user.save(update_fields=list(user_fields.keys()))
+        return super().partial_update(request, *args, **kwargs)
+
+    # ------------------------------------------------------------------
+    # Send direct message (email) to interpreter — supports attachment
+    # ------------------------------------------------------------------
+    @action(detail=True, methods=['post'], url_path='send-message')
+    def send_message(self, request, pk=None):
+        """Send a direct email with optional file attachment to the interpreter."""
+        from django.core.mail import EmailMessage
+
+        interpreter = self.get_object()
+        user = interpreter.user
+
+        subject = request.data.get('subject', '').strip()
+        body = request.data.get('body', '').strip()
+
+        if not subject or not body:
+            return Response({'detail': 'Subject and body are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        sender_name = f"{request.user.first_name} {request.user.last_name}".strip() or "JHBridge Admin"
+
+        try:
+            email = EmailMessage(
+                subject=subject,
+                body=f"Message from {sender_name} (JHBridge Admin):\n\n{body}",
+                from_email='JHBridge Admin <noreply@jhbridgetranslation.com>',
+                to=[user.email],
+            )
+            attachment = request.FILES.get('attachment')
+            if attachment:
+                email.attach(attachment.name, attachment.read(), attachment.content_type)
+            email.send(fail_silently=False)
+            logger.info(f"Message {'with attachment' if attachment else ''} sent to {user.email} by {request.user.email}")
+            return Response({'detail': 'Message sent.'})
+        except Exception as e:
+            logger.error(f"Failed to send message to {user.email}: {e}")
+            return Response({'detail': 'Failed to send email.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    # ------------------------------------------------------------------
+    # Bulk actions (mirrors Django admin actions, usable from frontend)
+    # ------------------------------------------------------------------
+    @action(detail=False, methods=['post'], url_path='bulk-action')
+    def bulk_action(self, request):
+        """
+        Perform a bulk action on a list of interpreter IDs.
+        Body: { action: str, ids: [int], reason?: str, subject?: str, body?: str }
+        Supported actions:
+          activate | deactivate | block | unblock |
+          send_contract | send_onboarding |
+          send_reminder_1 | send_reminder_2 | send_reminder_3 |
+          suspend | send_password_reset | send_message
+        """
+        from django.contrib.auth.tokens import default_token_generator
+        from django.utils.http import urlsafe_base64_encode
+        from django.utils.encoding import force_bytes
+        from django.core.mail import send_mail, EmailMessage
+        from django.conf import settings as django_settings
+
+        action_name = request.data.get('action', '').strip()
+        ids = request.data.get('ids', [])
+        reason = request.data.get('reason', 'Bulk action via Admin').strip()
+        subject = request.data.get('subject', '').strip()
+        body_text = request.data.get('body', '').strip()
+
+        if not action_name or not ids:
+            return Response({'detail': 'action and ids are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        interpreters = Interpreter.objects.filter(id__in=ids).select_related('user')
+        if not interpreters.exists():
+            return Response({'detail': 'No matching interpreters found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        results = {'success': 0, 'skipped': 0, 'failed': 0}
+
+        if action_name == 'activate':
+            updated = interpreters.update(active=True)
+            results['success'] = updated
+
+        elif action_name == 'deactivate':
+            updated = interpreters.update(active=False)
+            results['success'] = updated
+
+        elif action_name == 'block':
+            updated = interpreters.update(
+                is_manually_blocked=True,
+                blocked_at=timezone.now(),
+                blocked_by=request.user,
+                blocked_reason=reason or 'Bulk block via Admin',
+            )
+            results['success'] = updated
+
+        elif action_name == 'unblock':
+            updated = interpreters.update(
+                is_manually_blocked=False,
+                blocked_at=None,
+                blocked_by=None,
+                blocked_reason=None,
+            )
+            results['success'] = updated
+
+        elif action_name == 'send_contract':
+            from app.models import ContractInvitation, ContractTrackingEvent
+            from app.services.email_service import ContractEmailService
+            for interp in interpreters:
+                if ContractInvitation.objects.filter(interpreter=interp, status__in=['SENT', 'OPENED', 'REVIEWING']).exists():
+                    results['skipped'] += 1
+                    continue
+                try:
+                    inv = ContractInvitation.objects.create(
+                        interpreter=interp, created_by=request.user,
+                        expires_at=timezone.now() + timedelta(days=30),
+                    )
+                    ContractTrackingEvent.objects.create(
+                        invitation=inv, event_type='EMAIL_SENT',
+                        performed_by=request.user, metadata={'source': 'admin_bulk_api'},
+                    )
+                    if ContractEmailService.send_invitation_email(inv, request):
+                        inv.email_sent_at = timezone.now()
+                        inv.save(update_fields=['email_sent_at'])
+                        results['success'] += 1
+                    else:
+                        results['failed'] += 1
+                except Exception as e:
+                    logger.error(f"Bulk send_contract failed for {interp.id}: {e}")
+                    results['failed'] += 1
+
+        elif action_name == 'send_onboarding':
+            from app.models import OnboardingInvitation, OnboardingTrackingEvent
+            from app.services.email_service import OnboardingEmailService
+            for interp in interpreters:
+                if OnboardingInvitation.objects.filter(interpreter=interp, current_phase__in=[
+                    'INVITED', 'EMAIL_OPENED', 'WELCOME_VIEWED', 'ACCOUNT_CREATED', 'PROFILE_COMPLETED', 'CONTRACT_STARTED'
+                ]).exists():
+                    results['skipped'] += 1
+                    continue
+                try:
+                    inv = OnboardingInvitation.objects.create(
+                        email=interp.user.email, first_name=interp.user.first_name,
+                        last_name=interp.user.last_name, phone=getattr(interp.user, 'phone', ''),
+                        user=interp.user, interpreter=interp, created_by=request.user,
+                        email_sent_at=timezone.now(),
+                    )
+                    OnboardingTrackingEvent.objects.create(
+                        invitation=inv, event_type='EMAIL_SENT',
+                        performed_by=request.user, metadata={'source': 'admin_bulk_api'},
+                    )
+                    if OnboardingEmailService.send_invitation_email(inv, request):
+                        results['success'] += 1
+                    else:
+                        results['failed'] += 1
+                except Exception as e:
+                    logger.error(f"Bulk send_onboarding failed for {interp.id}: {e}")
+                    results['failed'] += 1
+
+        elif action_name in ('send_reminder_1', 'send_reminder_2', 'send_reminder_3'):
+            from app.models import ContractInvitation
+            from app.services.email_service import ContractReminderService
+            level = int(action_name[-1])
+            method = getattr(ContractReminderService, f"send_level_{level}")
+            for interp in interpreters:
+                inv = ContractInvitation.objects.filter(interpreter=interp, status__in=['SENT', 'OPENED', 'REVIEWING']).last()
+                try:
+                    if method(interp, inv, triggered_by=request.user):
+                        results['success'] += 1
+                    else:
+                        results['failed'] += 1
+                except Exception as e:
+                    logger.error(f"Bulk reminder_{level} failed for {interp.id}: {e}")
+                    results['failed'] += 1
+
+        elif action_name == 'suspend':
+            from app.services.email_service import ContractViolationService
+            for interp in interpreters:
+                try:
+                    ContractViolationService.send_suspension_email(interp, reason or "Administrative Decision", triggered_by=request.user)
+                    interp.is_manually_blocked = True
+                    interp.blocked_reason = "Administrative Suspension"
+                    interp.blocked_by = request.user
+                    interp.blocked_at = timezone.now()
+                    interp.save(update_fields=['is_manually_blocked', 'blocked_reason', 'blocked_by', 'blocked_at'])
+                    results['success'] += 1
+                except Exception as e:
+                    logger.error(f"Bulk suspend failed for {interp.id}: {e}")
+                    results['failed'] += 1
+
+        elif action_name == 'send_password_reset':
+            site_url = getattr(django_settings, 'SITE_URL', 'https://jhbridges.up.railway.app').rstrip('/')
+            for interp in interpreters:
+                user = interp.user
+                try:
+                    uid = urlsafe_base64_encode(force_bytes(user.pk))
+                    token = default_token_generator.make_token(user)
+                    reset_url = f"{site_url}/accounts/reset/{uid}/{token}/"
+                    send_mail(
+                        subject='Reset your JHBridge password',
+                        message=(
+                            f"Hello {user.first_name},\n\n"
+                            f"A password reset was requested for your account.\n\n"
+                            f"Reset link: {reset_url}\n\n— JHBridge Team"
+                        ),
+                        from_email='JHBridge <noreply@jhbridgetranslation.com>',
+                        recipient_list=[user.email],
+                        fail_silently=False,
+                    )
+                    results['success'] += 1
+                except Exception as e:
+                    logger.error(f"Bulk password_reset failed for {user.email}: {e}")
+                    results['failed'] += 1
+
+        elif action_name == 'send_message':
+            if not subject or not body_text:
+                return Response({'detail': 'subject and body are required for send_message.'}, status=status.HTTP_400_BAD_REQUEST)
+            sender_name = f"{request.user.first_name} {request.user.last_name}".strip() or "JHBridge Admin"
+            attachment = request.FILES.get('attachment')
+            for interp in interpreters:
+                try:
+                    email = EmailMessage(
+                        subject=subject,
+                        body=f"Message from {sender_name} (JHBridge Admin):\n\n{body_text}",
+                        from_email='JHBridge Admin <noreply@jhbridgetranslation.com>',
+                        to=[interp.user.email],
+                    )
+                    if attachment:
+                        attachment.seek(0)
+                        email.attach(attachment.name, attachment.read(), attachment.content_type)
+                    email.send(fail_silently=False)
+                    results['success'] += 1
+                except Exception as e:
+                    logger.error(f"Bulk send_message failed for {interp.user.email}: {e}")
+                    results['failed'] += 1
+
+        else:
+            return Response({'detail': f'Unknown action: {action_name}'}, status=status.HTTP_400_BAD_REQUEST)
+
+        logger.info(f"Bulk action '{action_name}' on {len(ids)} interpreters by {request.user.email}: {results}")
+        return Response({
+            'detail': f"Action '{action_name}' completed.",
+            'results': results,
+        })
 
     # ------------------------------------------------------------------
     # Available interpreters (filtered by criteria)
@@ -282,19 +611,43 @@ class InterpreterViewSet(ListModelMixin, RetrieveModelMixin, UpdateModelMixin, G
     # ------------------------------------------------------------------
     @action(detail=False, methods=['get'])
     def map(self, request):
-        """All interpreters with city/state for map plotting."""
-        interpreters = (
+        """All interpreters with location data, radius and cities for strategic map visualization."""
+        qs = (
             Interpreter.objects
             .filter(active=True)
             .select_related('user')
+            .prefetch_related('languages')
             .values(
                 'id',
                 'user__first_name',
                 'user__last_name',
+                'address',
                 'city',
                 'state',
+                'zip_code',
+                'radius_of_service',
+                'cities_willing_to_cover',
                 'is_manually_blocked',
             )
         )
 
-        return Response(list(interpreters))
+        data = []
+        for interp in qs:
+            langs = list(
+                Interpreter.objects.get(pk=interp['id']).languages.values_list('name', flat=True)[:5]
+            )
+            data.append({
+                'id': interp['id'],
+                'first_name': interp['user__first_name'],
+                'last_name': interp['user__last_name'],
+                'address': interp['address'],
+                'city': interp['city'],
+                'state': interp['state'],
+                'zip_code': interp['zip_code'],
+                'radius_of_service': interp['radius_of_service'],
+                'cities_willing_to_cover': interp['cities_willing_to_cover'],
+                'is_manually_blocked': interp['is_manually_blocked'],
+                'languages': langs,
+            })
+
+        return Response(data)

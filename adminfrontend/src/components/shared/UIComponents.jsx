@@ -212,16 +212,32 @@ export const ProgressBar = ({ value, max = 100, color = "bg-primary" }) => (
 );
 
 // ─── AVATAR ─────────────────────────────────────────────────────────
-export const Avatar = ({ name, size = "md", className }) => {
+export const Avatar = ({ name, src, size = "md", className }) => {
   const initials = name?.split(" ").map(n => n[0]).join("").substring(0, 2) || "?";
   const sizeClasses = {
     sm: "w-7 h-7 text-[10px]",
     md: "w-9 h-9 text-xs",
     lg: "w-12 h-12 text-sm",
+    xl: "w-16 h-16 text-base",
   };
-  
+
+  if (src) {
+    return (
+      <img
+        src={src}
+        alt={name || "avatar"}
+        className={cn("rounded-full object-cover flex-shrink-0", sizeClasses[size], className)}
+        onError={(e) => {
+          e.currentTarget.style.display = "none";
+          e.currentTarget.nextSibling.style.display = "flex";
+        }}
+        data-testid="avatar"
+      />
+    );
+  }
+
   return (
-    <div 
+    <div
       className={cn(
         "rounded-full bg-navy text-white font-bold flex items-center justify-center flex-shrink-0",
         sizeClasses[size],
