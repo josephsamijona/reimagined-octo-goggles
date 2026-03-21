@@ -111,7 +111,7 @@ export const EMAIL_CATS = {
 // ─── NAV ITEMS ──────────────────────────────────────────────────────
 export const NAV_ITEMS = [
   { key: "dashboard", label: "Dashboard", icon: "LayoutDashboard" },
-  { key: "ai-agent", label: "AI Agent", icon: "Sparkles", badge: 3 },
+  { key: "ai-agent", label: "AI Agent", icon: "Sparkles" },
   { key: "dispatch", label: "Dispatch", icon: "MapPin" },
   { key: "hiring", label: "Hiring", icon: "UserPlus" },
   { key: "interpreters", label: "Interpreters", icon: "Users" },

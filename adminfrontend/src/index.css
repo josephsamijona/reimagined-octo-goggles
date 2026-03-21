@@ -1,24 +1,58 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-/* Google Fonts Import */
 @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Playfair+Display:wght@600;700;800&display=swap');
+@import "tailwindcss";
 
-body {
-    margin: 0;
-    font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-}
+@theme {
 
-code {
-    font-family: 'DM Mono', source-code-pro, Menlo, Monaco, Consolas, monospace;
+    /* JHBridge Brand Colors */
+    --color-navy: hsl(214 53% 23%);
+    --color-navy-light: hsl(214 45% 33%);
+    --color-gold: hsl(41 53% 50%);
+    --color-gold-muted: hsl(41 45% 62%);
+
+    --color-background: hsl(var(--background));
+    --color-foreground: hsl(var(--foreground));
+    --color-card: hsl(var(--card));
+    --color-card-foreground: hsl(var(--card-foreground));
+    --color-popover: hsl(var(--popover));
+    --color-popover-foreground: hsl(var(--popover-foreground));
+    --color-primary: hsl(var(--primary));
+    --color-primary-foreground: hsl(var(--primary-foreground));
+    --color-secondary: hsl(var(--secondary));
+    --color-secondary-foreground: hsl(var(--secondary-foreground));
+    --color-muted: hsl(var(--muted));
+    --color-muted-foreground: hsl(var(--muted-foreground));
+    --color-accent: hsl(var(--accent));
+    --color-accent-foreground: hsl(var(--accent-foreground));
+    --color-destructive: hsl(var(--destructive));
+    --color-destructive-foreground: hsl(var(--destructive-foreground));
+    --color-border: hsl(var(--border));
+    --color-input: hsl(var(--input));
+    --color-ring: hsl(var(--ring));
+
+    --color-success: hsl(var(--success));
+    --color-success-bg: hsl(var(--success-bg));
+    --color-warning: hsl(var(--warning));
+    --color-warning-bg: hsl(var(--warning-bg));
+    --color-info: hsl(var(--info));
+    --color-info-bg: hsl(var(--info-bg));
+    --color-danger: hsl(var(--danger));
+    --color-danger-bg: hsl(var(--danger-bg));
+
+    --radius-lg: var(--radius);
+    --radius-md: calc(var(--radius) - 2px);
+    --radius-sm: calc(var(--radius) - 4px);
+
+    --animate-pulse-dot: pulse-dot 2s ease-in-out infinite;
+
+    @keyframes pulse-dot {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
 }
 
 @layer base {
     :root {
-        /* JHBridge Brand Colors */
+        /* JHBridge Brand HSL values */
         --navy: 214 53% 23%;
         --navy-light: 214 45% 33%;
         --gold: 41 53% 50%;
@@ -45,7 +79,6 @@ code {
         --input: 24 6% 90%;
         --ring: 214 53% 23%;
         
-        /* Semantic Colors */
         --success: 142 71% 45%;
         --success-bg: 142 76% 96%;
         --warning: 38 92% 50%;
@@ -55,18 +88,10 @@ code {
         --danger: 0 84% 60%;
         --danger-bg: 0 86% 97%;
         
-        /* Charts */
-        --chart-1: 214 53% 23%;
-        --chart-2: 41 53% 50%;
-        --chart-3: 142 71% 45%;
-        --chart-4: 38 92% 50%;
-        --chart-5: 217 91% 60%;
-        
         --radius: 0.25rem;
     }
     
     .dark {
-        /* Dark Mode - Tactical Navy */
         --background: 220 30% 6%;
         --foreground: 40 20% 98%;
         --card: 220 25% 10%;
@@ -86,32 +111,20 @@ code {
         --border: 220 15% 18%;
         --input: 220 15% 18%;
         --ring: 41 53% 50%;
-        
-        /* Semantic Colors Dark */
-        --success: 142 71% 45%;
-        --success-bg: 142 50% 12%;
-        --warning: 38 92% 50%;
-        --warning-bg: 38 50% 12%;
-        --info: 217 91% 60%;
-        --info-bg: 217 50% 12%;
-        --danger: 0 84% 60%;
-        --danger-bg: 0 50% 12%;
-        
-        /* Charts Dark */
-        --chart-1: 41 53% 50%;
-        --chart-2: 214 53% 50%;
-        --chart-3: 142 71% 45%;
-        --chart-4: 38 92% 50%;
-        --chart-5: 217 91% 60%;
     }
 }
 
 @layer base {
     * {
-        @apply border-border;
+        border-color: hsl(var(--border) / 1);
     }
     body {
-        @apply bg-background text-foreground;
+        margin: 0;
+        font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        background-color: hsl(var(--background));
+        color: hsl(var(--foreground));
     }
 }
 
@@ -141,16 +154,6 @@ code {
 
 ::-webkit-scrollbar-thumb:hover {
     background: hsl(var(--muted-foreground) / 0.5);
-}
-
-/* Status Badge Animations */
-@keyframes pulse-dot {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
-}
-
-.animate-pulse-dot {
-    animation: pulse-dot 2s ease-in-out infinite;
 }
 
 /* Debug Wrapper */

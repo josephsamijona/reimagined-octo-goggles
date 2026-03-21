@@ -23,7 +23,7 @@ export const DashboardModule = () => {
       />
       
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
         <KPICard label="Active Missions" value={k.activeAssignments} sub="↑ 3 vs yesterday" trend="up" accent="navy" />
         <KPICard label="Available Interpreters" value={k.availableInterpreters} sub={`of ${k.availableInterpreters + 15} total`} accent="success" />
         <KPICard label="Pending Requests" value={k.pendingRequests} sub="8 emails unresolved" trend="down" accent="warning" />

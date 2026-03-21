@@ -3,7 +3,37 @@
     "allow": [
       "Bash(dir:*)",
       "Bash(python:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(pip install:*)",
+      "WebFetch(domain:pypi.org)",
+      "WebFetch(domain:github.com)",
+      "Bash(git -C \"C:\\\\Users\\\\dace\\\\Desktop\\\\workspace\\\\Jhventure\\\\jhbridge\\\\codebase\\\\legacy\\\\legacy\" show HEAD:Dockerfile)",
+      "Bash(git -C \"C:\\\\Users\\\\dace\\\\Desktop\\\\workspace\\\\Jhventure\\\\jhbridge\\\\codebase\\\\legacy\\\\legacy\" show HEAD:docker-compose.yml)",
+      "Bash(git -C \"C:\\\\Users\\\\dace\\\\Desktop\\\\workspace\\\\Jhventure\\\\jhbridge\\\\codebase\\\\legacy\\\\legacy\" log --oneline --all)",
+      "Bash(test -f:*)",
+      "Bash(git add:*)",
+      "Bash(git rm:*)",
+      "Bash(git commit:*)",
+      "Bash(test ! -d \"C:\\\\Users\\\\dace\\\\Desktop\\\\workspace\\\\Jhventure\\\\jhbridge\\\\codebase\\\\legacy\\\\legacy\\\\_archive\\\\Scripts\")",
+      "Bash(test ! -d \"C:\\\\Users\\\\dace\\\\Desktop\\\\workspace\\\\Jhventure\\\\jhbridge\\\\codebase\\\\legacy\\\\legacy\\\\_archive\\\\models_v2\")",
+      "Bash(docker compose:*)",
+      "Bash(npx skills find:*)",
+      "Bash(npx vite build)",
+      "Bash(pip show:*)",
+      "Bash(venvScriptspip show fido2)",
+      "Bash(curl:*)",
+      "Bash(tasklist:*)",
+      "Bash(wmic process where \"name=''python.exe''\" get processid,commandline)",
+      "Bash(taskkill:*)",
+      "Bash(git status:*)",
+      "Bash(venvScriptspython.exe manage.py shell -c \"from django.db import connection; cursor = connection.cursor\\(\\); cursor.execute\\(\"\"SHOW TABLES LIKE ''app_webauthn%''\"\"\\); print\\(cursor.fetchall\\(\\)\\); cursor.execute\\(\"\"SHOW TABLES LIKE ''app_mfa%''\"\"\\); print\\(cursor.fetchall\\(\\)\\); cursor.execute\\(\"\"SHOW TABLES LIKE ''app_trusted%''\"\"\\); print\\(cursor.fetchall\\(\\)\\); cursor.execute\\(\"\"SHOW TABLES LIKE ''app_login%''\"\"\\); print\\(cursor.fetchall\\(\\)\\)\")",
+      "Bash(powershell.exe -Command \"cd ''C:\\\\Users\\\\dace\\\\Desktop\\\\workspace\\\\Jhventure\\\\jhbridge\\\\codebase\\\\legacy\\\\legacy''; venv\\\\Scripts\\\\python.exe manage.py shell -c \"\"from django.db import connection; cursor = connection.cursor\\(\\); cursor.execute\\(''SHOW TABLES''\\); tables = [t[0] for t in cursor.fetchall\\(\\) if ''webauthn'' in t[0] or ''mfa'' in t[0] or ''trusted'' in t[0] or ''login_attempt'' in t[0]]; print\\(tables\\)\"\"\")",
+      "Bash(powershell.exe -Command \"cd ''C:\\\\Users\\\\dace\\\\Desktop\\\\workspace\\\\Jhventure\\\\jhbridge\\\\codebase\\\\legacy\\\\legacy''; venv\\\\Scripts\\\\python.exe manage.py shell -c \"\"\nfrom django.db import connection\ncursor = connection.cursor\\(\\)\ncursor.execute\\(''''''\nCREATE TABLE app_webauthn_credential \\(\n    id CHAR\\(32\\) NOT NULL PRIMARY KEY,\n    credential_id_b64 VARCHAR\\(512\\) NOT NULL UNIQUE,\n    public_key_b64 LONGTEXT NOT NULL,\n    sign_count INT UNSIGNED NOT NULL DEFAULT 0,\n    device_name VARCHAR\\(100\\) NOT NULL DEFAULT ''Unknown Device'',\n    transports JSON DEFAULT NULL,\n    created_at DATETIME\\(6\\) NOT NULL,\n    last_used DATETIME\\(6\\) DEFAULT NULL,\n    user_id INT NOT NULL,\n    CONSTRAINT fk_webauthn_user FOREIGN KEY \\(user_id\\) REFERENCES app_user \\(id\\) ON DELETE CASCADE\n\\)\n''''''\\)\nprint\\(''Table created successfully''\\)\n\"\"\")",
+      "Bash(powershell.exe -Command \"cd ''C:\\\\Users\\\\dace\\\\Desktop\\\\workspace\\\\Jhventure\\\\jhbridge\\\\codebase\\\\legacy\\\\legacy''; venv\\\\Scripts\\\\python.exe manage.py shell -c \"\"from django.db import connection; cursor = connection.cursor\\(\\); cursor.execute\\(''DESCRIBE app_user id''\\); print\\(cursor.fetchall\\(\\)\\)\"\"\")",
+      "Bash(powershell.exe -Command \"cd ''C:\\\\Users\\\\dace\\\\Desktop\\\\workspace\\\\Jhventure\\\\jhbridge\\\\codebase\\\\legacy\\\\legacy''; venv\\\\Scripts\\\\python.exe manage.py shell -c \"\"from django.db import connection; cursor = connection.cursor\\(\\); cursor.execute\\(''DESCRIBE app_mfa_device''\\); print\\(cursor.fetchall\\(\\)\\)\"\"\")",
+      "Bash(powershell.exe -Command \"cd ''C:\\\\Users\\\\dace\\\\Desktop\\\\workspace\\\\Jhventure\\\\jhbridge\\\\codebase\\\\legacy\\\\legacy''; venv\\\\Scripts\\\\python.exe manage.py shell -c \"\"\nfrom django.db import connection\ncursor = connection.cursor\\(\\)\ncursor.execute\\(''''''\nCREATE TABLE app_webauthn_credential \\(\n    id CHAR\\(32\\) NOT NULL PRIMARY KEY,\n    credential_id_b64 VARCHAR\\(512\\) NOT NULL UNIQUE,\n    public_key_b64 LONGTEXT NOT NULL,\n    sign_count INT UNSIGNED NOT NULL DEFAULT 0,\n    device_name VARCHAR\\(100\\) NOT NULL DEFAULT ''Unknown Device'',\n    transports JSON DEFAULT NULL,\n    created_at DATETIME\\(6\\) NOT NULL,\n    last_used DATETIME\\(6\\) DEFAULT NULL,\n    user_id BIGINT NOT NULL,\n    CONSTRAINT fk_webauthn_user FOREIGN KEY \\(user_id\\) REFERENCES app_user \\(id\\) ON DELETE CASCADE\n\\)\n''''''\\)\nprint\\(''Table created successfully''\\)\n\"\"\")",
+      "Bash(powershell.exe:*)",
+      "WebFetch(domain:developers.yubico.com)"
     ]
   }
 }
