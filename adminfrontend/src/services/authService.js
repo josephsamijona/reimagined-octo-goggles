@@ -39,17 +39,45 @@ const authService = {
     return api.post(`${AUTH}/webauthn/login/verify/`, { response });
   },
 
-  webauthnRegisterOptions() {
+  webauthnRegisterOptions(stepUpToken) {
     console.log("[AUTH_SERVICE] webauthnRegisterOptions() called");
-    return api.post(`${AUTH}/webauthn/register/options/`);
+    return api.post(`${AUTH}/webauthn/register/options/`, {}, {
+      headers: { "X-Step-Up-Token": stepUpToken },
+    });
   },
 
-  webauthnRegisterVerify(response, deviceName) {
+  webauthnRegisterVerify(response, deviceName, stepUpToken) {
     console.log("[AUTH_SERVICE] webauthnRegisterVerify() called");
     return api.post(`${AUTH}/webauthn/register/verify/`, {
       response,
       device_name: deviceName,
+    }, {
+      headers: { "X-Step-Up-Token": stepUpToken },
     });
+  },
+
+  stepUpVerify(method, payload) {
+    return api.post(`${AUTH}/step-up/`, { method, ...payload });
+  },
+
+  stepUpStatus() {
+    return api.get(`${AUTH}/step-up/status/`);
+  },
+
+  stepUpPasskeyOptions() {
+    return api.post(`${AUTH}/step-up/passkey/options/`);
+  },
+
+  stepUpPasskeyVerify(response) {
+    return api.post(`${AUTH}/step-up/passkey/verify/`, { response });
+  },
+
+  webauthnList() {
+    return api.get(`${AUTH}/webauthn/credentials/`);
+  },
+
+  webauthnDelete(credentialId) {
+    return api.delete(`${AUTH}/webauthn/credentials/${credentialId}/`);
   },
 
   deviceTrust(fingerprint) {

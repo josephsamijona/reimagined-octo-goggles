@@ -108,6 +108,9 @@ function AppContent() {
       setSearchOpen(true);
       setNotificationsOpen(false);
     }
+    // Skip number shortcuts when typing in an input/textarea
+    const tag = e.target.tagName;
+    if (tag === "INPUT" || tag === "TEXTAREA" || e.target.isContentEditable) return;
     if (!e.metaKey && !e.ctrlKey && !e.altKey && e.key >= "1" && e.key <= "9") {
       const idx = parseInt(e.key) - 1;
       if (NAV_ITEMS[idx]) {

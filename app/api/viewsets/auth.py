@@ -15,13 +15,14 @@ from app.api.services.auth_service import (
     AuthService,
     MFAService,
     WebAuthnService,
+    StepUpAuthService,
     DeviceTrustService,
     get_tokens_for_user,
     get_client_ip,
     user_payload,
 )
 from app.models import User
-from app.models.auth_security import MFADevice
+from app.models.auth_security import MFADevice, WebAuthnCredential
 
 logger = logging.getLogger(__name__)
 
@@ -137,6 +138,128 @@ class MFABackupCodesView(APIView):
 
 
 # ═══════════════════════════════════════════════════════════════════
+#  STEP-UP AUTH (re-verify identity before sensitive operations)
+#  Uses signed tokens — no session/cookie dependency.
+# ═══════════════════════════════════════════════════════════════════
+
+class StepUpAuthView(APIView):
+    """
+    POST /auth/step-up/
+    Re-verify identity via password or TOTP before sensitive operations.
+    Body: { "method": "password"|"totp", "password": "...", "code": "..." }
+    Returns: { "verified": true, "step_up_token": "..." }
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        method = request.data.get("method", "")
+        if method not in ("password", "totp"):
+            return Response(
+                {"detail": "Method must be 'password' or 'totp'."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        success, result = StepUpAuthService.verify(
+            request.user,
+            method,
+            password=request.data.get("password", ""),
+            code=request.data.get("code", ""),
+        )
+
+        if not success:
+            return Response(
+                {"detail": result},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response({
+            "detail": "Identity verified.",
+            "verified": True,
+            "step_up_token": result,
+        })
+
+
+class StepUpAuthStatusView(APIView):
+    """
+    GET /auth/step-up/status/
+    Return available verification methods for this user.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        has_mfa = MFADevice.objects.filter(user=request.user, is_verified=True).exists()
+        has_passkeys = WebAuthnCredential.objects.filter(user=request.user).exists()
+
+        methods = ["password"]
+        if has_mfa:
+            methods.append("totp")
+        if has_passkeys:
+            methods.append("passkey")
+
+        return Response({"methods": methods})
+
+
+class StepUpPasskeyOptionsView(APIView):
+    """
+    POST /auth/step-up/passkey/options/
+    Generate WebAuthn assertion challenge for step-up auth via existing passkey.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        credentials = []
+        for cred in WebAuthnCredential.objects.filter(user=request.user):
+            credentials.append(WebAuthnService._decode_credential(cred))
+
+        if not credentials:
+            return Response(
+                {"detail": "No passkeys registered."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        from app.api.services.auth_service import fido2_server
+        auth_data, state = fido2_server.authenticate_begin(credentials)
+        request.session["step_up_passkey_state"] = state
+        return Response(auth_data)
+
+
+class StepUpPasskeyVerifyView(APIView):
+    """
+    POST /auth/step-up/passkey/verify/
+    Verify WebAuthn assertion for step-up auth.
+    Body: { "response": {...} }
+    Returns: { "verified": true, "step_up_token": "..." }
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        state = request.session.get("step_up_passkey_state")
+        if not state:
+            return Response(
+                {"detail": "No passkey challenge in progress."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        response_data = request.data.get("response", {})
+        try:
+            WebAuthnService.verify_login(state, response_data, request.user)
+            del request.session["step_up_passkey_state"]
+            # Issue step-up token
+            success, token = StepUpAuthService.verify(request.user, "passkey")
+            return Response({
+                "detail": "Identity verified.",
+                "verified": True,
+                "step_up_token": token,
+            })
+        except Exception as e:
+            logger.error(f"Step-up passkey verify error: {e}")
+            return Response(
+                {"detail": "Passkey verification failed."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+
+# ═══════════════════════════════════════════════════════════════════
 #  WEBAUTHN
 # ═══════════════════════════════════════════════════════════════════
 
@@ -144,19 +267,28 @@ class WebAuthnRegisterOptionsView(APIView):
     """
     POST /auth/webauthn/register/options/
     Generate WebAuthn registration challenge.
+    Requires step-up token in X-Step-Up-Token header.
     """
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        token = request.META.get("HTTP_X_STEP_UP_TOKEN", "")
+        if not StepUpAuthService.validate_token(token, request.user):
+            return Response(
+                {"detail": "Step-up authentication required.", "step_up_required": True},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         try:
             options, state = WebAuthnService.get_registration_options(request.user)
-            # Store state in session for verification
+            # Store state in session for verification step
             request.session["webauthn_register_state"] = state
+            logger.info(f"WebAuthn register options generated for {request.user.email}")
             return Response(options)
         except Exception as e:
-            logger.error(f"WebAuthn register options error: {e}")
+            logger.error(f"WebAuthn register options error: {e}", exc_info=True)
             return Response(
-                {"detail": "Failed to generate registration options."},
+                {"detail": f"Failed to generate registration options: {e}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
@@ -166,10 +298,18 @@ class WebAuthnRegisterVerifyView(APIView):
     POST /auth/webauthn/register/verify/
     Verify WebAuthn registration and store the credential.
     Body: { "response": {...}, "device_name": "My MacBook" }
+    Requires step-up token in X-Step-Up-Token header.
     """
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        token = request.META.get("HTTP_X_STEP_UP_TOKEN", "")
+        if not StepUpAuthService.validate_token(token, request.user):
+            return Response(
+                {"detail": "Step-up authentication required.", "step_up_required": True},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         state = request.session.get("webauthn_register_state")
         if not state:
             return Response(
@@ -185,11 +325,12 @@ class WebAuthnRegisterVerifyView(APIView):
                 request.user, state, response_data, device_name
             )
             del request.session["webauthn_register_state"]
+            logger.info(f"WebAuthn credential registered for {request.user.email}: {device_name}")
             return Response({"detail": "WebAuthn credential registered successfully."})
         except Exception as e:
-            logger.error(f"WebAuthn register verify error: {e}")
+            logger.error(f"WebAuthn register verify error: {e}", exc_info=True)
             return Response(
-                {"detail": "Registration verification failed."},
+                {"detail": f"Registration verification failed: {e}"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -207,20 +348,58 @@ class WebAuthnLoginOptionsView(APIView):
         email = request.data.get("email", "")
         if not email:
             return Response(
-                {"detail": "Email is required."},
+                {"detail": "Email or username is required."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        options, state, user = WebAuthnService.get_login_options(email)
+        try:
+            options, state, user = WebAuthnService.get_login_options(email)
+        except Exception as e:
+            logger.error(f"WebAuthn login options error: {e}", exc_info=True)
+            return Response(
+                {"detail": f"Failed to generate login options: {e}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
         if not options:
             return Response(
-                {"detail": "No WebAuthn credentials found for this email."},
+                {"detail": "No WebAuthn credentials found for this user."},
                 status=status.HTTP_404_NOT_FOUND,
             )
 
         request.session["webauthn_login_state"] = state
         request.session["webauthn_login_user_id"] = user.id
         return Response(options)
+
+
+class WebAuthnListView(APIView):
+    """GET /auth/webauthn/credentials/ — List user's registered passkeys."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        creds = WebAuthnCredential.objects.filter(user=request.user).order_by('-created_at')
+        return Response([{
+            "id": str(c.id),
+            "device_name": c.device_name,
+            "created_at": c.created_at,
+            "last_used": c.last_used,
+        } for c in creds])
+
+
+class WebAuthnDeleteView(APIView):
+    """DELETE /auth/webauthn/credentials/<id>/ — Remove a passkey."""
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, credential_id):
+        deleted, _ = WebAuthnCredential.objects.filter(
+            id=credential_id, user=request.user
+        ).delete()
+        if not deleted:
+            return Response(
+                {"detail": "Not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        return Response({"detail": "Credential deleted."})
 
 
 class WebAuthnLoginVerifyView(APIView):

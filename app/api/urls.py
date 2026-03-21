@@ -8,8 +8,11 @@ from rest_framework.routers import DefaultRouter
 from app.api.viewsets.auth import (
     LoginView, TokenRefreshView, MeView,
     MFASetupView, MFAVerifyView, MFABackupCodesView,
+    StepUpAuthView, StepUpAuthStatusView,
+    StepUpPasskeyOptionsView, StepUpPasskeyVerifyView,
     WebAuthnRegisterOptionsView, WebAuthnRegisterVerifyView,
     WebAuthnLoginOptionsView, WebAuthnLoginVerifyView,
+    WebAuthnListView, WebAuthnDeleteView,
     DeviceTrustView, LogoutView,
 )
 from app.api.viewsets.dashboard import DashboardViewSet
@@ -76,11 +79,19 @@ urlpatterns = [
     path('auth/mfa/verify/', MFAVerifyView.as_view(), name='mfa-verify'),
     path('auth/mfa/backup-codes/', MFABackupCodesView.as_view(), name='mfa-backup-codes'),
 
+    # ── Step-up Auth ──────────────────────────────────────────
+    path('auth/step-up/', StepUpAuthView.as_view(), name='step-up-auth'),
+    path('auth/step-up/status/', StepUpAuthStatusView.as_view(), name='step-up-status'),
+    path('auth/step-up/passkey/options/', StepUpPasskeyOptionsView.as_view(), name='step-up-passkey-options'),
+    path('auth/step-up/passkey/verify/', StepUpPasskeyVerifyView.as_view(), name='step-up-passkey-verify'),
+
     # ── WebAuthn ────────────────────────────────────────────────
     path('auth/webauthn/register/options/', WebAuthnRegisterOptionsView.as_view(), name='webauthn-register-options'),
     path('auth/webauthn/register/verify/', WebAuthnRegisterVerifyView.as_view(), name='webauthn-register-verify'),
     path('auth/webauthn/login/options/', WebAuthnLoginOptionsView.as_view(), name='webauthn-login-options'),
     path('auth/webauthn/login/verify/', WebAuthnLoginVerifyView.as_view(), name='webauthn-login-verify'),
+    path('auth/webauthn/credentials/', WebAuthnListView.as_view(), name='webauthn-list'),
+    path('auth/webauthn/credentials/<uuid:credential_id>/', WebAuthnDeleteView.as_view(), name='webauthn-delete'),
 
     # ── Device Trust ────────────────────────────────────────────
     path('auth/device/trust/', DeviceTrustView.as_view(), name='device-trust'),

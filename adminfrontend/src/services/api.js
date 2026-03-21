@@ -13,6 +13,7 @@ console.log("[API] Axios client created with baseURL:", JSON.stringify(baseURL))
 const api = axios.create({
   baseURL,
   headers: { "Content-Type": "application/json" },
+  withCredentials: true, // Send session cookies for Django sessions (step-up auth)
 });
 
 // ── Request interceptor: inject Bearer token ─────────────────────
@@ -48,12 +49,13 @@ api.interceptors.response.use(
     const originalRequest = error.config;
     console.error(`[API ERROR] ${error.response?.status} ${originalRequest?.url}`, error.response?.data);
 
-    // Don't retry refresh or login requests
+    // Don't retry refresh, login, or step-up requests
     if (
       error.response?.status !== 401 ||
       originalRequest._retry ||
       originalRequest.url?.includes("/auth/token/refresh/") ||
-      originalRequest.url?.includes("/auth/login/")
+      originalRequest.url?.includes("/auth/login/") ||
+      originalRequest.url?.includes("/auth/step-up/")
     ) {
       return Promise.reject(error);
     }

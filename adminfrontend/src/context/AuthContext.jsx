@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 import authService from "@/services/authService";
+import { base64urlToBuffer, bufferToBase64url } from "@/lib/webauthn";
 import {
   setTokens,
   getTokens,
@@ -126,14 +127,16 @@ export function AuthProvider({ children }) {
     setError(null);
 
     // 1. Get challenge options
-    const { data: options } = await authService.webauthnLoginOptions(email);
+    const { data: rawOptions } = await authService.webauthnLoginOptions(email);
+    // fido2 v2 wraps options in {publicKey: {...}}
+    const opts = rawOptions.publicKey || rawOptions;
     console.log("[AUTH_CONTEXT] WebAuthn options received");
 
     // 2. Convert base64url to ArrayBuffer for WebAuthn API
     const publicKey = {
-      ...options,
-      challenge: base64urlToBuffer(options.challenge),
-      allowCredentials: (options.allowCredentials || []).map((cred) => ({
+      ...opts,
+      challenge: base64urlToBuffer(opts.challenge),
+      allowCredentials: (opts.allowCredentials || []).map((cred) => ({
         ...cred,
         id: base64urlToBuffer(cred.id),
       })),
@@ -225,19 +228,3 @@ export function useAuth() {
   return ctx;
 }
 
-// ── WebAuthn encoding helpers ────────────────────────────────────
-function base64urlToBuffer(base64url) {
-  const base64 = base64url.replace(/-/g, "+").replace(/_/g, "/");
-  const pad = base64.length % 4 === 0 ? "" : "=".repeat(4 - (base64.length % 4));
-  const binary = atob(base64 + pad);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  return bytes.buffer;
-}
-
-function bufferToBase64url(buffer) {
-  const bytes = new Uint8Array(buffer);
-  let binary = "";
-  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
