@@ -73,7 +73,7 @@ export const MissionFormModal = ({ isOpen, onClose, mission = null, prefillData 
     Promise.all([
       dispatchService.getClients({ page_size: 200 }),
       dispatchService.getServiceTypes(),
-      dispatchService.getLanguages({ page_size: 200 }),
+      dispatchService.getLanguages(),
     ]).then(([c, st, l]) => {
       setClients(c.data?.results || c.data || []);
       setServiceTypes(st.data?.results || st.data || []);
@@ -290,7 +290,7 @@ export const MissionFormModal = ({ isOpen, onClose, mission = null, prefillData 
               errors.service_type ? 'border-danger' : 'border-input')}>
             <option value="">Select service type…</option>
             {serviceTypes.map(s => (
-              <option key={s.id} value={s.id}>{s.name}{s.base_rate ? ` — $${s.base_rate}/hr` : ''}</option>
+              <option key={s.id} value={s.id}>{s.name}</option>
             ))}
           </select>
           {errors.service_type && <p className="text-xs text-danger mt-0.5">{errors.service_type}</p>}

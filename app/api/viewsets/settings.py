@@ -52,6 +52,7 @@ class LanguageViewSet(ModelViewSet):
     search_fields = ['name', 'code']
     ordering_fields = ['name', 'code', 'is_active']
     ordering = ['name']
+    pagination_class = None  # languages are reference data — always return full list
 
     def get_queryset(self):
         return Language.objects.all()
