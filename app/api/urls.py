@@ -25,6 +25,7 @@ from app.api.viewsets.payroll import PayrollViewSet
 from app.api.viewsets.onboarding import OnboardingViewSet
 from app.api.viewsets.notifications import NotificationViewSet
 from app.api.viewsets.marketing import LeadViewSet, CampaignViewSet, MarketingAnalyticsViewSet
+from app.api.viewsets.agent_queue import AgentQueueViewSet, AgentAuditLogViewSet
 from app.api.viewsets.audit import AuditLogViewSet
 from app.api.viewsets.settings import (
     ServiceTypeViewSet, LanguageViewSet, CompanyInfoView, APIKeyViewSet,
@@ -66,6 +67,10 @@ router.register(r'api-keys', APIKeyViewSet, basename='api-key')
 
 # ── Security / Audit ────────────────────────────────────────────
 router.register(r'audit-logs', AuditLogViewSet, basename='audit-log')
+
+# ── AI Agent Queue ───────────────────────────────────────────────
+router.register(r'agent-queue', AgentQueueViewSet, basename='agent-queue')
+router.register(r'agent-audit', AgentAuditLogViewSet, basename='agent-audit')
 
 urlpatterns = [
     # ── Auth endpoints ──────────────────────────────────────────

@@ -66,8 +66,9 @@ async def lifespan(app: FastAPI):
     set_gmail_client(gmail_client)
 
     # Inject into ADK gmail tools
-    from services.adk_agents.tools import gmail_tools
+    from services.adk_agents.tools import gmail_tools, gmail_label_tools
     gmail_tools._gmail_client = gmail_client
+    gmail_label_tools._gmail_client = gmail_client
 
     # ── Gmail background sync ─────────────────────────────────────
     from services.gmail.sync import configure_sync, run_sync_loop
@@ -127,12 +128,21 @@ def create_app() -> FastAPI:
 
     # ── Routers ───────────────────────────────────────────────────
     from services.ai_agent.router import router as ai_router
+    from services.ai_agent.queue_router import router as queue_router
+    from services.ai_agent.queue_router import init_runner, set_db_factory as queue_set_db
     from services.gmail.router import router as gmail_router
     from services.calendar_sync.router import router as calendar_router
     from services.realtime.router import router as ws_router
     from services.realtime.tracking import router as tracking_router
 
+    # Wire queue router: agent runner + db
+    from services.adk_agents.jhbridge_agent import root_agent
+    from services.db.database import async_session_factory
+    init_runner(root_agent)
+    queue_set_db(async_session_factory)
+
     app.include_router(ai_router)
+    app.include_router(queue_router)
     app.include_router(gmail_router)
     app.include_router(calendar_router)
     app.include_router(ws_router)

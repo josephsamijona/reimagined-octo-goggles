@@ -1,5 +1,6 @@
 """Client management viewset with history, invoices, and assignments sub-resources."""
 import logging
+import secrets
 from itertools import chain
 from operator import attrgetter
 
@@ -21,7 +22,7 @@ from app.api.serializers.users import (
     ClientUpdateSerializer,
 )
 from app.models import (
-    Client, QuoteRequest, Assignment, ClientPayment, Invoice,
+    Client, QuoteRequest, Assignment, ClientPayment, Invoice, User,
 )
 
 logger = logging.getLogger(__name__)
@@ -67,6 +68,59 @@ class ClientViewSet(ModelViewSet):
         if self.action in ('partial_update', 'update'):
             return ClientUpdateSerializer
         return ClientDetailSerializer
+
+    # ------------------------------------------------------------------
+    # Create — admin creates User + Client in one call
+    # ------------------------------------------------------------------
+    def create(self, request, *args, **kwargs):
+        """
+        Admin-side client creation.
+        Accepts user fields (first_name, last_name, email, phone) + client fields.
+        Creates the User if the email is not yet registered, then creates the Client.
+        """
+        first_name = request.data.get('first_name', '').strip()
+        last_name  = request.data.get('last_name', '').strip()
+        email      = request.data.get('email', '').strip().lower()
+        phone      = request.data.get('phone', '').strip()
+
+        if not email:
+            return Response(
+                {'detail': 'email is required.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Re-use existing user or create a new one
+        user = User.objects.filter(email__iexact=email).first()
+        if user is None:
+            user = User.objects.create_user(
+                username=email,
+                email=email,
+                first_name=first_name,
+                last_name=last_name,
+                phone=phone or None,
+                role=User.Roles.CLIENT,
+                is_active=True,
+                password=secrets.token_urlsafe(20),
+            )
+        elif Client.objects.filter(user=user).exists():
+            return Response(
+                {'detail': f'A client profile already exists for {email}.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Build client data with resolved user FK
+        client_data = {k: v for k, v in request.data.items()
+                       if k not in ('first_name', 'last_name', 'email', 'phone')}
+        client_data['user'] = user.id
+
+        serializer = ClientCreateSerializer(data=client_data)
+        serializer.is_valid(raise_exception=True)
+        client = serializer.save()
+
+        return Response(
+            ClientDetailSerializer(client).data,
+            status=status.HTTP_201_CREATED,
+        )
 
     # ------------------------------------------------------------------
     # History timeline

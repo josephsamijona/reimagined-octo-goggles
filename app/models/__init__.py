@@ -13,6 +13,7 @@ from .contracts import ContractInvitation, ContractTrackingEvent
 from .reminders import ContractReminder
 from .onboarding import OnboardingInvitation, OnboardingTrackingEvent
 from .marketing import Lead, Campaign
+from .agent import AgentQueueItem, AgentAuditLog
 
 __all__ = [
     # Users & Profiles
@@ -38,6 +39,8 @@ __all__ = [
     'OnboardingInvitation', 'OnboardingTrackingEvent',
     # Marketing
     'Lead', 'Campaign',
+    # Agent
+    'AgentQueueItem', 'AgentAuditLog',
     # Utils (for migrations)
     'get_expiration_time', 'signature_upload_path', 'pdf_upload_path',
 ]

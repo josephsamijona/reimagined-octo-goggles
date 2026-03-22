@@ -3,3 +3,6 @@ from .cv_analyzer.agent import cv_analyzer_agent
 from .interpreter_matcher.agent import interpreter_matcher_agent
 from .quote_estimator.agent import quote_estimator_agent
 from .reply_generator.agent import reply_generator_agent
+from .invoice_processor.agent import invoice_processor_agent
+from .payslip_extractor.agent import payslip_extractor_agent
+from .assignment_request_processor.agent import assignment_request_processor_agent

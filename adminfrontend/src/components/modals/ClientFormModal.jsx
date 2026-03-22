@@ -1,4 +1,4 @@
-// JHBridge - Client Form Modal (Create/Edit)
+// JHBridge - Client Form Modal (Create/Edit) — live API
 import { useState, useEffect } from "react";
 import { Modal } from "@/components/shared/Modal";
 import { Button } from "@/components/ui/button";
@@ -6,243 +6,213 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { showToast } from "@/components/shared/Toast";
-import { Building2, User, Mail, Phone, MapPin } from "lucide-react";
+import { Building2, User, Mail, Phone, MapPin, DollarSign } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { clientsService } from "@/services/clientsService";
 
-const INDUSTRIES = ["Healthcare", "Legal", "Education", "Government", "Corporate", "Non-profit", "Other"];
-const PAYMENT_TERMS = ["Net 15", "Net 30", "Net 45", "Net 60", "Due on Receipt"];
+const US_STATES = [
+  "AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA",
+  "HI","ID","IL","IN","IA","KS","KY","LA","ME","MD",
+  "MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ",
+  "NM","NY","NC","ND","OH","OK","OR","PA","RI","SC",
+  "SD","TN","TX","UT","VT","VA","WA","WV","WI","WY","DC",
+];
 
-export const ClientFormModal = ({ 
-  isOpen, 
-  onClose, 
-  client = null, // null = create, object = edit
-  onSuccess 
+const EMPTY = {
+  // user fields (create only)
+  first_name: "",
+  last_name: "",
+  email: "",
+  phone: "",
+  // client fields
+  company_name: "",
+  city: "",
+  state: "",
+  zip_code: "",
+  address: "",
+  billing_address: "",
+  billing_city: "",
+  billing_state: "",
+  billing_zip_code: "",
+  tax_id: "",
+  credit_limit: "",
+  notes: "",
+};
+
+export const ClientFormModal = ({
+  isOpen,
+  onClose,
+  client = null,
+  onSuccess,
 }) => {
   const isEdit = !!client;
-  
-  const [formData, setFormData] = useState({
-    company: "",
-    industry: "Healthcare",
-    website: "",
-    contactName: "",
-    contactEmail: "",
-    contactPhone: "",
-    contactTitle: "",
-    street: "",
-    city: "",
-    state: "",
-    zip: "",
-    defaultService: "Medical",
-    paymentTerms: "Net 30",
-    notes: "",
-  });
-  
+  const [formData, setFormData] = useState(EMPTY);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    if (!isOpen) return;
     if (client) {
       setFormData({
-        company: client.company || "",
-        industry: "Healthcare",
-        website: "",
-        contactName: client.contact || "",
-        contactEmail: client.email || "",
-        contactPhone: "",
-        contactTitle: "",
-        street: "",
-        city: "",
-        state: "",
-        zip: "",
-        defaultService: "Medical",
-        paymentTerms: "Net 30",
-        notes: "",
+        ...EMPTY,
+        company_name: client.company_name || "",
+        city: client.city || "",
+        state: client.state || "",
+        zip_code: client.zip_code || "",
+        address: client.address || "",
+        billing_address: client.billing_address || "",
+        billing_city: client.billing_city || "",
+        billing_state: client.billing_state || "",
+        billing_zip_code: client.billing_zip_code || "",
+        tax_id: client.tax_id || "",
+        credit_limit: client.credit_limit != null ? String(client.credit_limit) : "",
+        notes: client.notes || "",
       });
     } else {
-      setFormData({
-        company: "",
-        industry: "Healthcare",
-        website: "",
-        contactName: "",
-        contactEmail: "",
-        contactPhone: "",
-        contactTitle: "",
-        street: "",
-        city: "",
-        state: "",
-        zip: "",
-        defaultService: "Medical",
-        paymentTerms: "Net 30",
-        notes: "",
-      });
+      setFormData(EMPTY);
     }
+    setErrors({});
   }, [client, isOpen]);
 
-  const handleChange = (field, value) => {
+  const set = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
-    if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: null }));
-    }
+    if (errors[field]) setErrors(prev => ({ ...prev, [field]: null }));
   };
 
   const validate = () => {
-    const newErrors = {};
-    if (!formData.company) newErrors.company = "Company name is required";
-    if (!formData.contactName) newErrors.contactName = "Contact name is required";
-    if (!formData.contactEmail) newErrors.contactEmail = "Email is required";
-    else if (!/\S+@\S+\.\S+/.test(formData.contactEmail)) newErrors.contactEmail = "Invalid email format";
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    const e = {};
+    if (!formData.company_name.trim()) e.company_name = "Company name is required";
+    if (!isEdit) {
+      if (!formData.first_name.trim()) e.first_name = "First name is required";
+      if (!formData.last_name.trim()) e.last_name = "Last name is required";
+      if (!formData.email.trim()) e.email = "Email is required";
+      else if (!/\S+@\S+\.\S+/.test(formData.email)) e.email = "Invalid email format";
+    }
+    if (formData.credit_limit && isNaN(Number(formData.credit_limit))) {
+      e.credit_limit = "Must be a number";
+    }
+    setErrors(e);
+    return Object.keys(e).length === 0;
   };
 
   const handleSubmit = async () => {
     if (!validate()) return;
-    
     setLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 800));
-    
-    const newClient = {
-      id: isEdit ? client.id : Date.now(),
-      company: formData.company,
-      contact: formData.contactName,
-      email: formData.contactEmail,
-      missions: isEdit ? client.missions : 0,
-      revenue: isEdit ? client.revenue : 0,
-      status: "active",
-      lastMission: isEdit ? client.lastMission : "—",
-    };
-    
-    setLoading(false);
-    
-    if (isEdit) {
-      showToast.success(`Client "${formData.company}" updated successfully`);
-    } else {
-      showToast.success(`Client "${formData.company}" created successfully`);
+    try {
+      const payload = { ...formData };
+      if (payload.credit_limit === "") delete payload.credit_limit;
+      else if (payload.credit_limit) payload.credit_limit = Number(payload.credit_limit);
+
+      let result;
+      if (isEdit) {
+        // on edit, strip user-creation fields
+        const { first_name, last_name, email, phone, ...editPayload } = payload;
+        const res = await clientsService.updateClient(client.id, editPayload);
+        result = res.data;
+        showToast.success(`Client "${result.company_name}" updated`);
+      } else {
+        const res = await clientsService.createClient(payload);
+        result = res.data;
+        showToast.success(`Client "${result.company_name}" created`);
+      }
+      if (onSuccess) onSuccess(result);
+      onClose();
+    } catch (err) {
+      const detail = err?.response?.data?.detail || err?.response?.data?.email?.[0] || "Save failed";
+      showToast.error(detail);
+    } finally {
+      setLoading(false);
     }
-    
-    if (onSuccess) {
-      onSuccess(newClient);
-    }
-    
-    onClose();
   };
+
+  const field = (id, label, opts = {}) => (
+    <div className={opts.col || ""}>
+      <Label className={cn("mb-1.5 flex items-center gap-1.5", opts.labelClass)}>
+        {opts.icon && <opts.icon className="w-3.5 h-3.5" />}
+        {label}{opts.required && " *"}
+      </Label>
+      <Input
+        type={opts.type || "text"}
+        value={formData[id]}
+        onChange={e => set(id, e.target.value)}
+        placeholder={opts.placeholder || ""}
+        maxLength={opts.maxLength}
+        className={cn(errors[id] && "border-danger")}
+      />
+      {errors[id] && <p className="text-xs text-danger mt-1">{errors[id]}</p>}
+    </div>
+  );
 
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={isEdit ? `Edit Client` : "New Client"}
-      subtitle={isEdit ? `Update client information` : "Add a new client to your network"}
+      title={isEdit ? "Edit Client" : "New Client"}
+      subtitle={isEdit ? "Update client information" : "Add a new client to your network"}
       size="lg"
       footer={
         <>
-          <Button variant="outline" onClick={onClose} disabled={loading}>
-            Cancel
-          </Button>
-          <Button 
-            onClick={handleSubmit} 
-            disabled={loading}
-            className="bg-navy hover:bg-navy-light"
-            data-testid="client-form-submit"
-          >
-            {loading ? "Saving..." : isEdit ? "Update Client" : "Create Client"}
+          <Button variant="outline" onClick={onClose} disabled={loading}>Cancel</Button>
+          <Button onClick={handleSubmit} disabled={loading} className="bg-navy hover:bg-navy-light">
+            {loading ? "Saving…" : isEdit ? "Update Client" : "Create Client"}
           </Button>
         </>
       }
     >
       <div className="space-y-6">
-        {/* Company Information */}
+
+        {/* Contact (create only) */}
+        {!isEdit && (
+          <div>
+            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+              Primary Contact
+            </h4>
+            <div className="grid grid-cols-2 gap-4">
+              {field("first_name", "First Name", { required: true, placeholder: "Sarah", icon: User })}
+              {field("last_name", "Last Name", { required: true, placeholder: "Johnson" })}
+              {field("email", "Email", { required: true, type: "email", placeholder: "sarah@bmc.org", icon: Mail })}
+              {field("phone", "Phone", { placeholder: "+1 617-555-0123", icon: Phone })}
+            </div>
+          </div>
+        )}
+
+        {/* Company */}
         <div>
           <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-            Company Information
+            Company
           </h4>
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
-              <Label className="flex items-center gap-1.5 mb-1.5">
-                <Building2 className="w-3.5 h-3.5" /> Company Name *
-              </Label>
-              <Input
-                value={formData.company}
-                onChange={(e) => handleChange("company", e.target.value)}
-                placeholder="Boston Medical Center"
-                className={cn(errors.company && "border-danger")}
-                data-testid="client-company-input"
-              />
-              {errors.company && <p className="text-xs text-danger mt-1">{errors.company}</p>}
-            </div>
-            <div>
-              <Label className="mb-1.5">Industry</Label>
-              <select
-                value={formData.industry}
-                onChange={(e) => handleChange("industry", e.target.value)}
-                className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
-              >
-                {INDUSTRIES.map(i => (
-                  <option key={i} value={i}>{i}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <Label className="mb-1.5">Website</Label>
-              <Input
-                value={formData.website}
-                onChange={(e) => handleChange("website", e.target.value)}
-                placeholder="https://..."
-              />
+              {field("company_name", "Company Name", { required: true, placeholder: "Boston Medical Center", icon: Building2 })}
             </div>
           </div>
         </div>
 
-        {/* Primary Contact */}
+        {/* Service Address */}
         <div>
           <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-            Primary Contact
+            Service Address
           </h4>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label className="flex items-center gap-1.5 mb-1.5">
-                <User className="w-3.5 h-3.5" /> Contact Name *
-              </Label>
-              <Input
-                value={formData.contactName}
-                onChange={(e) => handleChange("contactName", e.target.value)}
-                placeholder="Sarah Johnson"
-                className={cn(errors.contactName && "border-danger")}
-                data-testid="client-contact-input"
-              />
-              {errors.contactName && <p className="text-xs text-danger mt-1">{errors.contactName}</p>}
+          <div className="grid grid-cols-6 gap-4">
+            <div className="col-span-6">
+              {field("address", "Street Address", { placeholder: "123 Main Street", icon: MapPin })}
             </div>
-            <div>
-              <Label className="mb-1.5">Job Title</Label>
-              <Input
-                value={formData.contactTitle}
-                onChange={(e) => handleChange("contactTitle", e.target.value)}
-                placeholder="Scheduling Coordinator"
-              />
+            <div className="col-span-3">
+              {field("city", "City", { placeholder: "Boston" })}
             </div>
-            <div>
-              <Label className="flex items-center gap-1.5 mb-1.5">
-                <Mail className="w-3.5 h-3.5" /> Email *
-              </Label>
-              <Input
-                type="email"
-                value={formData.contactEmail}
-                onChange={(e) => handleChange("contactEmail", e.target.value)}
-                placeholder="sarah@bmc.org"
-                className={cn(errors.contactEmail && "border-danger")}
-                data-testid="client-email-input"
-              />
-              {errors.contactEmail && <p className="text-xs text-danger mt-1">{errors.contactEmail}</p>}
+            <div className="col-span-1">
+              <Label className="mb-1.5">State</Label>
+              <select
+                value={formData.state}
+                onChange={e => set("state", e.target.value)}
+                className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
+              >
+                <option value="">—</option>
+                {US_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
             </div>
-            <div>
-              <Label className="flex items-center gap-1.5 mb-1.5">
-                <Phone className="w-3.5 h-3.5" /> Phone
-              </Label>
-              <Input
-                value={formData.contactPhone}
-                onChange={(e) => handleChange("contactPhone", e.target.value)}
-                placeholder="+1 617-555-0123"
-              />
+            <div className="col-span-2">
+              {field("zip_code", "ZIP", { placeholder: "02115", maxLength: 10 })}
             </div>
           </div>
         </div>
@@ -250,79 +220,40 @@ export const ClientFormModal = ({
         {/* Billing Address */}
         <div>
           <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-            Billing Address
+            Billing Address <span className="font-normal normal-case text-muted-foreground/60">(if different)</span>
           </h4>
           <div className="grid grid-cols-6 gap-4">
             <div className="col-span-6">
-              <Label className="flex items-center gap-1.5 mb-1.5">
-                <MapPin className="w-3.5 h-3.5" /> Street Address
-              </Label>
-              <Input
-                value={formData.street}
-                onChange={(e) => handleChange("street", e.target.value)}
-                placeholder="123 Main Street"
-              />
+              {field("billing_address", "Street", { placeholder: "PO Box / billing street" })}
             </div>
             <div className="col-span-3">
-              <Label className="mb-1.5">City</Label>
-              <Input
-                value={formData.city}
-                onChange={(e) => handleChange("city", e.target.value)}
-                placeholder="Boston"
-              />
+              {field("billing_city", "City", { placeholder: "Boston" })}
             </div>
             <div className="col-span-1">
               <Label className="mb-1.5">State</Label>
-              <Input
-                value={formData.state}
-                onChange={(e) => handleChange("state", e.target.value)}
-                placeholder="MA"
-                maxLength={2}
-              />
+              <select
+                value={formData.billing_state}
+                onChange={e => set("billing_state", e.target.value)}
+                className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
+              >
+                <option value="">—</option>
+                {US_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
             </div>
             <div className="col-span-2">
-              <Label className="mb-1.5">ZIP Code</Label>
-              <Input
-                value={formData.zip}
-                onChange={(e) => handleChange("zip", e.target.value)}
-                placeholder="02115"
-                maxLength={5}
-              />
+              {field("billing_zip_code", "ZIP", { placeholder: "02115", maxLength: 10 })}
             </div>
           </div>
         </div>
 
-        {/* Preferences */}
+        {/* Financial */}
         <div>
           <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-            Preferences
+            Financial
           </h4>
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label className="mb-1.5">Default Service</Label>
-              <select
-                value={formData.defaultService}
-                onChange={(e) => handleChange("defaultService", e.target.value)}
-                className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
-              >
-                <option value="Medical">Medical</option>
-                <option value="Legal">Legal</option>
-                <option value="Conference">Conference</option>
-                <option value="Education">Education</option>
-              </select>
-            </div>
-            <div>
-              <Label className="mb-1.5">Payment Terms</Label>
-              <select
-                value={formData.paymentTerms}
-                onChange={(e) => handleChange("paymentTerms", e.target.value)}
-                className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
-              >
-                {PAYMENT_TERMS.map(t => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
-              </select>
-            </div>
+            {field("tax_id", "Tax ID / EIN", { placeholder: "12-3456789" })}
+            {field("credit_limit", "Credit Limit ($)", { placeholder: "5000", icon: DollarSign })}
           </div>
         </div>
 
@@ -331,11 +262,12 @@ export const ClientFormModal = ({
           <Label className="mb-1.5">Internal Notes</Label>
           <Textarea
             value={formData.notes}
-            onChange={(e) => handleChange("notes", e.target.value)}
-            placeholder="Add any notes about this client..."
+            onChange={e => set("notes", e.target.value)}
+            placeholder="Add any notes about this client…"
             rows={3}
           />
         </div>
+
       </div>
     </Modal>
   );

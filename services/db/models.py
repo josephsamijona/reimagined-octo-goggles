@@ -459,3 +459,51 @@ class Campaign(Base):
     created_by_id = Column(BigInteger, ForeignKey("app_user.id"))
     created_at = Column(DateTime)
     updated_at = Column(DateTime)
+
+
+# ── AI Agent Queue ────────────────────────────────────────────────
+
+class AgentQueueItem(Base):
+    __tablename__ = "app_agentqueueitem"
+
+    id: int = Column(BigInteger, primary_key=True)
+    gmail_id = Column(String(100), index=True)
+    email_subject = Column(String(500))
+    email_from = Column(String(254))
+    category = Column(String(20))
+    confidence = Column(Float, default=0.0)
+    extracted_data = Column(MySQLJSON, default=dict)
+    action_type = Column(String(30))
+    action_payload = Column(MySQLJSON, default=dict)
+    ai_reasoning = Column(Text)
+    status = Column(String(15), index=True)
+    approved_by_id = Column(BigInteger, ForeignKey("app_user.id"), nullable=True)
+    approved_at = Column(DateTime, nullable=True)
+    rejection_reason = Column(Text, nullable=True)
+    executed_at = Column(DateTime, nullable=True)
+    result = Column(MySQLJSON, nullable=True)
+    error_message = Column(Text, nullable=True)
+    linked_assignment_id = Column(BigInteger, nullable=True)
+    linked_client_id = Column(BigInteger, nullable=True)
+    linked_onboarding_id = Column(String(36), nullable=True)
+    created_at = Column(DateTime, index=True)
+    updated_at = Column(DateTime)
+
+    approved_by = relationship("User", foreign_keys=[approved_by_id])
+
+
+class AgentAuditLog(Base):
+    __tablename__ = "app_agentauditlog"
+
+    id: int = Column(BigInteger, primary_key=True)
+    queue_item_id = Column(BigInteger, ForeignKey("app_agentqueueitem.id"), nullable=True)
+    action = Column(String(50))
+    entity_type = Column(String(50))
+    entity_id = Column(String(50))
+    success = Column(Boolean, default=True)
+    details = Column(MySQLJSON, default=dict)
+    performed_by_id = Column(BigInteger, ForeignKey("app_user.id"), nullable=True)
+    created_at = Column(DateTime, index=True)
+
+    queue_item = relationship("AgentQueueItem")
+    performed_by = relationship("User", foreign_keys=[performed_by_id])

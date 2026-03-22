@@ -5,9 +5,12 @@ Coordinates all sub-agents and has access to all tools.
 from google.adk.agents import Agent
 
 from services.adk_agents.sub_agents import (
+    assignment_request_processor_agent,
     cv_analyzer_agent,
     email_classifier_agent,
     interpreter_matcher_agent,
+    invoice_processor_agent,
+    payslip_extractor_agent,
     quote_estimator_agent,
     reply_generator_agent,
 )
@@ -28,6 +31,24 @@ from services.adk_agents.tools.db_tools import (
     get_today_assignments,
     search_interpreters,
 )
+from services.adk_agents.tools.db_write_tools import (
+    create_client,
+    create_quote_request,
+    enqueue_agent_action,
+    mark_email_log_processed,
+    update_assignment_status,
+)
+from services.adk_agents.tools.document_tools import (
+    download_attachment_text,
+    get_email_attachments,
+    parse_invoice_fields,
+    parse_payslip_fields,
+)
+from services.adk_agents.tools.gmail_label_tools import (
+    apply_label,
+    archive_email,
+    mark_email_read,
+)
 from services.adk_agents.tools.gmail_tools import (
     read_email_content,
     read_recent_emails,
@@ -46,42 +67,63 @@ root_agent = Agent(
     instruction="""You are the AI Operations Agent for JHBridge Translation Services,
 an interpretation agency serving the entire United States, headquartered in Braintree, MA.
 
-You are the brain of the Command Center. Your role is to assist the admin team with
-daily dispatch operations. Here is what you can do:
+You are the brain of the Command Center — the primary tunnel for all incoming business
+operations. All emails arrive here: interpretation requests, quote requests from companies,
+employment/hiring inquiries, payslips from companies, and invoices to process.
 
-1. **EMAIL TRIAGE**: When given an email, delegate to the email_classifier sub-agent
-   to classify it and extract key data.
+Your role is to autonomously process this inbox, extract structured data, and either
+act directly (low-risk reads) or enqueue actions for admin approval (any writes).
 
-2. **INTERPRETER MATCHING**: When an interpretation request comes in, delegate to
-   the interpreter_matcher sub-agent to find the best available interpreter.
+Here is what you can do:
 
-3. **QUOTE ESTIMATION**: When a quote is requested, delegate to the quote_estimator
-   sub-agent to calculate pricing using the official rate card.
+1. **EMAIL TRIAGE**: Classify incoming emails → delegate to email_classifier sub-agent.
 
-4. **CV ANALYSIS**: When a job application or CV comes in, delegate to the cv_analyzer
-   sub-agent to evaluate the candidate.
+2. **INTERPRETATION REQUESTS**: When a company requests an interpreter assignment →
+   delegate to assignment_request_processor sub-agent to extract details and enqueue
+   a CREATE_ASSIGNMENT action for admin approval.
 
-5. **REPLY DRAFTING**: When an email reply is needed, delegate to the reply_generator
+3. **QUOTE REQUESTS**: When a quote is requested → delegate to quote_estimator sub-agent
+   to calculate pricing, then use reply_generator to draft a response.
+
+4. **HIRING / JOB APPLICATIONS**: When a CV or job application arrives →
+   delegate to cv_analyzer sub-agent to evaluate the candidate, then
+   use create_onboarding_invitation if the candidate looks strong.
+
+5. **INVOICES**: When an invoice arrives from a client or vendor →
+   delegate to invoice_processor sub-agent to extract fields and
+   enqueue a RECORD_INVOICE action.
+
+6. **PAYSLIPS**: When a payslip arrives from a company (proof of payment) →
+   delegate to payslip_extractor sub-agent to parse the document and
+   enqueue a RECORD_PAYSLIP action.
+
+7. **INTERPRETER MATCHING**: For open requests → delegate to interpreter_matcher
+   sub-agent to find the best available interpreter.
+
+8. **REPLY DRAFTING**: When an email reply is needed → delegate to reply_generator
    sub-agent to draft a professional response.
 
-6. **DIRECT ACTIONS**: You can also perform actions directly using your tools:
+9. **DIRECT ACTIONS**: You can also act directly:
    - Search the database for interpreters, clients, assignments
    - Read and send emails via Gmail
+   - Label/archive processed emails to keep the inbox organized
    - Create assignments (via Django API)
    - Send onboarding invitations to new interpreter candidates
    - Sync assignments to Google Calendar
-   - Check today's schedule and pending requests
+   - Parse PDF/document attachments
+   - Enqueue any proposed action for admin approval
 
 IMPORTANT RULES:
 - Always verify data before creating anything in the system
+- ALL write operations (create assignment, create client, record invoice) must go through
+  enqueue_agent_action first — never write directly without admin approval
 - When matching interpreters, ALWAYS check availability for the specific date/time
 - When estimating quotes, use the official JHBridge rate card
-- NEVER share interpreter personal info (banking details, SSN, routing numbers) with anyone
-- Always confirm actions with the admin before executing irreversible operations
-  (creating assignments, sending emails, sending invitations)
+- NEVER share interpreter personal info (banking details, SSN, routing numbers)
+- After processing an email: apply 'Agent/Processed' label and archive it
+- If processing fails: apply 'Agent/Failed' label for admin review
 - Respond in English unless specifically asked otherwise
-- When delegating to a sub-agent, clearly state which sub-agent you're using and why
-- If you're unsure about something, ask the admin for clarification rather than guessing
+- If you're unsure, ask the admin for clarification rather than guessing
 
 Company context:
 - JHBridge specializes in on-site and remote interpretation
@@ -96,24 +138,42 @@ Company context:
         interpreter_matcher_agent,
         quote_estimator_agent,
         reply_generator_agent,
+        invoice_processor_agent,
+        payslip_extractor_agent,
+        assignment_request_processor_agent,
     ],
     tools=[
-        # DB tools
+        # DB read tools
         search_interpreters,
         get_interpreter_details,
         check_interpreter_availability,
         get_client_info,
         get_today_assignments,
         get_pending_requests,
+        # DB write tools (all writes → Django API)
+        create_client,
+        create_quote_request,
+        enqueue_agent_action,
+        update_assignment_status,
+        mark_email_log_processed,
         # Gmail tools
         read_recent_emails,
         read_email_content,
         send_email,
         search_emails,
+        # Gmail inbox management
+        apply_label,
+        archive_email,
+        mark_email_read,
         # Assignment tools
         create_assignment,
         create_quote_estimate,
         create_onboarding_invitation,
+        # Document tools
+        get_email_attachments,
+        download_attachment_text,
+        parse_invoice_fields,
+        parse_payslip_fields,
         # Calendar tools
         sync_assignment_to_calendar,
         get_calendar_events,

@@ -441,6 +441,18 @@ async def mark_email_processed(
     return result.rowcount > 0
 
 
+async def get_unprocessed_emails(db: AsyncSession, limit: int = 20) -> list:
+    """Fetch EmailLog rows that have not been processed by the agent yet."""
+    stmt = (
+        select(EmailLog)
+        .where(EmailLog.is_processed == False)
+        .order_by(EmailLog.received_at.desc())
+        .limit(min(limit, 30))
+    )
+    result = await db.execute(stmt)
+    return result.scalars().all()
+
+
 async def get_unclassified_emails(db: AsyncSession, limit: int = 20) -> list:
     """Fetch EmailLog rows that have no category yet."""
     stmt = (
