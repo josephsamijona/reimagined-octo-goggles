@@ -243,7 +243,9 @@ class ExpenseDetailSerializer(serializers.ModelSerializer):
 
 class ExpenseCreateSerializer(serializers.ModelSerializer):
     transaction = serializers.PrimaryKeyRelatedField(
-        queryset=FinancialTransaction.objects.all()
+        queryset=FinancialTransaction.objects.all(),
+        required=False,
+        allow_null=True,
     )
     approved_by = serializers.PrimaryKeyRelatedField(
         queryset=User.objects.all(), required=False, allow_null=True
