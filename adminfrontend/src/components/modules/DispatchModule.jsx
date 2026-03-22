@@ -15,6 +15,7 @@ import {
   ChevronLeft, ChevronRight, Search, Filter, Download,
   LayoutList, Columns, Calendar as CalendarIcon, AlertTriangle,
   CheckCircle, XCircle, Play, Eye, Bell, Ban, Copy, Map as MapIcon,
+  ShieldAlert, ChevronDown,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -595,11 +596,94 @@ const CalendarView = ({ onRowClick }) => {
 };
 
 // ---------------------------------------------------------------------------
+// Failure Logs Panel
+// ---------------------------------------------------------------------------
+const FailureLogsPanel = ({ onClose }) => {
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    dispatchService.getFailureLogs()
+      .then(res => setLogs(res.data || []))
+      .catch(() => setLogs([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  return (
+    <div className="rounded-lg border border-danger/30 bg-danger/5">
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-danger/20">
+        <div className="flex items-center gap-2 text-sm font-semibold text-danger">
+          <ShieldAlert className="w-4 h-4" />
+          Mission Failure Log
+          <span className="text-xs font-normal text-muted-foreground ml-1">— recent failed creation attempts</span>
+        </div>
+        <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+
+      {loading && (
+        <div className="flex items-center justify-center py-8 text-muted-foreground">
+          <Loader2 className="w-4 h-4 animate-spin mr-2" /> Loading…
+        </div>
+      )}
+
+      {!loading && logs.length === 0 && (
+        <div className="py-8 text-center text-sm text-muted-foreground">
+          <CheckCircle className="w-5 h-5 mx-auto mb-2 text-success" />
+          No failed mission attempts recorded.
+        </div>
+      )}
+
+      {!loading && logs.length > 0 && (
+        <div className="divide-y divide-border/50 max-h-80 overflow-y-auto">
+          {logs.map(log => (
+            <div key={log.id} className="px-4 py-3 text-sm">
+              <div className="flex items-start justify-between gap-2 mb-1">
+                <span className="font-medium text-danger">
+                  {log.action === 'CREATE_FAILED' ? 'Creation failed' : 'Update failed'}
+                </span>
+                <span className="text-xs text-muted-foreground whitespace-nowrap">
+                  {new Date(log.time).toLocaleString('en-US', {
+                    month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true,
+                  })}
+                </span>
+              </div>
+              {log.actor && (
+                <div className="text-xs text-muted-foreground mb-1">By: {log.actor}</div>
+              )}
+              {log.details?.errors && (
+                <div className="mt-1 space-y-0.5">
+                  {Object.entries(log.details.errors).map(([field, msgs]) => (
+                    <div key={field} className="text-xs">
+                      <span className="font-mono text-amber-600 dark:text-amber-400">{field}: </span>
+                      <span className="text-muted-foreground">
+                        {Array.isArray(msgs) ? msgs.join(', ') : String(msgs)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {log.details?.payload_keys && (
+                <div className="text-[10px] text-muted-foreground mt-1">
+                  Fields submitted: {log.details.payload_keys.join(', ')}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
 // Main Module
 // ---------------------------------------------------------------------------
 export const DispatchModule = () => {
   const { assignments, count, stats, isLoading, statsLoading, error, params, setParams, refresh } = useAssignments();
   const [view, setView] = useState('table');
+  const [showFailureLogs, setShowFailureLogs] = useState(false);
 
   // Modals
   const [formModal, setFormModal] = useState({ open: false, mission: null });
@@ -796,6 +880,13 @@ export const DispatchModule = () => {
               onClick={() => setFormModal({ open: true, mission: null })}>
               <Plus className="w-3.5 h-3.5" /> New Mission
             </Button>
+            <Button variant="ghost" size="sm"
+              className={cn('h-8 px-2.5 gap-1.5 text-xs', showFailureLogs && 'text-danger bg-danger/10')}
+              onClick={() => setShowFailureLogs(v => !v)}
+              title="Mission failure logs">
+              <ShieldAlert className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Logs</span>
+            </Button>
             <Button variant="ghost" size="sm" className="h-8 px-2" onClick={refresh}
               disabled={isLoading}>
               <RefreshCw className={cn('w-3.5 h-3.5', isLoading && 'animate-spin')} />
@@ -844,6 +935,11 @@ export const DispatchModule = () => {
           <button onClick={() => setParams({ status: '', unassigned: '', search: '', date_from: '', date_to: '' })}
             className="text-xs text-muted-foreground hover:text-foreground underline">Clear all</button>
         </div>
+      )}
+
+      {/* Failure Logs Panel */}
+      {showFailureLogs && (
+        <FailureLogsPanel onClose={() => setShowFailureLogs(false)} />
       )}
 
       {/* Views */}

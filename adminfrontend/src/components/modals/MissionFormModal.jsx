@@ -160,6 +160,25 @@ function tzAbbr(ianaTz) {
     .find(p => p.type === 'timeZoneName')?.value || ianaTz;
 }
 
+/**
+ * Format a datetime-local string (wall-clock in ianaTz) to 12h American format.
+ * e.g. "03/21/2026 2:30 PM EST"
+ */
+function fmt12h(dtlStr, ianaTz) {
+  if (!dtlStr) return '';
+  try {
+    const utc = localToUTC(dtlStr, ianaTz);
+    return new Intl.DateTimeFormat('en-US', {
+      timeZone: ianaTz,
+      month: '2-digit', day: '2-digit', year: 'numeric',
+      hour: 'numeric', minute: '2-digit', hour12: true,
+      timeZoneName: 'short',
+    }).format(new Date(utc));
+  } catch {
+    return '';
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -205,15 +224,17 @@ export const MissionFormModal = ({ isOpen, onClose, mission = null, prefillData 
   const assignmentTz = STATE_TIMEZONES[form.state] || 'America/New_York'; // default to ET (company HQ)
   const tzLabel = form.state ? `${tzAbbr(assignmentTz)} — ${assignmentTz}` : 'ET (default)';
 
-  // Estimated total
+  // Estimated total — returns { total, billable, actualHours, minApplied } or null
   const estimatedTotal = (() => {
     const rate = parseFloat(form.interpreter_rate) || 0;
     const start = form.start_time ? new Date(localToUTC(form.start_time, assignmentTz)) : null;
     const end = form.end_time ? new Date(localToUTC(form.end_time, assignmentTz)) : null;
     if (!rate || !start || !end || end <= start) return null;
-    const hours = (end - start) / 3600000;
-    const billable = Math.max(hours, parseFloat(form.minimum_hours) || 2);
-    return rate * billable;
+    const actualHours = (end - start) / 3600000;
+    const minHours = parseFloat(form.minimum_hours) || 0;
+    const billable = minHours > 0 ? Math.max(actualHours, minHours) : actualHours;
+    const minApplied = minHours > 0 && minHours > actualHours;
+    return { total: rate * billable, billable, actualHours, minApplied, minHours };
   })();
 
   // ---- Google Places Autocomplete ----------------------------------------
@@ -313,19 +334,6 @@ export const MissionFormModal = ({ isOpen, onClose, mission = null, prefillData 
     setConflict(null);
     setAvailableInterps([]);
   }, [isOpen, mission, prefillData]);
-
-  // ---- Auto-fill rate from service type ----------------------------------
-  useEffect(() => {
-    if (!form.service_type) return;
-    const st = serviceTypes.find(s => String(s.id) === String(form.service_type));
-    if (st?.base_rate && !form.interpreter_rate) {
-      setForm(prev => ({
-        ...prev,
-        interpreter_rate: st.base_rate,
-        minimum_hours: st.minimum_hours || prev.minimum_hours,
-      }));
-    }
-  }, [form.service_type, serviceTypes]); // eslint-disable-line
 
   // ---- Available interpreters --------------------------------------------
   const fetchAvailableInterps = useCallback(async () => {
@@ -622,6 +630,11 @@ export const MissionFormModal = ({ isOpen, onClose, mission = null, prefillData 
                 onChange={e => set('start_time', e.target.value)}
                 className={cn(errors.start_time && 'border-danger')}
               />
+              {form.start_time && (
+                <p className="text-[11px] text-blue-600 dark:text-blue-400 mt-0.5 font-medium">
+                  {fmt12h(form.start_time, assignmentTz)}
+                </p>
+              )}
               {errors.start_time && <p className="text-xs text-danger mt-0.5">{errors.start_time}</p>}
             </div>
             <div>
@@ -634,6 +647,11 @@ export const MissionFormModal = ({ isOpen, onClose, mission = null, prefillData 
                 onChange={e => set('end_time', e.target.value)}
                 className={cn(errors.end_time && 'border-danger')}
               />
+              {form.end_time && (
+                <p className="text-[11px] text-blue-600 dark:text-blue-400 mt-0.5 font-medium">
+                  {fmt12h(form.end_time, assignmentTz)}
+                </p>
+              )}
               {errors.end_time && <p className="text-xs text-danger mt-0.5">{errors.end_time}</p>}
             </div>
           </div>
@@ -657,7 +675,13 @@ export const MissionFormModal = ({ isOpen, onClose, mission = null, prefillData 
             {estimatedTotal != null ? (
               <div className="w-full bg-muted/50 border border-border rounded-md px-3 py-2">
                 <div className="text-[10px] text-muted-foreground">Estimated Total</div>
-                <div className="text-base font-bold font-mono">{fmtAmt(estimatedTotal)}</div>
+                <div className="text-base font-bold font-mono">{fmtAmt(estimatedTotal.total)}</div>
+                <div className="text-[10px] text-muted-foreground mt-0.5">
+                  {estimatedTotal.billable.toFixed(2)}h × ${parseFloat(form.interpreter_rate).toFixed(2)}/hr
+                  {estimatedTotal.minApplied && (
+                    <span className="ml-1 text-amber-500">(min. {estimatedTotal.minHours}h applied)</span>
+                  )}
+                </div>
               </div>
             ) : (
               <div className="w-full bg-muted/20 border border-border rounded-md px-3 py-2 text-xs text-muted-foreground">

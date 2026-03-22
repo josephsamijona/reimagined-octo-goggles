@@ -568,6 +568,104 @@ class AssignmentViewSet(ModelViewSet):
         return Response(dict(grouped))
 
     # ------------------------------------------------------------------
+    # Create / Update overrides — with audit logging
+    # ------------------------------------------------------------------
+    def _get_client_ip(self, request):
+        xff = request.META.get('HTTP_X_FORWARDED_FOR')
+        return xff.split(',')[0].strip() if xff else request.META.get('REMOTE_ADDR')
+
+    def _write_audit(self, request, action, object_id, changes):
+        """Write an AuditLog entry; fail silently."""
+        try:
+            from app.models import AuditLog
+            AuditLog.objects.create(
+                user=request.user if request.user.is_authenticated else None,
+                action=action,
+                model_name='Assignment',
+                object_id=str(object_id),
+                changes=changes,
+                ip_address=self._get_client_ip(request),
+            )
+        except Exception as audit_err:
+            logger.warning('Could not write AuditLog: %s', audit_err)
+
+    def create(self, request, *args, **kwargs):
+        """Override to capture and log validation failures before returning errors."""
+        serializer = self.get_serializer(data=request.data)
+        if not serializer.is_valid():
+            errors = serializer.errors
+            logger.error(
+                'Assignment creation FAILED — user=%s errors=%s payload=%s',
+                getattr(request.user, 'email', '?'),
+                errors,
+                {k: v for k, v in request.data.items() if k not in ('password',)},
+            )
+            self._write_audit(request, 'CREATE_FAILED', '0', {
+                'errors': errors,
+                'payload_keys': list(request.data.keys()),
+            })
+            from rest_framework.response import Response as DRFResponse
+            from rest_framework import status as drf_status
+            return DRFResponse(errors, status=drf_status.HTTP_400_BAD_REQUEST)
+        return super().create(request, *args, **kwargs)
+
+    def perform_create(self, serializer):
+        instance = serializer.save()
+        try:
+            self._write_audit(self.request, 'CREATED', instance.id, {
+                'status': instance.status,
+                'city': instance.city,
+                'state': instance.state,
+                'start_time': instance.start_time.isoformat() if instance.start_time else None,
+                'interpreter_id': instance.interpreter_id,
+            })
+            logger.info('Assignment #%s created by %s', instance.id, getattr(self.request.user, 'email', '?'))
+        except Exception as e:
+            logger.warning('Post-create audit failed for assignment %s: %s', instance.id, e)
+
+    def perform_update(self, serializer):
+        instance = serializer.save()
+        try:
+            self._write_audit(self.request, 'UPDATED', instance.id, {
+                'status': instance.status,
+                'updated_fields': list(serializer.validated_data.keys()),
+            })
+        except Exception as e:
+            logger.warning('Post-update audit failed for assignment %s: %s', instance.id, e)
+
+    # ------------------------------------------------------------------
+    # Failure Logs  (admin-visible recent errors)
+    # ------------------------------------------------------------------
+    @action(detail=False, methods=['get'], url_path='failure-logs')
+    def failure_logs(self, request):
+        """Return recent failed assignment creation/update attempts for admin review."""
+        try:
+            from app.models import AuditLog
+            logs = (
+                AuditLog.objects
+                .filter(model_name='Assignment', action__in=['CREATE_FAILED', 'UPDATE_FAILED'])
+                .select_related('user')
+                .order_by('-timestamp')[:50]
+            )
+            data = []
+            for log in logs:
+                actor = None
+                if log.user:
+                    actor = f"{log.user.first_name} {log.user.last_name}".strip() or log.user.email
+                data.append({
+                    'id': log.id,
+                    'time': log.timestamp.isoformat(),
+                    'action': log.action,
+                    'actor': actor,
+                    'ip': log.ip_address,
+                    'details': log.changes,
+                })
+            return Response(data)
+        except Exception as e:
+            logger.error('Failed to retrieve failure logs: %s', e)
+            return Response([])
+
+    # ------------------------------------------------------------------
     # Stats
     # ------------------------------------------------------------------
     @action(detail=False, methods=['get'])
