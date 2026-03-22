@@ -46,6 +46,9 @@ export const dispatchService = {
   bulkAction: (action, ids) =>
     api.post('/api/v1/assignments/bulk-action/', { action, ids }),
 
+  // ---- Google Calendar manual sync ----------------------------------------
+  syncCalendar: (id) => api.post(`/api/v1/assignments/${id}/sync-calendar/`),
+
   // ---- Failure logs (admin visibility on mission creation errors) ---------
   getFailureLogs: () => api.get('/api/v1/assignments/failure-logs/'),
 

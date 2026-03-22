@@ -15,7 +15,7 @@ import {
   ChevronLeft, ChevronRight, Search, Filter, Download,
   LayoutList, Columns, Calendar as CalendarIcon, AlertTriangle,
   CheckCircle, XCircle, Play, Eye, Bell, Ban, Copy, Map as MapIcon,
-  ShieldAlert, ChevronDown,
+  ShieldAlert, ChevronDown, Cloud, CloudOff, CloudCog,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -88,6 +88,30 @@ const STATUS_COLORS = {
   COMPLETED: '#10B981',
   CANCELLED: '#EF4444',
   NO_SHOW: '#6B7280',
+};
+
+// ---------------------------------------------------------------------------
+// Google Calendar sync badge
+// ---------------------------------------------------------------------------
+const GCalBadge = ({ status, onSync, loading }) => {
+  if (!status || status === 'SKIPPED') return null;
+  const cfg = {
+    SYNCED:  { icon: Cloud,    cls: 'text-success',          title: 'Synced to Google Calendar' },
+    PENDING: { icon: CloudCog, cls: 'text-muted-foreground', title: 'Calendar sync pending' },
+    FAILED:  { icon: CloudOff, cls: 'text-danger',           title: 'Calendar sync failed — click to retry' },
+    DELETED: { icon: CloudOff, cls: 'text-muted-foreground', title: 'Event removed from calendar' },
+  }[status] || { icon: CloudCog, cls: 'text-muted-foreground', title: status };
+  const Icon = cfg.icon;
+  return (
+    <button
+      onClick={e => { e.stopPropagation(); onSync?.(); }}
+      disabled={loading || status === 'SYNCED' || status === 'DELETED'}
+      title={cfg.title}
+      className={cn('h-6 w-6 flex items-center justify-center rounded transition-colors hover:bg-muted disabled:cursor-default', cfg.cls)}
+    >
+      {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Icon className="w-3 h-3" />}
+    </button>
+  );
 };
 
 // ---------------------------------------------------------------------------
@@ -243,16 +267,17 @@ const TableView = ({
               <th className="text-left px-3 py-2 font-medium">Location</th>
               <th className="text-left px-3 py-2 font-medium">Total</th>
               <th className="text-left px-3 py-2 font-medium">Status</th>
+              <th className="px-3 py-2 font-medium" title="Google Calendar sync">Cal</th>
               <th className="px-3 py-2" />
             </tr>
           </thead>
           <tbody>
             {isLoading ? (
-              <tr><td colSpan={12} className="text-center py-12 text-muted-foreground">
+              <tr><td colSpan={13} className="text-center py-12 text-muted-foreground">
                 <Loader2 className="w-5 h-5 animate-spin inline mr-2" />Loading…
               </td></tr>
             ) : assignments.length === 0 ? (
-              <tr><td colSpan={12} className="text-center py-12 text-muted-foreground">
+              <tr><td colSpan={13} className="text-center py-12 text-muted-foreground">
                 <MapPin className="w-10 h-10 mx-auto mb-2 opacity-20" />
                 No missions found.
               </td></tr>
@@ -296,6 +321,13 @@ const TableView = ({
                   <td className="px-3 py-2 text-xs">{r.city}{r.state ? `, ${r.state}` : ''}</td>
                   <td className="px-3 py-2 font-mono text-xs font-semibold">{fmtAmt(r.total_interpreter_payment)}</td>
                   <td className="px-3 py-2"><StatusBadge status={r.status} /></td>
+                  <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
+                    <GCalBadge
+                      status={r.gcal_sync_status}
+                      loading={!!actionLoading[`gcal-${r.id}`]}
+                      onSync={() => onAction('sync_calendar', r)}
+                    />
+                  </td>
                   <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
                     <div className="flex gap-1 justify-end">
                       {/* PENDING actions */}
@@ -784,6 +816,16 @@ export const DispatchModule = () => {
       setConfirmDialog({ open: true, type: 'complete', mission });
     } else if (type === 'noshow_prompt') {
       setConfirmDialog({ open: true, type: 'noshow', mission });
+
+    } else if (type === 'sync_calendar') {
+      const key = `gcal-${mission.id}`;
+      setAL(key, true);
+      try {
+        await dispatchService.syncCalendar(mission.id);
+        showToast.success(`Calendar sync queued for mission #${mission.id}`);
+        refresh();
+      } catch { showToast.error('Failed to queue calendar sync'); }
+      finally { setAL(key, false); }
 
     } else if (type === 'bulk_confirm') {
       setAL('bulk', true);

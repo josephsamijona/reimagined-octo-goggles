@@ -28,8 +28,8 @@ from app.api.services.assignment_service import (
     create_interpreter_payment,
     cancel_interpreter_payment,
     create_expense_for_assignment,
-    add_assignment_to_google_calendar,
 )
+from app.tasks_calendar import sync_assignment_to_calendar
 import app.services.assignment_email_service as email_svc
 from app.models import Assignment, Notification
 
@@ -97,7 +97,7 @@ class AssignmentViewSet(ModelViewSet):
             except Exception as e:
                 logger.error('Failed to create interpreter payment for assignment %s: %s', pk, e)
 
-        add_assignment_to_google_calendar(assignment.id)
+        sync_assignment_to_calendar.delay(assignment.id)
         email_svc.send_assignment_email(assignment, 'confirmed')
 
         return Response(AssignmentDetailSerializer(assignment).data)
@@ -161,6 +161,7 @@ class AssignmentViewSet(ModelViewSet):
                 logger.error('Failed to create expense for completed assignment %s: %s', pk, e)
 
         email_svc.send_assignment_email(assignment, 'completed')
+        sync_assignment_to_calendar.delay(assignment.id)  # update color to green
         return Response(AssignmentDetailSerializer(assignment).data)
 
     # ------------------------------------------------------------------
@@ -448,7 +449,7 @@ class AssignmentViewSet(ModelViewSet):
                     assignment.save()
                     if assignment.interpreter and assignment.total_interpreter_payment:
                         create_interpreter_payment(assignment, created_by=request.user)
-                    add_assignment_to_google_calendar(assignment.id)
+                    sync_assignment_to_calendar.delay(assignment.id)
                     email_svc.send_assignment_email(assignment, 'confirmed')
                     results['succeeded'].append(assignment.id)
                 elif act == 'cancel' and assignment.can_be_cancelled():
@@ -632,6 +633,21 @@ class AssignmentViewSet(ModelViewSet):
             })
         except Exception as e:
             logger.warning('Post-update audit failed for assignment %s: %s', instance.id, e)
+        # Re-sync calendar whenever an assignment is updated (time, location, interpreter may have changed)
+        sync_assignment_to_calendar.delay(instance.id)
+
+    # ------------------------------------------------------------------
+    # Manual Google Calendar sync
+    # ------------------------------------------------------------------
+    @action(detail=True, methods=['post'], url_path='sync-calendar')
+    def sync_calendar(self, request, pk=None):
+        """Manually trigger a Google Calendar sync for a single assignment."""
+        assignment = self.get_object()
+        sync_assignment_to_calendar.delay(assignment.id)
+        return Response({
+            'detail': f'Calendar sync queued for assignment #{assignment.id}.',
+            'gcal_sync_status': assignment.gcal_sync_status,
+        })
 
     # ------------------------------------------------------------------
     # Failure Logs  (admin-visible recent errors)

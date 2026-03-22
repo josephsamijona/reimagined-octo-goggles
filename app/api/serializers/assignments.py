@@ -65,6 +65,7 @@ class AssignmentListSerializer(serializers.ModelSerializer):
             'location', 'city', 'state', 'zip_code',
             'interpreter_rate', 'minimum_hours', 'total_interpreter_payment',
             'is_paid', 'created_at',
+            'gcal_sync_status', 'gcal_event_id', 'gcal_synced_at',
         )
 
     def get_interpreter_name(self, obj):

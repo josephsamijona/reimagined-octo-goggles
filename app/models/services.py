@@ -102,6 +102,13 @@ class Assignment(models.Model):
         CANCELLED = ASSIGNMENT_CANCELLED, _('Cancelled')  # Refusé par l'interprète
         NO_SHOW = ASSIGNMENT_NO_SHOW, _('No Show')  # Client ou interprète absent
 
+    class GCalSyncStatus(models.TextChoices):
+        PENDING = 'PENDING', _('Pending')      # Not yet sent to Google Calendar
+        SYNCED  = 'SYNCED',  _('Synced')       # Successfully pushed
+        FAILED  = 'FAILED',  _('Failed')       # Last attempt failed (retry scheduled)
+        SKIPPED = 'SKIPPED', _('Skipped')      # Cancelled before first sync — no event to create
+        DELETED = 'DELETED', _('Deleted')      # Event was removed from the calendar
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._original_status = self.status if self.pk else None
@@ -147,6 +154,15 @@ class Assignment(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     completed_at = models.DateTimeField(null=True, blank=True)
+
+    # Google Calendar sync
+    gcal_event_id   = models.CharField(max_length=255, blank=True, null=True, db_index=True)
+    gcal_sync_status = models.CharField(
+        max_length=20,
+        choices=GCalSyncStatus.choices,
+        default=GCalSyncStatus.PENDING,
+    )
+    gcal_synced_at  = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ['-created_at']

@@ -36,6 +36,17 @@ SITE_URL = os.getenv('SITE_URL', 'https://portal.jhbridgetranslation.com')
 # FastAPI microservice base URL (calendar sync, AI agent, etc.)
 FASTAPI_BASE_URL = os.getenv('FASTAPI_BASE_URL', 'http://localhost:8001')
 
+# ---------------------------------------------------------------------------
+# Google APIs — service account (Calendar, Drive, Docs, Sheets, Slides)
+# Store the full JSON content of the service account key as an env var.
+# On Railway: paste raw JSON. In .env: wrap in single quotes.
+# ---------------------------------------------------------------------------
+GOOGLE_SERVICE_ACCOUNT_JSON = os.getenv('GOOGLE_SERVICE_ACCOUNT_JSON', '{}')
+GOOGLE_CALENDAR_ID = os.getenv('GOOGLE_CALENDAR_ID', '')
+GOOGLE_CALENDAR_TIMEZONE = os.getenv('GOOGLE_CALENDAR_TIMEZONE', 'America/New_York')
+# Google Drive root folder (JHBridge/ shared folder, service account must have Editor access)
+GOOGLE_DRIVE_ROOT_FOLDER_ID = os.getenv('GOOGLE_DRIVE_ROOT_FOLDER_ID', '')
+
 # Configuration pour l'authentification par clé API
 API_KEY_HEADER = os.environ.get('API_KEY_HEADER', 'X-API-Key')
 API_KEY_QUERY_PARAM = os.environ.get('API_KEY_QUERY_PARAM', 'api_key')

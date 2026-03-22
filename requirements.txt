@@ -24,6 +24,11 @@ crispy-tailwind
 # Email & Calendrier
 icalendar
 
+# Google APIs (Calendar, Drive, Docs, Sheets, Slides)
+google-api-python-client>=2.100.0
+google-auth>=2.23.0
+google-auth-httplib2>=0.1.1
+
 # Gestion des Tâches
 celery
 redis
