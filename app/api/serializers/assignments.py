@@ -28,12 +28,16 @@ class _ServiceTypeTinySerializer(serializers.ModelSerializer):
 # List
 # ---------------------------------------------------------------------------
 
-def _local_isoformat(dt, interpreter):
-    """Convert a UTC datetime to the interpreter's local timezone ISO string."""
+def _local_isoformat(dt, assignment_state):
+    """Convert a UTC datetime to the assignment location's local timezone ISO string.
+
+    Uses the assignment's state (where the work happens) as the authoritative
+    timezone, falling back to Eastern Time (company HQ in MA).
+    """
     if not dt:
         return None
-    from app.utils.timezone import get_interpreter_timezone, BOSTON_TZ
-    tz = get_interpreter_timezone(interpreter) if interpreter else BOSTON_TZ
+    from app.utils.timezone import get_timezone_for_state, BOSTON_TZ
+    tz = get_timezone_for_state(assignment_state) if assignment_state else BOSTON_TZ
     return dt.astimezone(tz).isoformat()
 
 
@@ -48,6 +52,7 @@ class AssignmentListSerializer(serializers.ModelSerializer):
     target_language_name = serializers.StringRelatedField(source='target_language')
     start_time_local = serializers.SerializerMethodField()
     end_time_local = serializers.SerializerMethodField()
+    timezone_abbr = serializers.SerializerMethodField()
 
     class Meta:
         model = Assignment
@@ -56,7 +61,7 @@ class AssignmentListSerializer(serializers.ModelSerializer):
             'client_display', 'interpreter_name', 'interpreter_id',
             'service_type_name', 'source_language_name', 'target_language_name',
             'start_time', 'end_time',
-            'start_time_local', 'end_time_local',
+            'start_time_local', 'end_time_local', 'timezone_abbr',
             'location', 'city', 'state', 'zip_code',
             'interpreter_rate', 'minimum_hours', 'total_interpreter_payment',
             'is_paid', 'created_at',
@@ -74,10 +79,18 @@ class AssignmentListSerializer(serializers.ModelSerializer):
         return obj.client_name or 'N/A'
 
     def get_start_time_local(self, obj):
-        return _local_isoformat(obj.start_time, obj.interpreter)
+        return _local_isoformat(obj.start_time, obj.state)
 
     def get_end_time_local(self, obj):
-        return _local_isoformat(obj.end_time, obj.interpreter)
+        return _local_isoformat(obj.end_time, obj.state)
+
+    def get_timezone_abbr(self, obj):
+        """Short timezone abbreviation for the assignment's state, e.g. 'EST', 'PST'."""
+        if not obj.start_time or not obj.state:
+            return 'ET'
+        from app.utils.timezone import get_timezone_for_state
+        tz = get_timezone_for_state(obj.state)
+        return obj.start_time.astimezone(tz).strftime('%Z')
 
     @staticmethod
     def setup_eager_loading(queryset):
@@ -198,10 +211,10 @@ class AssignmentDetailSerializer(serializers.ModelSerializer):
             return None
 
     def get_start_time_local(self, obj):
-        return _local_isoformat(obj.start_time, obj.interpreter)
+        return _local_isoformat(obj.start_time, obj.state)
 
     def get_end_time_local(self, obj):
-        return _local_isoformat(obj.end_time, obj.interpreter)
+        return _local_isoformat(obj.end_time, obj.state)
 
     @staticmethod
     def setup_eager_loading(queryset):

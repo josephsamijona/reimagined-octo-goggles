@@ -286,7 +286,10 @@ const TableView = ({
                   <td className="px-3 py-2 text-xs">{r.service_type_name || '—'}</td>
                   <td className="px-3 py-2">
                     <div className="font-mono text-xs">{fmt(r.start_time_local || r.start_time)}</div>
-                    <div className="text-[10px] text-muted-foreground">{fmtTime(r.start_time_local || r.start_time)}</div>
+                    <div className="text-[10px] text-muted-foreground">
+                      {fmtTime(r.start_time_local || r.start_time)}
+                      {r.timezone_abbr && <span className="ml-1 text-muted-foreground/60">{r.timezone_abbr}</span>}
+                    </div>
                   </td>
                   <td className="px-3 py-2 font-mono text-xs">{duration(r.start_time, r.end_time)}</td>
                   <td className="px-3 py-2 text-xs">{r.city}{r.state ? `, ${r.state}` : ''}</td>

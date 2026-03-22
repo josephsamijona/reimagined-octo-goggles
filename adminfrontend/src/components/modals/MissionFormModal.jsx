@@ -1,5 +1,10 @@
-// JHBridge — Mission Form Modal (Create / Edit) — Real API
-import { useState, useEffect, useCallback } from 'react';
+// JHBridge — Mission Form Modal (Create / Edit)
+// • Google Places autocomplete for street address (auto-fills city, state, zip)
+// • State dropdown (50 states + DC)
+// • Timezone-aware datetime: times are entered in the ASSIGNMENT'S local timezone,
+//   automatically converted to/from UTC on save/load.
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useJsApiLoader } from '@react-google-maps/api';
 import { Modal } from '@/components/shared/Modal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,38 +14,169 @@ import { showToast } from '@/components/shared/Toast';
 import { dispatchService } from '@/services/dispatchService';
 import {
   Calendar, Clock, MapPin, Building2, Languages,
-  User, Star, Check, Loader2, AlertTriangle, RefreshCw,
+  User, Star, Check, Loader2, AlertTriangle, RefreshCw, Globe,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+const GMAPS_LIBS = ['places'];
+
+const US_STATES = [
+  { code: 'AL', name: 'Alabama' },       { code: 'AK', name: 'Alaska' },
+  { code: 'AZ', name: 'Arizona' },       { code: 'AR', name: 'Arkansas' },
+  { code: 'CA', name: 'California' },    { code: 'CO', name: 'Colorado' },
+  { code: 'CT', name: 'Connecticut' },   { code: 'DE', name: 'Delaware' },
+  { code: 'DC', name: 'Dist. of Columbia' },
+  { code: 'FL', name: 'Florida' },       { code: 'GA', name: 'Georgia' },
+  { code: 'HI', name: 'Hawaii' },        { code: 'ID', name: 'Idaho' },
+  { code: 'IL', name: 'Illinois' },      { code: 'IN', name: 'Indiana' },
+  { code: 'IA', name: 'Iowa' },          { code: 'KS', name: 'Kansas' },
+  { code: 'KY', name: 'Kentucky' },      { code: 'LA', name: 'Louisiana' },
+  { code: 'ME', name: 'Maine' },         { code: 'MD', name: 'Maryland' },
+  { code: 'MA', name: 'Massachusetts' }, { code: 'MI', name: 'Michigan' },
+  { code: 'MN', name: 'Minnesota' },     { code: 'MS', name: 'Mississippi' },
+  { code: 'MO', name: 'Missouri' },      { code: 'MT', name: 'Montana' },
+  { code: 'NE', name: 'Nebraska' },      { code: 'NV', name: 'Nevada' },
+  { code: 'NH', name: 'New Hampshire' }, { code: 'NJ', name: 'New Jersey' },
+  { code: 'NM', name: 'New Mexico' },    { code: 'NY', name: 'New York' },
+  { code: 'NC', name: 'North Carolina' },{ code: 'ND', name: 'North Dakota' },
+  { code: 'OH', name: 'Ohio' },          { code: 'OK', name: 'Oklahoma' },
+  { code: 'OR', name: 'Oregon' },        { code: 'PA', name: 'Pennsylvania' },
+  { code: 'RI', name: 'Rhode Island' },  { code: 'SC', name: 'South Carolina' },
+  { code: 'SD', name: 'South Dakota' },  { code: 'TN', name: 'Tennessee' },
+  { code: 'TX', name: 'Texas' },         { code: 'UT', name: 'Utah' },
+  { code: 'VT', name: 'Vermont' },       { code: 'VA', name: 'Virginia' },
+  { code: 'WA', name: 'Washington' },    { code: 'WV', name: 'West Virginia' },
+  { code: 'WI', name: 'Wisconsin' },     { code: 'WY', name: 'Wyoming' },
+  { code: 'PR', name: 'Puerto Rico' },   { code: 'GU', name: 'Guam' },
+  { code: 'VI', name: 'U.S. Virgin Islands' },
+];
+
+// Primary IANA timezone per state — uses dominant timezone for split-tz states
+const STATE_TIMEZONES = {
+  AL: 'America/Chicago',       AK: 'America/Anchorage',
+  AZ: 'America/Phoenix',       AR: 'America/Chicago',
+  CA: 'America/Los_Angeles',   CO: 'America/Denver',
+  CT: 'America/New_York',      DE: 'America/New_York',
+  DC: 'America/New_York',      FL: 'America/New_York',
+  GA: 'America/New_York',      HI: 'Pacific/Honolulu',
+  ID: 'America/Boise',         IL: 'America/Chicago',
+  IN: 'America/Indiana/Indianapolis',
+  IA: 'America/Chicago',       KS: 'America/Chicago',
+  KY: 'America/New_York',      LA: 'America/Chicago',
+  ME: 'America/New_York',      MD: 'America/New_York',
+  MA: 'America/New_York',      MI: 'America/Detroit',
+  MN: 'America/Chicago',       MS: 'America/Chicago',
+  MO: 'America/Chicago',       MT: 'America/Denver',
+  NE: 'America/Chicago',       NV: 'America/Los_Angeles',
+  NH: 'America/New_York',      NJ: 'America/New_York',
+  NM: 'America/Denver',        NY: 'America/New_York',
+  NC: 'America/New_York',      ND: 'America/Chicago',
+  OH: 'America/New_York',      OK: 'America/Chicago',
+  OR: 'America/Los_Angeles',   PA: 'America/New_York',
+  RI: 'America/New_York',      SC: 'America/New_York',
+  SD: 'America/Chicago',       TN: 'America/Chicago',
+  TX: 'America/Chicago',       UT: 'America/Denver',
+  VT: 'America/New_York',      VA: 'America/New_York',
+  WA: 'America/Los_Angeles',   WV: 'America/New_York',
+  WI: 'America/Chicago',       WY: 'America/Denver',
+  PR: 'America/Puerto_Rico',   GU: 'Pacific/Guam',
+  VI: 'America/St_Thomas',
+};
+
+// ---------------------------------------------------------------------------
+// Timezone utilities
+// ---------------------------------------------------------------------------
+
+/** Offset in ms (local − UTC) for a given IANA timezone at a given Date. */
+function tzOffsetMs(date, ianaTz) {
+  const fmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone: ianaTz,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false,
+  });
+  const p = Object.fromEntries(fmt.formatToParts(date).map(x => [x.type, x.value]));
+  const h = p.hour === '24' ? '0' : p.hour;
+  const localMs = Date.UTC(+p.year, +p.month - 1, +p.day, +h, +p.minute, +p.second);
+  return localMs - date.getTime();
+}
+
+/**
+ * Interpret a datetime-local string ("2026-03-21T14:00") as wall-clock time
+ * in `ianaTz` and return the corresponding UTC ISO string.
+ * Falls back to browser-local interpretation if ianaTz is missing.
+ */
+export function localToUTC(dtlStr, ianaTz) {
+  if (!dtlStr) return '';
+  if (!ianaTz) return new Date(dtlStr).toISOString();
+
+  const [datePart, timePart] = dtlStr.split('T');
+  const [yr, mo, dy] = datePart.split('-').map(Number);
+  const [hr, mn] = timePart.split(':').map(Number);
+
+  // Treat the wall-clock components as UTC initially (approximate)
+  const approxMs = Date.UTC(yr, mo - 1, dy, hr, mn, 0);
+  const approx = new Date(approxMs);
+
+  // Find the tz offset at this approximate UTC time
+  const off1 = tzOffsetMs(approx, ianaTz);
+  const corrected = new Date(approxMs - off1);
+
+  // DST boundary correction: verify the local representation matches
+  const off2 = tzOffsetMs(corrected, ianaTz);
+  if (off2 !== off1) {
+    return new Date(approxMs - off2).toISOString();
+  }
+  return corrected.toISOString();
+}
+
+/**
+ * Convert a UTC ISO string to a datetime-local string ("2026-03-21T14:00")
+ * displayed in the given IANA timezone.
+ */
+export function utcToLocal(isoStr, ianaTz) {
+  if (!isoStr) return '';
+  const date = new Date(isoStr);
+  const tz = ianaTz || Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const fmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone: tz,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit',
+    hour12: false,
+  });
+  const p = Object.fromEntries(fmt.formatToParts(date).map(x => [x.type, x.value]));
+  const h = p.hour === '24' ? '00' : p.hour;
+  return `${p.year}-${p.month}-${p.day}T${h}:${p.minute}`;
+}
+
+/** Short timezone abbreviation (e.g. "EST", "PDT"). */
+function tzAbbr(ianaTz) {
+  if (!ianaTz) return '';
+  return new Intl.DateTimeFormat('en-US', { timeZone: ianaTz, timeZoneName: 'short' })
+    .formatToParts(new Date())
+    .find(p => p.type === 'timeZoneName')?.value || ianaTz;
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 const fmtAmt = (v) => v != null ? `$${parseFloat(v).toFixed(2)}` : '—';
 
-const toDatetimeLocal = (iso) => {
-  if (!iso) return '';
-  return new Date(iso).toISOString().slice(0, 16);
-};
-
 const EMPTY_FORM = {
-  client: '',
-  client_name: '',
-  client_email: '',
-  client_phone: '',
-  service_type: '',
-  source_language: '',
-  target_language: '',
-  location: '',
-  city: '',
-  state: '',
-  zip_code: '',
-  start_time: '',
-  end_time: '',
-  interpreter: '',
-  interpreter_rate: '',
-  minimum_hours: 2,
-  notes: '',
-  special_requirements: '',
+  client: '', client_name: '', client_email: '', client_phone: '',
+  service_type: '', source_language: '', target_language: '',
+  location: '', city: '', state: '', zip_code: '',
+  start_time: '', end_time: '',
+  interpreter: '', interpreter_rate: '', minimum_hours: 2,
+  notes: '', special_requirements: '',
 };
 
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
 export const MissionFormModal = ({ isOpen, onClose, mission = null, prefillData = null, onSuccess }) => {
   const isEdit = !!mission;
   const [form, setForm] = useState(EMPTY_FORM);
@@ -56,18 +192,77 @@ export const MissionFormModal = ({ isOpen, onClose, mission = null, prefillData 
   const [conflict, setConflict] = useState(null);
   const [useManualClient, setUseManualClient] = useState(false);
 
-  // Computed totals
+  // Google Maps / Places
+  const { isLoaded: gmLoaded } = useJsApiLoader({
+    id: 'google-map-script',
+    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '',
+    libraries: GMAPS_LIBS,
+  });
+  const addressInputRef = useRef(null);
+  const autocompleteRef = useRef(null);
+
+  // Derived timezone from selected state
+  const assignmentTz = STATE_TIMEZONES[form.state] || 'America/New_York'; // default to ET (company HQ)
+  const tzLabel = form.state ? `${tzAbbr(assignmentTz)} — ${assignmentTz}` : 'ET (default)';
+
+  // Estimated total
   const estimatedTotal = (() => {
     const rate = parseFloat(form.interpreter_rate) || 0;
-    const start = form.start_time ? new Date(form.start_time) : null;
-    const end = form.end_time ? new Date(form.end_time) : null;
+    const start = form.start_time ? new Date(localToUTC(form.start_time, assignmentTz)) : null;
+    const end = form.end_time ? new Date(localToUTC(form.end_time, assignmentTz)) : null;
     if (!rate || !start || !end || end <= start) return null;
     const hours = (end - start) / 3600000;
     const billable = Math.max(hours, parseFloat(form.minimum_hours) || 2);
     return rate * billable;
   })();
 
-  // Load dropdowns on open
+  // ---- Google Places Autocomplete ----------------------------------------
+  useEffect(() => {
+    if (!isOpen || !gmLoaded || !addressInputRef.current) return;
+    if (autocompleteRef.current) return; // already attached
+
+    const ac = new window.google.maps.places.Autocomplete(addressInputRef.current, {
+      types: ['address'],
+      componentRestrictions: { country: 'us' },
+      fields: ['address_components', 'formatted_address', 'geometry'],
+    });
+
+    ac.addListener('place_changed', () => {
+      const place = ac.getPlace();
+      if (!place?.address_components) return;
+
+      let streetNumber = '', route = '', city = '', state = '', zip = '';
+      for (const comp of place.address_components) {
+        const types = comp.types;
+        if (types.includes('street_number')) streetNumber = comp.long_name;
+        else if (types.includes('route')) route = comp.long_name;
+        else if (types.includes('locality')) city = comp.long_name;
+        else if (types.includes('administrative_area_level_1')) state = comp.short_name;
+        else if (types.includes('postal_code')) zip = comp.long_name;
+      }
+
+      const street = [streetNumber, route].filter(Boolean).join(' ');
+      setForm(prev => ({
+        ...prev,
+        location: street || place.formatted_address || prev.location,
+        city: city || prev.city,
+        state: state || prev.state,
+        zip_code: zip || prev.zip_code,
+      }));
+      setErrors(prev => ({ ...prev, city: null, location: null }));
+    });
+
+    autocompleteRef.current = ac;
+  }, [isOpen, gmLoaded]);
+
+  // Cleanup autocomplete on close
+  useEffect(() => {
+    if (!isOpen) {
+      autocompleteRef.current = null;
+    }
+  }, [isOpen]);
+
+  // ---- Load dropdowns on open --------------------------------------------
   useEffect(() => {
     if (!isOpen) return;
     Promise.all([
@@ -81,10 +276,11 @@ export const MissionFormModal = ({ isOpen, onClose, mission = null, prefillData 
     }).catch(() => showToast.error('Failed to load form data'));
   }, [isOpen]);
 
-  // Initialize form for edit or prefill
+  // ---- Initialize form for edit or prefill --------------------------------
   useEffect(() => {
     if (!isOpen) return;
     if (mission) {
+      const missionTz = STATE_TIMEZONES[mission.state] || 'America/New_York';
       setForm({
         client: mission.client || '',
         client_name: mission.client_name || '',
@@ -97,8 +293,9 @@ export const MissionFormModal = ({ isOpen, onClose, mission = null, prefillData 
         city: mission.city || '',
         state: mission.state || '',
         zip_code: mission.zip_code || '',
-        start_time: toDatetimeLocal(mission.start_time),
-        end_time: toDatetimeLocal(mission.end_time),
+        // Convert UTC → assignment's local timezone for display
+        start_time: utcToLocal(mission.start_time, missionTz),
+        end_time: utcToLocal(mission.end_time, missionTz),
         interpreter: mission.interpreter_id || '',
         interpreter_rate: mission.interpreter_rate || '',
         minimum_hours: mission.minimum_hours || 2,
@@ -117,7 +314,7 @@ export const MissionFormModal = ({ isOpen, onClose, mission = null, prefillData 
     setAvailableInterps([]);
   }, [isOpen, mission, prefillData]);
 
-  // Auto-fill rate from service type
+  // ---- Auto-fill rate from service type ----------------------------------
   useEffect(() => {
     if (!form.service_type) return;
     const st = serviceTypes.find(s => String(s.id) === String(form.service_type));
@@ -130,7 +327,7 @@ export const MissionFormModal = ({ isOpen, onClose, mission = null, prefillData 
     }
   }, [form.service_type, serviceTypes]); // eslint-disable-line
 
-  // Fetch available interpreters when languages / start_time change
+  // ---- Available interpreters --------------------------------------------
   const fetchAvailableInterps = useCallback(async () => {
     if (!form.source_language && !form.target_language) return;
     setLoadingInterps(true);
@@ -151,23 +348,24 @@ export const MissionFormModal = ({ isOpen, onClose, mission = null, prefillData 
 
   useEffect(() => { fetchAvailableInterps(); }, [fetchAvailableInterps]);
 
-  // Check conflict when interpreter + times are set
+  // ---- Conflict detection -------------------------------------------------
   useEffect(() => {
     if (!form.interpreter || !form.start_time || !form.end_time) { setConflict(null); return; }
     dispatchService.checkConflict(
       form.interpreter,
-      new Date(form.start_time).toISOString(),
-      new Date(form.end_time).toISOString(),
+      localToUTC(form.start_time, assignmentTz),
+      localToUTC(form.end_time, assignmentTz),
       mission?.id || null,
     ).then(res => setConflict(res.data?.has_conflict ? res.data.conflicts : null))
       .catch(() => setConflict(null));
-  }, [form.interpreter, form.start_time, form.end_time, mission?.id]);
+  }, [form.interpreter, form.start_time, form.end_time, mission?.id, assignmentTz]);
 
   const set = (field, value) => {
     setForm(prev => ({ ...prev, [field]: value }));
     if (errors[field]) setErrors(prev => ({ ...prev, [field]: null }));
   };
 
+  // ---- Validation ---------------------------------------------------------
   const validate = () => {
     const e = {};
     if (!useManualClient && !form.client) e.client = 'Client required';
@@ -176,15 +374,19 @@ export const MissionFormModal = ({ isOpen, onClose, mission = null, prefillData 
     if (!form.source_language) e.source_language = 'Required';
     if (!form.target_language) e.target_language = 'Required';
     if (!form.city) e.city = 'City required';
+    if (!form.state) e.state = 'State required';
     if (!form.start_time) e.start_time = 'Required';
     if (!form.end_time) e.end_time = 'Required';
-    if (form.start_time && form.end_time && new Date(form.end_time) <= new Date(form.start_time)) {
-      e.end_time = 'End must be after start';
+    if (form.start_time && form.end_time) {
+      const s = new Date(localToUTC(form.start_time, assignmentTz));
+      const en = new Date(localToUTC(form.end_time, assignmentTz));
+      if (en <= s) e.end_time = 'End must be after start';
     }
     setErrors(e);
     return Object.keys(e).length === 0;
   };
 
+  // ---- Submit -------------------------------------------------------------
   const handleSubmit = async () => {
     if (!validate()) return;
     setLoading(true);
@@ -197,8 +399,9 @@ export const MissionFormModal = ({ isOpen, onClose, mission = null, prefillData 
         city: form.city,
         state: form.state,
         zip_code: form.zip_code,
-        start_time: new Date(form.start_time).toISOString(),
-        end_time: new Date(form.end_time).toISOString(),
+        // Convert from assignment's local tz → UTC before sending to backend
+        start_time: localToUTC(form.start_time, assignmentTz),
+        end_time: localToUTC(form.end_time, assignmentTz),
         interpreter_rate: form.interpreter_rate || null,
         minimum_hours: form.minimum_hours,
         notes: form.notes,
@@ -230,6 +433,7 @@ export const MissionFormModal = ({ isOpen, onClose, mission = null, prefillData 
     }
   };
 
+  // ---- Render -------------------------------------------------------------
   return (
     <Modal
       isOpen={isOpen}
@@ -249,7 +453,7 @@ export const MissionFormModal = ({ isOpen, onClose, mission = null, prefillData 
     >
       <div className="space-y-5">
 
-        {/* Client */}
+        {/* ── Client ──────────────────────────────────────────────────── */}
         <div>
           <div className="flex items-center justify-between mb-1.5">
             <Label className="flex items-center gap-1.5"><Building2 className="w-3.5 h-3.5" /> Client *</Label>
@@ -275,14 +479,18 @@ export const MissionFormModal = ({ isOpen, onClose, mission = null, prefillData 
                 className={cn('w-full px-3 py-2 rounded-md border bg-background text-sm',
                   errors.client ? 'border-danger' : 'border-input')}>
                 <option value="">Select client…</option>
-                {clients.map(c => <option key={c.id} value={c.id}>{c.company_name}</option>)}
+                {clients.map(c => (
+                  <option key={c.id} value={c.id}>
+                    {c.company_name || c.user_name}{c.city ? ` — ${c.city}` : ''}
+                  </option>
+                ))}
               </select>
               {errors.client && <p className="text-xs text-danger mt-0.5">{errors.client}</p>}
             </>
           )}
         </div>
 
-        {/* Service type */}
+        {/* ── Service type ────────────────────────────────────────────── */}
         <div>
           <Label className="mb-1.5 block">Service Type *</Label>
           <select value={form.service_type} onChange={e => set('service_type', e.target.value)}
@@ -296,7 +504,7 @@ export const MissionFormModal = ({ isOpen, onClose, mission = null, prefillData 
           {errors.service_type && <p className="text-xs text-danger mt-0.5">{errors.service_type}</p>}
         </div>
 
-        {/* Languages */}
+        {/* ── Languages ───────────────────────────────────────────────── */}
         <div className="grid grid-cols-2 gap-4">
           <div>
             <Label className="flex items-center gap-1.5 mb-1.5"><Languages className="w-3.5 h-3.5" /> Source Language *</Label>
@@ -324,45 +532,125 @@ export const MissionFormModal = ({ isOpen, onClose, mission = null, prefillData 
           </div>
         </div>
 
-        {/* Location */}
+        {/* ── Location ────────────────────────────────────────────────── */}
         <div>
-          <Label className="flex items-center gap-1.5 mb-1.5"><MapPin className="w-3.5 h-3.5" /> Location *</Label>
-          <Input placeholder="Street address" value={form.location} onChange={e => set('location', e.target.value)} className="mb-2" />
-          <div className="grid grid-cols-3 gap-2">
-            <Input placeholder="City *" value={form.city} onChange={e => set('city', e.target.value)}
-              className={cn(errors.city && 'border-danger')} />
-            <Input placeholder="State" value={form.state} onChange={e => set('state', e.target.value)} maxLength={2} />
-            <Input placeholder="ZIP" value={form.zip_code} onChange={e => set('zip_code', e.target.value)} maxLength={10} />
+          <Label className="flex items-center gap-1.5 mb-1.5">
+            <MapPin className="w-3.5 h-3.5" /> Location *
+            {gmLoaded && (
+              <span className="text-[10px] text-muted-foreground font-normal ml-1">
+                — start typing for address suggestions
+              </span>
+            )}
+          </Label>
+
+          {/* Smart address input — Places Autocomplete attaches here */}
+          <div className="relative mb-2">
+            <MapPin className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+            <input
+              ref={addressInputRef}
+              type="text"
+              placeholder="Street address…"
+              defaultValue={form.location}
+              onBlur={e => set('location', e.target.value)}
+              className="w-full pl-8 pr-3 py-2 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+            />
           </div>
-          {errors.city && <p className="text-xs text-danger mt-0.5">{errors.city}</p>}
+
+          {/* City / State / ZIP row */}
+          <div className="grid grid-cols-5 gap-2">
+            <div className="col-span-2">
+              <Input
+                placeholder="City *"
+                value={form.city}
+                onChange={e => set('city', e.target.value)}
+                className={cn(errors.city && 'border-danger')}
+              />
+              {errors.city && <p className="text-xs text-danger mt-0.5">{errors.city}</p>}
+            </div>
+            <div>
+              <select
+                value={form.state}
+                onChange={e => set('state', e.target.value)}
+                className={cn(
+                  'w-full h-10 px-2 rounded-md border bg-background text-sm focus:outline-none focus:ring-1 focus:ring-ring',
+                  errors.state ? 'border-danger' : 'border-input',
+                )}>
+                <option value="">State *</option>
+                {US_STATES.map(s => (
+                  <option key={s.code} value={s.code}>{s.code} — {s.name}</option>
+                ))}
+              </select>
+              {errors.state && <p className="text-xs text-danger mt-0.5">{errors.state}</p>}
+            </div>
+            <div className="col-span-2">
+              <Input
+                placeholder="ZIP code"
+                value={form.zip_code}
+                onChange={e => set('zip_code', e.target.value)}
+                maxLength={10}
+              />
+            </div>
+          </div>
         </div>
 
-        {/* Schedule */}
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <Label className="flex items-center gap-1.5 mb-1.5"><Calendar className="w-3.5 h-3.5" /> Start *</Label>
-            <Input type="datetime-local" value={form.start_time} onChange={e => set('start_time', e.target.value)}
-              className={cn(errors.start_time && 'border-danger')} />
-            {errors.start_time && <p className="text-xs text-danger mt-0.5">{errors.start_time}</p>}
+        {/* ── Schedule ────────────────────────────────────────────────── */}
+        <div>
+          {/* Timezone banner */}
+          <div className={cn(
+            'flex items-center gap-1.5 mb-2 text-xs rounded-md px-2.5 py-1.5 border',
+            form.state
+              ? 'bg-blue-500/5 border-blue-500/20 text-blue-600 dark:text-blue-400'
+              : 'bg-muted/50 border-border text-muted-foreground',
+          )}>
+            <Globe className="w-3.5 h-3.5 flex-shrink-0" />
+            <span>
+              {form.state
+                ? <>Times are in <strong>{tzLabel}</strong> — the assignment's local timezone</>
+                : 'Select a state to set the correct timezone for this mission'
+              }
+            </span>
           </div>
-          <div>
-            <Label className="flex items-center gap-1.5 mb-1.5"><Clock className="w-3.5 h-3.5" /> End *</Label>
-            <Input type="datetime-local" value={form.end_time} onChange={e => set('end_time', e.target.value)}
-              className={cn(errors.end_time && 'border-danger')} />
-            {errors.end_time && <p className="text-xs text-danger mt-0.5">{errors.end_time}</p>}
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label className="flex items-center gap-1.5 mb-1.5">
+                <Calendar className="w-3.5 h-3.5" /> Start *
+              </Label>
+              <Input
+                type="datetime-local"
+                value={form.start_time}
+                onChange={e => set('start_time', e.target.value)}
+                className={cn(errors.start_time && 'border-danger')}
+              />
+              {errors.start_time && <p className="text-xs text-danger mt-0.5">{errors.start_time}</p>}
+            </div>
+            <div>
+              <Label className="flex items-center gap-1.5 mb-1.5">
+                <Clock className="w-3.5 h-3.5" /> End *
+              </Label>
+              <Input
+                type="datetime-local"
+                value={form.end_time}
+                onChange={e => set('end_time', e.target.value)}
+                className={cn(errors.end_time && 'border-danger')}
+              />
+              {errors.end_time && <p className="text-xs text-danger mt-0.5">{errors.end_time}</p>}
+            </div>
           </div>
         </div>
 
-        {/* Rate & min hours */}
+        {/* ── Rate & min hours ─────────────────────────────────────────── */}
         <div className="grid grid-cols-3 gap-3">
           <div>
             <Label className="mb-1.5 block">Rate ($/hr)</Label>
-            <Input type="number" min={0} step={0.5} placeholder="0.00" value={form.interpreter_rate}
+            <Input type="number" min={0} step={0.5} placeholder="0.00"
+              value={form.interpreter_rate}
               onChange={e => set('interpreter_rate', e.target.value)} />
           </div>
           <div>
             <Label className="mb-1.5 block">Min. Hours</Label>
-            <Input type="number" min={1} max={24} value={form.minimum_hours}
+            <Input type="number" min={1} max={24}
+              value={form.minimum_hours}
               onChange={e => set('minimum_hours', e.target.value)} />
           </div>
           <div className="flex items-end">
@@ -379,7 +667,7 @@ export const MissionFormModal = ({ isOpen, onClose, mission = null, prefillData 
           </div>
         </div>
 
-        {/* Interpreter */}
+        {/* ── Interpreter ─────────────────────────────────────────────── */}
         <div>
           <div className="flex items-center justify-between mb-1.5">
             <Label className="flex items-center gap-1.5"><User className="w-3.5 h-3.5" /> Interpreter (optional)</Label>
@@ -392,7 +680,6 @@ export const MissionFormModal = ({ isOpen, onClose, mission = null, prefillData 
             )}
           </div>
 
-          {/* Conflict warning */}
           {conflict && (
             <div className="mb-2 p-2 rounded-md bg-warning/10 border border-warning/30 text-warning text-xs flex items-start gap-2">
               <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
@@ -401,7 +688,6 @@ export const MissionFormModal = ({ isOpen, onClose, mission = null, prefillData 
           )}
 
           <div className="border border-input rounded-md max-h-48 overflow-y-auto">
-            {/* Unassigned option */}
             <button type="button" onClick={() => set('interpreter', '')}
               className={cn('w-full px-3 py-2 text-left text-sm flex items-center gap-2 hover:bg-muted transition-colors border-b border-border',
                 !form.interpreter && 'bg-muted/50')}>
@@ -436,7 +722,12 @@ export const MissionFormModal = ({ isOpen, onClose, mission = null, prefillData 
                   <div className="flex-1 min-w-0">
                     <div className="font-medium truncate">{name}</div>
                     <div className="text-xs text-muted-foreground truncate">{langs}</div>
-                    <div className="text-[10px] text-muted-foreground">{interp.city}{interp.state ? `, ${interp.state}` : ''}</div>
+                    <div className="text-[10px] text-muted-foreground">
+                      {interp.city}{interp.state ? `, ${interp.state}` : ''}
+                      {interp.state && STATE_TIMEZONES[interp.state] && (
+                        <span className="ml-1 text-blue-500">({tzAbbr(STATE_TIMEZONES[interp.state])})</span>
+                      )}
+                    </div>
                   </div>
                   <div className="text-right flex-shrink-0">
                     {interp.avg_rating != null && (
@@ -455,7 +746,7 @@ export const MissionFormModal = ({ isOpen, onClose, mission = null, prefillData 
           </div>
         </div>
 
-        {/* Notes */}
+        {/* ── Notes ───────────────────────────────────────────────────── */}
         <div className="grid grid-cols-2 gap-4">
           <div>
             <Label className="mb-1.5 block">Internal Notes</Label>
