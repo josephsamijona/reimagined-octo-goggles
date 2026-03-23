@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
-from django.utils.html import format_html
+from django.utils.html import format_html, mark_safe
 from app import models
 
 class ExpiresFilter(admin.SimpleListFilter):
@@ -160,25 +160,29 @@ class APIKeyAdmin(admin.ModelAdmin):
         """Affiche le statut comme un badge coloré"""
         if not obj.is_active:
             return format_html(
-                '<span style="background-color: #dc3545; color: white; padding: 3px 8px; '
-                'border-radius: 4px; font-size: 0.9em;">Désactivée</span>'
+                '<span style="background-color: {}; color: {}; padding: 3px 8px; '
+                'border-radius: 4px; font-size: 0.9em;">{}</span>',
+                '#dc3545', 'white', 'Désactivée'
             )
-        
+
         if obj.expires_at and obj.expires_at < timezone.now():
             return format_html(
-                '<span style="background-color: #ffc107; color: #212529; padding: 3px 8px; '
-                'border-radius: 4px; font-size: 0.9em;">Expirée</span>'
+                '<span style="background-color: {}; color: {}; padding: 3px 8px; '
+                'border-radius: 4px; font-size: 0.9em;">{}</span>',
+                '#ffc107', '#212529', 'Expirée'
             )
-        
+
         if not obj.expires_at:
             return format_html(
-                '<span style="background-color: #28a745; color: white; padding: 3px 8px; '
-                'border-radius: 4px; font-size: 0.9em;">Permanente</span>'
+                '<span style="background-color: {}; color: {}; padding: 3px 8px; '
+                'border-radius: 4px; font-size: 0.9em;">{}</span>',
+                '#28a745', 'white', 'Permanente'
             )
-        
+
         return format_html(
-            '<span style="background-color: #28a745; color: white; padding: 3px 8px; '
-            'border-radius: 4px; font-size: 0.9em;">Active</span>'
+            '<span style="background-color: {}; color: {}; padding: 3px 8px; '
+            'border-radius: 4px; font-size: 0.9em;">{}</span>',
+            '#28a745', 'white', 'Active'
         )
     status_badge.short_description = _('Statut')
     
@@ -195,7 +199,8 @@ class APIKeyAdmin(admin.ModelAdmin):
         """Affiche la date d'expiration avec indication des jours restants"""
         if not obj.expires_at:
             return format_html(
-                '<span style="color: #28a745; font-style: italic;">Jamais</span>'
+                '<span style="color: {}; font-style: italic;">{}</span>',
+                '#28a745', 'Jamais'
             )
         
         # Calcul des jours restants
@@ -203,7 +208,8 @@ class APIKeyAdmin(admin.ModelAdmin):
         
         if days_left < 0:
             return format_html(
-                '<span style="color: #dc3545;">Expirée</span>'
+                '<span style="color: {};">{}</span>',
+                '#dc3545', 'Expirée'
             )
         elif days_left < 7:
             return format_html(
@@ -222,7 +228,8 @@ class APIKeyAdmin(admin.ModelAdmin):
         """Affiche la dernière utilisation formatée"""
         if not obj.last_used:
             return format_html(
-                '<span style="color: #6c757d; font-style: italic;">Jamais</span>'
+                '<span style="color: {}; font-style: italic;">{}</span>',
+                '#6c757d', 'Jamais'
             )
         
         # Calcul du temps écoulé depuis la dernière utilisation
@@ -230,7 +237,8 @@ class APIKeyAdmin(admin.ModelAdmin):
         
         if days_ago == 0:
             return format_html(
-                '<span style="color: #28a745;">Aujourd\'hui</span>'
+                '<span style="color: {};">{}</span>',
+                '#28a745', "Aujourd'hui"
             )
         elif days_ago < 7:
             return format_html(

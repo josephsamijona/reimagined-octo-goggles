@@ -1,3 +1,4 @@
+from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.db.models import Q
 from django.http import JsonResponse
@@ -41,6 +42,7 @@ class NotificationListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
         
         return context
 
+@login_required
 @require_POST
 def mark_notification_as_read(request, pk):
     notification = get_object_or_404(Notification, pk=pk, recipient=request.user)
@@ -48,6 +50,7 @@ def mark_notification_as_read(request, pk):
     notification.save()
     return JsonResponse({'status': 'success'})
 
+@login_required
 @require_POST
 def mark_all_notifications_as_read(request):
     Notification.objects.filter(

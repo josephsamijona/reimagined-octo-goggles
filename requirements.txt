@@ -2,24 +2,22 @@
 Django
 djangorestframework
 mysqlclient
-dj-database-url 
+dj-database-url
 python-dotenv
 django-phonenumber-field[phonenumbers]
 django-countries
 django-crispy-forms
 crispy-bootstrap5
+crispy-tailwind
 resend
+
 # Authentification & Sécurité
-djangorestframework-simplejwt 
-django-cors-headers 
+djangorestframework-simplejwt
+django-cors-headers
 django-otp
 fido2
 qrcode[pil]
 pyotp
-
-# Interface & Formulaires
-django-crispy-forms
-crispy-tailwind
 
 # Email & Calendrier
 icalendar
@@ -33,6 +31,7 @@ google-auth-httplib2>=0.1.1
 celery
 redis
 django-celery-beat
+django-apscheduler
 
 # Paiements
 stripe
@@ -42,53 +41,33 @@ social-auth-app-django
 
 # Utilitaires
 Pillow
-
-# Développement
-django-debug-toolbar 
+pytz
+requests
+django-filter
+drf-spectacular
+django-widget-tweaks
 
 # Déploiement
 gunicorn
-whitenoise 
+whitenoise
 
 # Manipulation de Documents
 reportlab
-python-docx 
+python-docx
 pdf2image
 PyPDF2
-#django-q
- 
-django-apscheduler
-icalendar
-pytz
-icalendar
-django-storages
-supabase
-
-pdfkit 
-reportlab
-python-docx 
-html2image 
-pillow
-pycom
+pdfkit
 xhtml2pdf
 
-django-widget-tweaks
-pyHanko
-pyhanko-certvalidator 
-asn1crypto 
-oscrypto 
-qrcode 
-pillow
-django-storages 
+# Storage S3
+django-storages
 boto3
-gnupg
-python-gnupg 
+
+# Cryptographie & Signature
+pyHanko
+pyhanko-certvalidator
+asn1crypto
+oscrypto
+python-gnupg
 pgpy
 cryptography
-requests
-django-filter                  # Filtres avancés DRF
-drf-spectacular                # Auto-documentation API
-psycopg2-binary                # PostgreSQL driver
-django-redis                   # Redis cache/sessions
-channels                       # WebSocket support (optionnel)
-channels-redis

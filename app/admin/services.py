@@ -253,14 +253,17 @@ class AssignmentAdmin(AssignmentAdminMixin, admin.ModelAdmin):
         """Display payment status with icon and color"""
         if obj.is_paid:
             return format_html(
-                '<span style="color: green; font-weight: bold;">✓ Paid</span>'
+                '<span style="color: {}; font-weight: bold;">{}</span>',
+                'green', '✓ Paid'
             )
         elif obj.is_paid is False:
             return format_html(
-                '<span style="color: red; font-weight: bold;">✗ Unpaid</span>'
+                '<span style="color: {}; font-weight: bold;">{}</span>',
+                'red', '✗ Unpaid'
             )
         return format_html(
-            '<span style="color: gray;">- Pending</span>'
+            '<span style="color: {};">{}</span>',
+            'gray', '- Pending'
         )
     get_payment_status.short_description = 'Payment Status'
 

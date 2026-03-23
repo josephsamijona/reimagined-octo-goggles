@@ -95,10 +95,9 @@ class TranslatorEarningsView(LoginRequiredMixin, UserPassesTestMixin, TemplateVi
             'pending_amount': all_payments.filter(status='PENDING').aggregate(
                 total=Sum('amount')
             )['total'] or Decimal('0.00'),
-            'average_payment': all_payments.filter(
-                status='COMPLETED'
-            ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00') / (
-                all_payments.filter(status='COMPLETED').count() or 1
+            'average_payment': (
+                (all_payments.filter(status='COMPLETED').aggregate(total=Sum('amount'))['total'] or Decimal('0.00'))
+                / (all_payments.filter(status='COMPLETED').count() or 1)
             )
         }
 
@@ -109,6 +108,7 @@ class TranslatorEarningsView(LoginRequiredMixin, UserPassesTestMixin, TemplateVi
 
 
 
+@login_required
 @require_GET
 def get_earnings_data(request, year=None):
     """Vue API pour obtenir les données des gains pour les graphiques"""
@@ -145,6 +145,7 @@ def get_earnings_data(request, year=None):
 
     return JsonResponse(chart_data)
 
+@login_required
 def appointments_view(request):
     """
     Vue pour afficher la liste des rendez-vous
@@ -337,6 +338,7 @@ def stats_view(request):
         })
 
     
+@login_required
 def earnings_data_api(request, period):
     """
     API pour récupérer les données de gains selon la période

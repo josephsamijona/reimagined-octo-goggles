@@ -42,8 +42,12 @@ FASTAPI_BASE_URL = os.getenv('FASTAPI_BASE_URL', 'http://localhost:8001')
 # On Railway: paste raw JSON. In .env: wrap in single quotes.
 # ---------------------------------------------------------------------------
 GOOGLE_SERVICE_ACCOUNT_JSON = os.getenv('GOOGLE_SERVICE_ACCOUNT_JSON', '{}')
+GOOGLE_SERVICE_ACCOUNT_JSON_B64 = os.getenv('GOOGLE_SERVICE_ACCOUNT_JSON_B64', '')
 GOOGLE_CALENDAR_ID = os.getenv('GOOGLE_CALENDAR_ID', '')
 GOOGLE_CALENDAR_TIMEZONE = os.getenv('GOOGLE_CALENDAR_TIMEZONE', 'America/New_York')
+GOOGLE_CALENDAR_ADMIN_EMAILS = [
+    e.strip() for e in os.getenv('GOOGLE_CALENDAR_ADMIN_EMAILS', '').split(',') if e.strip()
+]
 # Google Drive root folder (JHBridge/ shared folder, service account must have Editor access)
 GOOGLE_DRIVE_ROOT_FOLDER_ID = os.getenv('GOOGLE_DRIVE_ROOT_FOLDER_ID', '')
 
@@ -338,6 +342,11 @@ CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = TIME_ZONE
+# Fail fast when Redis is unavailable (no 20-retry spam)
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = False
+CELERY_BROKER_CONNECTION_MAX_RETRIES = 0
+CELERY_RESULT_BACKEND_MAX_RETRIES = 0
+CELERY_BROKER_CONNECTION_TIMEOUT = 2
 
 # Social Auth Configuration
 AUTHENTICATION_BACKENDS = (

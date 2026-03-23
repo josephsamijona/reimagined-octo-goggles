@@ -2,6 +2,8 @@
 env/
 venv/
 ENV/
+gen-lang-client-0841318898-68755d6186f7.json
+*-service-account*.json
 todo.md
 test_socket.py
 test_pymysql.py
