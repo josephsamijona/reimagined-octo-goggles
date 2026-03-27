@@ -103,7 +103,8 @@
             </div>
         </div>
         <div style="flex:0 0 auto; display:flex; flex-direction:column; gap:10px;">
-            <button type="button" class="bp-btn bp-btn-navy" onclick="generateBatch()" id="btn-gen">Generate & Download ZIP</button>
+            <button type="button" class="bp-btn bp-btn-navy" onclick="generateBatch('download')" id="btn-gen">Download ZIP</button>
+            <button type="button" class="bp-btn bp-btn-green" onclick="generateBatch('email')" id="btn-email">Email Each Interpreter</button>
             <a href="{% url 'admin:app_payrolldocument_changelist' %}" class="bp-btn bp-btn-outline" style="text-decoration:none; text-align:center;">Back to Payroll</a>
         </div>
     </div>
@@ -155,27 +156,42 @@ function updateCount() {
 document.getElementById('date-from').addEventListener('change', updateCount);
 document.getElementById('date-to').addEventListener('change', updateCount);
 
-function generateBatch() {
+function generateBatch(action) {
     var checks = document.querySelectorAll('.interp-check:checked');
     if (!checks.length) { showToast('Select at least one interpreter.', 'error'); return; }
 
     var ids = [];
-    checks.forEach(function(cb) { ids.push(parseInt(cb.value)); });
+    var names = [];
+    checks.forEach(function(cb) {
+        ids.push(parseInt(cb.value));
+        var row = cb.closest('tr');
+        if (row) names.push(row.querySelector('td:nth-child(2)').textContent.trim());
+    });
+
+    // Security: confirmation for email to prevent accidental sends
+    if (action === 'email') {
+        var msg = 'You are about to email individual paystubs to ' + ids.length + ' interpreter(s):\n\n' +
+            names.join('\n') + '\n\nEach interpreter will ONLY receive their own paystub.\nContinue?';
+        if (!confirm(msg)) return;
+    }
 
     var payload = {
         interpreter_ids: ids,
         date_from: document.getElementById('date-from').value || null,
         date_to: document.getElementById('date-to').value || null,
+        action: action,
     };
 
-    var btn = document.getElementById('btn-gen');
-    btn.disabled = true;
-    btn.textContent = 'Generating...';
+    var btnGen = document.getElementById('btn-gen');
+    var btnEmail = document.getElementById('btn-email');
+    btnGen.disabled = true;
+    btnEmail.disabled = true;
 
     var prog = document.getElementById('progress-wrap');
     prog.style.display = 'block';
     document.getElementById('progress-fill').style.width = '30%';
-    document.getElementById('progress-text').textContent = 'Generating paystubs for ' + ids.length + ' interpreter(s)...';
+    var progressLabel = action === 'email' ? 'Sending paystubs to ' : 'Generating paystubs for ';
+    document.getElementById('progress-text').textContent = progressLabel + ids.length + ' interpreter(s)...';
 
     fetch('{% url "admin:batch_paystub" %}', {
         method: 'POST',
@@ -183,28 +199,39 @@ function generateBatch() {
         body: JSON.stringify(payload),
     })
     .then(function(r) {
-        if (!r.ok) return r.json().then(function(d) { throw new Error(d.error || 'Error'); });
         document.getElementById('progress-fill').style.width = '90%';
+        if (action === 'email') {
+            return r.json().then(function(d) {
+                if (!r.ok) throw new Error(d.error || 'Error');
+                return d;
+            });
+        }
+        if (!r.ok) return r.json().then(function(d) { throw new Error(d.error || 'Error'); });
         return r.blob();
     })
-    .then(function(blob) {
+    .then(function(result) {
         document.getElementById('progress-fill').style.width = '100%';
-        document.getElementById('progress-text').textContent = 'Done! Downloading ZIP...';
-        var url = URL.createObjectURL(blob);
-        var a = document.createElement('a');
-        a.href = url;
-        a.download = 'paystubs-batch.zip';
-        a.click();
-        URL.revokeObjectURL(url);
-        showToast('Batch paystubs downloaded!', 'success');
+        if (action === 'email') {
+            document.getElementById('progress-text').textContent = 'Emails sent!';
+            showToast(result.message, 'success');
+        } else {
+            document.getElementById('progress-text').textContent = 'Done! Downloading ZIP...';
+            var url = URL.createObjectURL(result);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = 'paystubs-batch.zip';
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast('Batch paystubs downloaded!', 'success');
+        }
     })
     .catch(function(err) {
         showToast(err.message, 'error');
         document.getElementById('progress-fill').style.width = '0%';
     })
     .finally(function() {
-        btn.disabled = false;
-        btn.textContent = 'Generate & Download ZIP';
+        btnGen.disabled = false;
+        btnEmail.disabled = false;
         setTimeout(function() { prog.style.display = 'none'; }, 3000);
     });
 }

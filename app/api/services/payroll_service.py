@@ -175,11 +175,10 @@ def generate_earnings_summary_pdf(data):
 
     assignments = data.get('assignments', [])
     if assignments:
-        table_data = [['Date', 'Client', 'Location', 'Languages', 'Hrs', 'Rate/hr', 'Amount']]
+        table_data = [['Date', 'Location', 'Languages', 'Hrs', 'Rate/hr', 'Amount']]
         for a in assignments:
             table_data.append([
                 a.get('date', ''),
-                a.get('client', ''),
                 a.get('location', ''),
                 f"{a.get('source_language', '')} → {a.get('target_language', '')}",
                 f"{float(a.get('duration', 0)):.1f}",
@@ -187,11 +186,11 @@ def generate_earnings_summary_pdf(data):
                 f"${Decimal(a.get('amount', '0')):.2f}",
             ])
         total = Decimal(data.get('total_earnings', '0'))
-        table_data.append(['', '', '', '', '', 'TOTAL', f"${total:.2f}"])
+        table_data.append(['', '', '', '', 'TOTAL', f"${total:.2f}"])
 
         tbl = Table(
             table_data,
-            colWidths=[0.85*inch, 1.25*inch, 0.9*inch, 1.5*inch, 0.45*inch, 0.7*inch, 0.85*inch],
+            colWidths=[0.85*inch, 1.2*inch, 1.7*inch, 0.5*inch, 0.75*inch, 0.9*inch],
         )
         tbl.setStyle(TableStyle([
             ('BACKGROUND',    (0, 0), (-1, 0),   NAVY),
@@ -259,28 +258,27 @@ def generate_payroll_pdf(payroll_document):
     # ---- Services ----
     services = payroll_document.services.all()
     if services.exists():
-        data = [['Date', 'Client', 'Languages', 'Duration', 'Rate/hr', 'Amount']]
+        data = [['Date', 'Languages', 'Duration', 'Rate/hr', 'Amount']]
         total_amount = Decimal('0')
         for svc in services:
             amount = svc.amount
             total_amount += amount
             data.append([
                 str(svc.date or ''),
-                svc.client,
                 f"{svc.source_language} → {svc.target_language}",
                 f"{svc.duration}h" if svc.duration else '',
                 f"${svc.rate}/hr" if svc.rate else '',
                 f"${amount:.2f}",
             ])
-        data.append(['', '', '', '', 'Services Total:', f"${total_amount:.2f}"])
+        data.append(['', '', '', 'Services Total:', f"${total_amount:.2f}"])
 
-        tbl = Table(data, colWidths=[0.85*inch, 1.4*inch, 1.6*inch, 0.75*inch, 0.85*inch, 0.95*inch])
+        tbl = Table(data, colWidths=[0.95*inch, 2.4*inch, 0.85*inch, 0.95*inch, 1.05*inch])
         tbl.setStyle(TableStyle([
             ('BACKGROUND',    (0, 0), (-1, 0),   NAVY),
             ('TEXTCOLOR',     (0, 0), (-1, 0),   WHITE),
             ('FONTNAME',      (0, 0), (-1, 0),   'Helvetica-Bold'),
             ('FONTSIZE',      (0, 0), (-1, -1),  8),
-            ('ALIGN',         (3, 0), (-1, -1),  'RIGHT'),
+            ('ALIGN',         (2, 0), (-1, -1),  'RIGHT'),
             ('GRID',          (0, 0), (-1, -1),  0.4, colors.HexColor('#e5e7eb')),
             ('ROWBACKGROUNDS', (0, 1), (-1, -2), [WHITE, LIGHT]),
             ('FONTNAME',      (0, -1), (-1, -1), 'Helvetica-Bold'),

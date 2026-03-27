@@ -243,7 +243,7 @@ function renderTable() {
 
     var html = '<table class="ps-table"><thead><tr>' +
         '<th class="text-center"><input type="checkbox" class="ps-check" onchange="toggleAll(this.checked)" checked></th>' +
-        '<th>Date</th><th>Client</th><th>Service</th><th>Languages</th>' +
+        '<th>Date</th><th>Service</th><th>Languages</th>' +
         '<th class="text-right">Hours</th><th class="text-right">Rate</th>' +
         '<th class="text-right">Amount</th><th class="text-center">Paid</th>' +
         '</tr></thead><tbody>';
@@ -253,7 +253,6 @@ function renderTable() {
         html += '<tr>' +
             '<td class="text-center"><input type="checkbox" class="ps-check assign-check" data-idx="' + i + '" checked onchange="recalc()"></td>' +
             '<td>' + a.date + '</td>' +
-            '<td>' + a.client + '</td>' +
             '<td>' + a.service_type + '</td>' +
             '<td>' + a.source_language + ' &rarr; ' + a.target_language + '</td>' +
             '<td class="text-right">' + a.duration + 'h</td>' +

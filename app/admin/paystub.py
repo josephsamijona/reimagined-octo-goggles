@@ -250,6 +250,51 @@ class FetchAssignmentsView(View):
 
 # ─── BATCH PAYSTUB GENERATION ─────────────────────────────────────
 
+def _build_stub_for_interpreter(interpreter, assignments):
+    """Create PayrollDocument + Service records and return (stub, pdf_bytes)."""
+    doc_number = generate_unique_reference('PS', PayrollDocument, 'document_number')
+    user = interpreter.user
+    stub = PayrollDocument.objects.create(
+        company_address=COMPANY_ADDRESS,
+        company_phone=COMPANY_PHONE,
+        company_email=COMPANY_EMAIL,
+        interpreter_name=f"{user.first_name} {user.last_name}",
+        interpreter_address=f"{interpreter.address or ''}, {interpreter.city or ''}, {interpreter.state or ''} {interpreter.zip_code or ''}".strip(', '),
+        interpreter_phone=getattr(user, 'phone', '') or '',
+        interpreter_email=user.email,
+        document_number=doc_number,
+        document_date=date.today(),
+    )
+
+    for assgn in assignments:
+        duration_hours = Decimal('0')
+        if assgn.start_time and assgn.end_time:
+            delta = assgn.end_time - assgn.start_time
+            duration_hours = Decimal(str(round(delta.total_seconds() / 3600, 2)))
+        if assgn.minimum_hours and duration_hours < assgn.minimum_hours:
+            duration_hours = Decimal(str(assgn.minimum_hours))
+
+        client_name = ''
+        if assgn.client:
+            client_name = assgn.client.company_name or ''
+        elif assgn.client_name:
+            client_name = assgn.client_name
+
+        Service.objects.create(
+            payroll=stub,
+            date=assgn.start_time.date() if assgn.start_time else None,
+            client=client_name,
+            source_language=assgn.source_language.name if assgn.source_language else '',
+            target_language=assgn.target_language.name if assgn.target_language else '',
+            duration=duration_hours,
+            rate=assgn.interpreter_rate or Decimal('0'),
+        )
+
+    pdf_buffer = generate_payroll_pdf(stub)
+    pdf_bytes = pdf_buffer.read()
+    return stub, pdf_bytes
+
+
 @method_decorator(staff_required, name='dispatch')
 class BatchPaystubView(View):
     """Batch paystub generation for multiple interpreters."""
@@ -277,81 +322,100 @@ class BatchPaystubView(View):
         interpreter_ids = data.get('interpreter_ids', [])
         date_from = data.get('date_from')
         date_to = data.get('date_to')
+        action = data.get('action', 'download')
 
         if not interpreter_ids:
             return JsonResponse({'error': 'Select at least one interpreter.'}, status=400)
 
         interpreters = Interpreter.objects.filter(pk__in=interpreter_ids).select_related('user')
+
+        # Build list of (interpreter, assignments) pairs
+        batch_items = []
+        for interpreter in interpreters:
+            qs = Assignment.objects.filter(
+                interpreter=interpreter, status='COMPLETED'
+            ).select_related('client', 'source_language', 'target_language', 'service_type')
+
+            if date_from:
+                qs = qs.filter(start_time__date__gte=date_from)
+            if date_to:
+                qs = qs.filter(start_time__date__lte=date_to)
+
+            assignments = list(qs.order_by('start_time'))
+            if assignments:
+                batch_items.append((interpreter, assignments))
+
+        if not batch_items:
+            return JsonResponse({'error': 'No completed assignments found for the selected interpreters.'}, status=400)
+
+        if action == 'email':
+            return self._send_batch_emails(batch_items)
+
+        # Default: ZIP download
+        return self._download_zip(batch_items)
+
+    def _download_zip(self, batch_items):
+        import zipfile
+        import io as _io
+
         zip_buffer = _io.BytesIO()
         generated = 0
 
         with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
-            for interpreter in interpreters:
-                qs = Assignment.objects.filter(
-                    interpreter=interpreter, status='COMPLETED'
-                ).select_related('client', 'source_language', 'target_language', 'service_type')
-
-                if date_from:
-                    qs = qs.filter(start_time__date__gte=date_from)
-                if date_to:
-                    qs = qs.filter(start_time__date__lte=date_to)
-
-                assignments = list(qs.order_by('start_time'))
-                if not assignments:
-                    continue
-
-                # Create PayrollDocument
-                from app.api.services.payroll_service import generate_payroll_pdf, COMPANY_ADDRESS, COMPANY_PHONE, COMPANY_EMAIL
-                doc_number = generate_unique_reference('PS', PayrollDocument, 'document_number')
+            for interpreter, assignments in batch_items:
+                stub, pdf_bytes = _build_stub_for_interpreter(interpreter, assignments)
                 user = interpreter.user
-                stub = PayrollDocument.objects.create(
-                    company_address=COMPANY_ADDRESS,
-                    company_phone=COMPANY_PHONE,
-                    company_email=COMPANY_EMAIL,
-                    interpreter_name=f"{user.first_name} {user.last_name}",
-                    interpreter_address=f"{interpreter.address or ''}, {interpreter.city or ''}, {interpreter.state or ''} {interpreter.zip_code or ''}".strip(', '),
-                    interpreter_phone=getattr(user, 'phone', '') or '',
-                    interpreter_email=user.email,
-                    document_number=doc_number,
-                    document_date=date.today(),
-                )
-
-                for assgn in assignments:
-                    duration_hours = Decimal('0')
-                    if assgn.start_time and assgn.end_time:
-                        delta = assgn.end_time - assgn.start_time
-                        duration_hours = Decimal(str(round(delta.total_seconds() / 3600, 2)))
-                    if assgn.minimum_hours and duration_hours < assgn.minimum_hours:
-                        duration_hours = Decimal(str(assgn.minimum_hours))
-
-                    client_name = ''
-                    if assgn.client:
-                        client_name = assgn.client.company_name or ''
-                    elif assgn.client_name:
-                        client_name = assgn.client_name
-
-                    Service.objects.create(
-                        payroll=stub,
-                        date=assgn.start_time.date() if assgn.start_time else None,
-                        client=client_name,
-                        source_language=assgn.source_language.name if assgn.source_language else '',
-                        target_language=assgn.target_language.name if assgn.target_language else '',
-                        duration=duration_hours,
-                        rate=assgn.interpreter_rate or Decimal('0'),
-                    )
-
-                pdf_buffer = generate_payroll_pdf(stub)
                 safe_name = f"{user.last_name}_{user.first_name}".replace(' ', '_')
-                zf.writestr(f"paystub-{safe_name}-{doc_number}.pdf", pdf_buffer.read())
+                zf.writestr(f"paystub-{safe_name}-{stub.document_number}.pdf", pdf_bytes)
                 generated += 1
-
-        if generated == 0:
-            return JsonResponse({'error': 'No completed assignments found for the selected interpreters.'}, status=400)
 
         zip_buffer.seek(0)
         response = HttpResponse(zip_buffer.read(), content_type='application/zip')
         response['Content-Disposition'] = f'attachment; filename="paystubs-batch-{date.today()}.zip"'
         return response
+
+    def _send_batch_emails(self, batch_items):
+        """Send each interpreter their own paystub. Strict 1:1 matching."""
+        from app.services.email_service import PayrollEmailService
+
+        sent = []
+        failed = []
+
+        for interpreter, assignments in batch_items:
+            stub, pdf_bytes = _build_stub_for_interpreter(interpreter, assignments)
+            user = interpreter.user
+
+            # Security: verify the stub belongs to this interpreter
+            if stub.interpreter_email != user.email:
+                logger.error(
+                    "SECURITY: Stub %s email mismatch — stub=%s, user=%s. Skipping.",
+                    stub.document_number, stub.interpreter_email, user.email,
+                )
+                failed.append(f"{user.first_name} {user.last_name} (email mismatch)")
+                continue
+
+            # Compute total for email template
+            svc_total = sum(s.amount for s in stub.services.all())
+            reimb_total = sum(r.amount for r in stub.reimbursements.all())
+            ded_total = sum(d.amount for d in stub.deductions.all())
+            stub.total_amount = svc_total + reimb_total - ded_total
+
+            success = PayrollEmailService.send_stub(stub, pdf_bytes)
+            if success:
+                sent.append(f"{user.first_name} {user.last_name}")
+            else:
+                failed.append(f"{user.first_name} {user.last_name}")
+
+        msg_parts = []
+        if sent:
+            msg_parts.append(f"Sent to {len(sent)} interpreter(s): {', '.join(sent)}.")
+        if failed:
+            msg_parts.append(f"Failed for {len(failed)}: {', '.join(failed)}.")
+
+        if failed and not sent:
+            return JsonResponse({'error': ' '.join(msg_parts)}, status=500)
+
+        return JsonResponse({'ok': True, 'message': ' '.join(msg_parts)})
 
 
 # ─── TOTAL EARNINGS REPORT (TAX / 1099-NEC) ──────────────────────

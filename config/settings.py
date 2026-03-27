@@ -31,6 +31,11 @@ DEBUG = os.getenv('DEBUG', 'True') == 'True'
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '').split(',') if os.getenv('ALLOWED_HOSTS') else []
 SESSION_COOKIE_DOMAIN = None if DEBUG else '.jhbridgetranslation.com'
 CSRF_COOKIE_DOMAIN = None if DEBUG else '.jhbridgetranslation.com'
+
+# Session security: expire after 2 hours of inactivity
+SESSION_COOKIE_AGE = 7200  # 2 hours in seconds
+SESSION_SAVE_EVERY_REQUEST = True  # Reset timer on each request
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 SITE_URL = os.getenv('SITE_URL', 'https://portal.jhbridgetranslation.com')
 
 # FastAPI microservice base URL (calendar sync, AI agent, etc.)
