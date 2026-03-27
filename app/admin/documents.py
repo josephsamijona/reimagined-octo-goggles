@@ -51,7 +51,7 @@ class InterpreterContractSignatureAdmin(admin.ModelAdmin):
                 'bank_name', 'account_type','account_holder_name',
                 'account_number_display', 'routing_number_display', 'swift_code_display',
             ),
-            'description': 'Banking information is encrypted and can only be viewed in masked form. To modify banking information, please use the application interface.',
+            'description': 'Banking information is encrypted. Click "Voir" to reveal a field, "Masquer" to hide it.',
             'classes': ('collapse',),
         }),
         ('🏢 Company Information', {
@@ -104,35 +104,47 @@ class InterpreterContractSignatureAdmin(admin.ModelAdmin):
         return "—"
     signed_date.short_description = 'Signed On'
     
+    def _make_reveal_field(self, masked_value, clear_value, field_id):
+        """Generate HTML with masked value and a toggle button to reveal the clear value"""
+        return mark_safe(
+            f'<span id="masked-{field_id}">🔒 {masked_value}</span>'
+            f'<span id="clear-{field_id}" style="display:none;">🔓 {clear_value}</span> '
+            f'<a href="#" style="margin-left:8px;font-size:12px;" onclick="'
+            f"var m=document.getElementById('masked-{field_id}'),"
+            f"c=document.getElementById('clear-{field_id}'),"
+            f"t=this;"
+            f"if(c.style.display==='none'){{c.style.display='inline';m.style.display='none';t.textContent='Masquer';}}"
+            f"else{{c.style.display='none';m.style.display='inline';t.textContent='Voir';}}"
+            f"return false;"
+            f'">Voir</a>'
+        )
+
     def account_number_display(self, obj):
-        """Display masked account number"""
+        """Display account number with reveal toggle"""
         account_number = obj.get_account_number()
         if not account_number:
             return '—'
-        # Show only last 4 digits
         masked = '*' * (len(account_number) - 4) + account_number[-4:]
-        return f"🔒 {masked}"
-    account_number_display.short_description = 'Account Number (Masked)'
-    
+        return self._make_reveal_field(masked, account_number, f'acct-{obj.pk}')
+    account_number_display.short_description = 'Account Number'
+
     def routing_number_display(self, obj):
-        """Display masked routing number"""
+        """Display routing number with reveal toggle"""
         routing_number = obj.get_routing_number()
         if not routing_number:
             return '—'
-        # Show only first and last 2 digits
         masked = routing_number[:2] + '*' * (len(routing_number) - 4) + routing_number[-2:]
-        return f"🔒 {masked}"
-    routing_number_display.short_description = 'Routing Number (Masked)'
-    
+        return self._make_reveal_field(masked, routing_number, f'rout-{obj.pk}')
+    routing_number_display.short_description = 'Routing Number'
+
     def swift_code_display(self, obj):
-        """Display masked SWIFT code"""
+        """Display SWIFT code with reveal toggle"""
         swift_code = obj.get_swift_code()
         if not swift_code:
             return '—'
-        # Show only first 4 characters
-        masked = swift_code[:4] + '*' * (len(swift_code) - 4) 
-        return f"🔒 {masked}"
-    swift_code_display.short_description = 'SWIFT Code (Masked)'
+        masked = swift_code[:4] + '*' * (len(swift_code) - 4)
+        return self._make_reveal_field(masked, swift_code, f'swift-{obj.pk}')
+    swift_code_display.short_description = 'SWIFT Code'
     
     # Ajout des mappings User <-> Interpreter pour JavaScript
     def get_user_interpreter_mappings(self):

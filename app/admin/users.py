@@ -11,6 +11,66 @@ class InterpreterLanguageInline(admin.TabularInline):
     classes = ['collapse']
     fields = ('language', 'proficiency', 'is_primary', 'certified', 'certification_details')
 
+
+class ContractBankingInline(admin.TabularInline):
+    model = models.InterpreterContractSignature
+    fk_name = 'interpreter'
+    extra = 0
+    max_num = 0
+    can_delete = False
+    verbose_name = 'Contract Banking Info'
+    verbose_name_plural = 'Contract Banking Info (encrypted)'
+    classes = ['collapse']
+    fields = (
+        'status', 'signed_at', 'bank_name', 'account_holder_name',
+        'account_type', 'account_number_reveal', 'routing_number_reveal', 'swift_code_reveal',
+    )
+    readonly_fields = (
+        'status', 'signed_at', 'bank_name', 'account_holder_name',
+        'account_type', 'account_number_reveal', 'routing_number_reveal', 'swift_code_reveal',
+    )
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+    def _make_reveal(self, masked, clear, field_id):
+        return mark_safe(
+            f'<span id="masked-{field_id}">{masked}</span>'
+            f'<span id="clear-{field_id}" style="display:none;">{clear}</span> '
+            f'<a href="#" style="font-size:11px;" onclick="'
+            f"var m=document.getElementById('masked-{field_id}'),"
+            f"c=document.getElementById('clear-{field_id}'),"
+            f"t=this;"
+            f"if(c.style.display==='none'){{c.style.display='inline';m.style.display='none';t.textContent='Masquer';}}"
+            f"else{{c.style.display='none';m.style.display='inline';t.textContent='Voir';}}"
+            f"return false;"
+            f'">Voir</a>'
+        )
+
+    def account_number_reveal(self, obj):
+        val = obj.get_account_number()
+        if not val:
+            return '—'
+        masked = '*' * (len(val) - 4) + val[-4:]
+        return self._make_reveal(masked, val, f'inl-acct-{obj.pk}')
+    account_number_reveal.short_description = 'Account #'
+
+    def routing_number_reveal(self, obj):
+        val = obj.get_routing_number()
+        if not val:
+            return '—'
+        masked = val[:2] + '*' * (len(val) - 4) + val[-2:]
+        return self._make_reveal(masked, val, f'inl-rout-{obj.pk}')
+    routing_number_reveal.short_description = 'Routing #'
+
+    def swift_code_reveal(self, obj):
+        val = obj.get_swift_code()
+        if not val:
+            return '—'
+        masked = val[:4] + '*' * (len(val) - 4)
+        return self._make_reveal(masked, val, f'inl-swift-{obj.pk}')
+    swift_code_reveal.short_description = 'SWIFT'
+
 class InterpreterInline(admin.StackedInline):
     model = models.Interpreter
     can_delete = False
@@ -135,7 +195,7 @@ class InterpreterAdmin(admin.ModelAdmin):
         'zip_code',
         'blocked_reason'  # Added
     )
-    inlines = [InterpreterLanguageInline]
+    inlines = [InterpreterLanguageInline, ContractBankingInline]
     fieldsets = (
         ('Status', {'fields': (('user', 'active'),)}),
         ('Profile Information', {'fields': (('profile_photo_preview', 'profile_image'), 'bio')}),
