@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(DJANGO_SETTINGS_MODULE=config.settings python -c \"import django; django.setup\\(\\); from app.admin import finance; print\\(''OK''\\)\")"
+    ]
+  }
+}

@@ -1,35 +1,15 @@
 {% extends "admin/base_site.html" %}
-{% load i18n %}
+{% load i18n static %}
 
 {% block title %}MFA Setup{% endblock %}
 {% block breadcrumbs %}{% endblock %}
 
-{% block content %}
-<style>
-    .mfa-container { max-width: 520px; margin: 0 auto; }
-    .mfa-card { background: #fff; padding: 30px; border-radius: 8px; border: 1px solid #ddd; margin-bottom: 20px; }
-    .mfa-title { margin-bottom: 8px; }
-    .mfa-subtitle { color: #666; margin-bottom: 24px; font-size: 14px; }
-    .mfa-error { background: #fecaca; color: #991b1b; padding: 10px 16px; border-radius: 6px; margin-bottom: 16px; }
-    .mfa-input { width: 100%; padding: 10px 14px; border: 1px solid #ccc; border-radius: 4px; font-size: 18px; letter-spacing: 6px; text-align: center; }
-    .mfa-btn { padding: 10px 24px; background: #417690; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: bold; }
-    .mfa-btn:hover { background: #205067; }
-    .mfa-btn-secondary { padding: 10px 24px; background: #eee; color: #333; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; text-decoration: none; display: inline-block; }
-    .mfa-qr { text-align: center; margin: 20px 0; }
-    .mfa-qr img { border: 4px solid #f0f0f0; border-radius: 8px; }
-    .mfa-secret { background: #f8f8f8; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 13px; word-break: break-all; text-align: center; margin: 12px 0; color: #555; }
-    .mfa-tabs { display: flex; gap: 0; margin-bottom: 0; }
-    .mfa-tab { flex: 1; padding: 12px; text-align: center; cursor: pointer; border: 1px solid #ddd; background: #f5f5f5; color: #666; font-weight: bold; font-size: 13px; }
-    .mfa-tab:first-child { border-radius: 8px 0 0 0; }
-    .mfa-tab:last-child { border-radius: 0 8px 0 0; }
-    .mfa-tab.active { background: #fff; border-bottom: none; color: #417690; }
-    .mfa-tab-content { display: none; }
-    .mfa-tab-content.active { display: block; }
-    .mfa-steps { counter-reset: step; list-style: none; padding: 0; }
-    .mfa-steps li { counter-increment: step; padding: 8px 0 8px 36px; position: relative; font-size: 14px; color: #444; }
-    .mfa-steps li::before { content: counter(step); position: absolute; left: 0; width: 24px; height: 24px; background: #417690; color: white; border-radius: 50%; text-align: center; line-height: 24px; font-size: 12px; font-weight: bold; }
-</style>
+{% block extrahead %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'css/admin_theme.css' %}">
+{% endblock %}
 
+{% block content %}
 <div class="mfa-container">
     <h2 class="mfa-title">Set up Multi-Factor Authentication</h2>
     <p class="mfa-subtitle">Secure your admin account. Choose your preferred method below.</p>
@@ -45,7 +25,7 @@
 
     <!-- TOTP Tab -->
     <div id="tab-totp" class="mfa-tab-content active">
-        <div class="mfa-card" style="border-top: none; border-radius: 0 0 8px 8px;">
+        <div class="mfa-card mfa-card-bottom">
             <ol class="mfa-steps">
                 <li>Install Google Authenticator, Authy, or any TOTP app</li>
                 <li>Scan the QR code below or enter the secret key manually</li>
@@ -58,16 +38,16 @@
 
             <div class="mfa-secret">{{ secret }}</div>
 
-            <form method="post" style="margin-top: 20px;">
+            <form method="post" class="mt-20">
                 {% csrf_token %}
-                <div style="margin-bottom: 16px;">
-                    <label for="code" style="display: block; font-weight: bold; margin-bottom: 4px; font-size: 13px;">Verification Code</label>
+                <div class="mb-16">
+                    <label for="code" class="mfa-label">Verification Code</label>
                     <input type="text" name="code" id="code" class="mfa-input"
                            maxlength="8" autocomplete="one-time-code" autofocus
                            placeholder="000000">
                 </div>
-                <div style="display: flex; gap: 12px;">
-                    <button type="submit" class="mfa-btn">Verify & Activate</button>
+                <div class="ps-actions">
+                    <button type="submit" class="mfa-btn">Verify &amp; Activate</button>
                 </div>
             </form>
         </div>
@@ -75,20 +55,20 @@
 
     <!-- WebAuthn Tab -->
     <div id="tab-webauthn" class="mfa-tab-content">
-        <div class="mfa-card" style="border-top: none; border-radius: 0 0 8px 8px;">
+        <div class="mfa-card mfa-card-bottom">
             <ol class="mfa-steps">
                 <li>Click "Register Passkey" below</li>
                 <li>Follow your browser/device prompt (Windows Hello, Face ID, fingerprint, or security key)</li>
                 <li>Give your device a name to identify it later</li>
             </ol>
 
-            <div style="margin: 20px 0;">
-                <label for="device_name" style="display: block; font-weight: bold; margin-bottom: 4px; font-size: 13px;">Device Name</label>
-                <input type="text" id="device_name" class="mfa-input" style="letter-spacing: normal; font-size: 14px;"
+            <div class="mt-20">
+                <label for="device_name" class="mfa-label">Device Name</label>
+                <input type="text" id="device_name" class="mfa-input device-input"
                        placeholder="e.g. MacBook Pro, Office PC" value="">
             </div>
 
-            <div id="webauthn-status" style="display:none; padding: 10px 16px; border-radius: 6px; margin-bottom: 16px;"></div>
+            <div id="webauthn-status" class="mfa-status"></div>
 
             <button type="button" class="mfa-btn" onclick="registerPasskey()">Register Passkey</button>
         </div>
@@ -124,8 +104,7 @@ function showStatus(msg, isError) {
     var el = document.getElementById('webauthn-status');
     el.style.display = 'block';
     el.textContent = msg;
-    el.style.background = isError ? '#fecaca' : '#bbf7d0';
-    el.style.color = isError ? '#991b1b' : '#166534';
+    el.className = 'mfa-status ' + (isError ? 'mfa-status-error' : 'mfa-status-ok');
 }
 
 function getCookie(name) {
@@ -136,7 +115,6 @@ function getCookie(name) {
 async function registerPasskey() {
     var deviceName = document.getElementById('device_name').value.trim() || 'Admin Device';
     try {
-        // 1. Get registration options from server
         var beginResp = await fetch('{% url "admin_mfa:webauthn_register_begin" %}', {
             method: 'POST',
             headers: {'X-CSRFToken': getCookie('csrftoken'), 'Content-Type': 'application/json'},
@@ -153,10 +131,8 @@ async function registerPasskey() {
             });
         }
 
-        // 2. Create credential via browser API
         var credential = await navigator.credentials.create({publicKey: publicKey});
 
-        // 3. Send credential to server
         var credentialData = {
             id: credential.id,
             rawId: bufferToB64url(credential.rawId),

@@ -158,7 +158,7 @@ class InterpreterViewSet(ListModelMixin, RetrieveModelMixin, UpdateModelMixin, G
 
         uid = urlsafe_base64_encode(force_bytes(user.pk))
         token = default_token_generator.make_token(user)
-        site_url = getattr(django_settings, 'SITE_URL', 'https://jhbridges.up.railway.app').rstrip('/')
+        site_url = getattr(django_settings, 'SITE_URL', 'https://portal.jhbridgetranslation.com').rstrip('/')
         reset_url = f"{site_url}/accounts/reset/{uid}/{token}/"
 
         try:
@@ -379,7 +379,7 @@ class InterpreterViewSet(ListModelMixin, RetrieveModelMixin, UpdateModelMixin, G
                     results['failed'] += 1
 
         elif action_name == 'send_password_reset':
-            site_url = getattr(django_settings, 'SITE_URL', 'https://jhbridges.up.railway.app').rstrip('/')
+            site_url = getattr(django_settings, 'SITE_URL', 'https://portal.jhbridgetranslation.com').rstrip('/')
             for interp in interpreters:
                 user = interp.user
                 try:

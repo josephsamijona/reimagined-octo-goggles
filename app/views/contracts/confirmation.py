@@ -378,11 +378,8 @@ class ContractConfirmationView(View):
     def _send_to_pdf_api(self, pdf_data):
         """Envoie les données à l'API PDF en utilisant la bibliothèque requests."""
         try:
-            # URL fixe de l'API sur Railway
-            api_url = 'https://jhbridge-esign-production.up.railway.app/api/generate-contract'
-            
-            # Si vous voulez utiliser les settings, assurez-vous que settings.API_URL_PDF_GENERATOR est correct
-            # api_url = settings.API_URL_PDF_GENERATOR
+            # URL de l'API PDF (from .env via settings)
+            api_url = getattr(settings, 'API_URL_PDF_GENERATOR', 'https://jhbridge-esign-production.up.railway.app/api/generate-contract')
             
             headers = {
                 'Content-Type': 'application/json',

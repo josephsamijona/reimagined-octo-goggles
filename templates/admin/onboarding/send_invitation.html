@@ -1,61 +1,56 @@
 {% extends "admin/base_site.html" %}
-{% load i18n %}
+{% load i18n static %}
 
 {% block title %}Send Onboarding Invitation{% endblock %}
 
+{% block extrahead %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'css/admin_theme.css' %}">
+{% endblock %}
+
 {% block content %}
-<div style="max-width: 600px; margin: 0 auto;">
-    <h2 style="margin-bottom: 20px;">Send Onboarding Invitation</h2>
-    <p style="color: #666; margin-bottom: 30px;">
+<div class="onb-container">
+    <h2 class="onb-title">Send Onboarding Invitation</h2>
+    <p class="onb-subtitle">
         Send an onboarding invitation email to a new interpreter. They will receive a link to create their account, set up their profile, and sign the contractor agreement.
     </p>
 
     {% if messages %}
-    <div style="margin-bottom: 20px;">
+    <div class="mb-20">
         {% for message in messages %}
-        <div class="{% if message.tags %}{{ message.tags }}{% endif %}" style="padding: 10px 16px; border-radius: 6px; margin-bottom: 8px;
-            {% if 'error' in message.tags %}background: #fecaca; color: #991b1b;{% endif %}
-            {% if 'success' in message.tags %}background: #bbf7d0; color: #166534;{% endif %}
-            {% if 'warning' in message.tags %}background: #fef3c7; color: #92400e;{% endif %}
-        ">
+        <div class="{% if message.tags %}{{ message.tags }}{% endif %} {% if 'error' in message.tags %}mfa-error{% elif 'success' in message.tags %}mfa-success{% elif 'warning' in message.tags %}mfa-warning{% endif %}">
             {{ message }}
         </div>
         {% endfor %}
     </div>
     {% endif %}
 
-    <form method="post" style="background: #fff; padding: 30px; border-radius: 8px; border: 1px solid #ddd;">
+    <form method="post" class="onb-form">
         {% csrf_token %}
 
-        <div style="margin-bottom: 16px;">
-            <label for="first_name" style="display: block; font-weight: bold; margin-bottom: 4px;">First Name *</label>
-            <input type="text" name="first_name" id="first_name" value="{{ first_name|default:'' }}" required
-                   style="width: 100%; padding: 8px 12px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;">
+        <div class="onb-field">
+            <label for="first_name">First Name *</label>
+            <input type="text" name="first_name" id="first_name" value="{{ first_name|default:'' }}" required>
         </div>
 
-        <div style="margin-bottom: 16px;">
-            <label for="last_name" style="display: block; font-weight: bold; margin-bottom: 4px;">Last Name *</label>
-            <input type="text" name="last_name" id="last_name" value="{{ last_name|default:'' }}" required
-                   style="width: 100%; padding: 8px 12px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;">
+        <div class="onb-field">
+            <label for="last_name">Last Name *</label>
+            <input type="text" name="last_name" id="last_name" value="{{ last_name|default:'' }}" required>
         </div>
 
-        <div style="margin-bottom: 16px;">
-            <label for="email" style="display: block; font-weight: bold; margin-bottom: 4px;">Email *</label>
-            <input type="email" name="email" id="email" value="{{ email|default:'' }}" required
-                   style="width: 100%; padding: 8px 12px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;">
+        <div class="onb-field">
+            <label for="email">Email *</label>
+            <input type="email" name="email" id="email" value="{{ email|default:'' }}" required>
         </div>
 
-        <div style="margin-bottom: 24px;">
-            <label for="phone" style="display: block; font-weight: bold; margin-bottom: 4px;">Phone</label>
-            <input type="text" name="phone" id="phone" value="{{ phone|default:'' }}"
-                   style="width: 100%; padding: 8px 12px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;">
+        <div class="onb-field">
+            <label for="phone">Phone</label>
+            <input type="text" name="phone" id="phone" value="{{ phone|default:'' }}">
         </div>
 
-        <div style="display: flex; gap: 12px;">
-            <input type="submit" value="Send Invitation" class="default"
-                   style="padding: 10px 24px; background: #417690; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: bold;">
-            <a href="{% url 'admin:app_onboardinginvitation_changelist' %}"
-               style="padding: 10px 24px; background: #eee; color: #333; border: none; border-radius: 4px; text-decoration: none; font-size: 14px; display: inline-block;">
+        <div class="onb-actions">
+            <input type="submit" value="Send Invitation" class="mfa-btn">
+            <a href="{% url 'admin:app_onboardinginvitation_changelist' %}" class="mfa-btn-secondary">
                 Cancel
             </a>
         </div>

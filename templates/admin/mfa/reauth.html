@@ -1,28 +1,16 @@
 {% extends "admin/base_site.html" %}
-{% load i18n %}
+{% load i18n static %}
 
 {% block title %}Confirm Identity{% endblock %}
 {% block breadcrumbs %}{% endblock %}
 
-{% block content %}
-<style>
-    .mfa-container { max-width: 420px; margin: 0 auto; }
-    .mfa-card { background: #fff; padding: 30px; border-radius: 8px; border: 1px solid #ddd; }
-    .mfa-title { margin-bottom: 8px; }
-    .mfa-subtitle { color: #666; margin-bottom: 24px; font-size: 14px; }
-    .mfa-error { background: #fecaca; color: #991b1b; padding: 10px 16px; border-radius: 6px; margin-bottom: 16px; }
-    .mfa-info { background: #dbeafe; color: #1e40af; padding: 10px 16px; border-radius: 6px; margin-bottom: 16px; font-size: 13px; }
-    .mfa-input { width: 100%; padding: 10px 14px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; box-sizing: border-box; }
-    .mfa-btn { width: 100%; padding: 12px; background: #417690; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: bold; }
-    .mfa-btn:hover { background: #205067; }
-    .mfa-btn:disabled { background: #999; cursor: not-allowed; }
-    .mfa-divider { display: flex; align-items: center; gap: 12px; margin: 16px 0; color: #999; font-size: 13px; }
-    .mfa-divider::before, .mfa-divider::after { content: ''; flex: 1; height: 1px; background: #ddd; }
-    .mfa-section { margin-bottom: 16px; padding-bottom: 16px; }
-    .mfa-label { display: block; font-weight: bold; margin-bottom: 6px; font-size: 13px; }
-</style>
+{% block extrahead %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'css/admin_theme.css' %}">
+{% endblock %}
 
-<div class="mfa-container">
+{% block content %}
+<div class="mfa-container mfa-container-sm">
     <h2 class="mfa-title">Confirm Your Identity</h2>
     <p class="mfa-subtitle">This action requires re-authentication for security.</p>
 
@@ -43,17 +31,17 @@
                 <label for="code" class="mfa-label">Authenticator Code</label>
                 <input type="text" name="code" id="code" class="mfa-input"
                        maxlength="8" autocomplete="one-time-code" autofocus
-                       placeholder="000000" style="letter-spacing: 4px; text-align: center;"
+                       placeholder="000000" class="otp-input"
                        {% if locked %}disabled{% endif %}>
             </div>
-            <button type="submit" class="mfa-btn" style="background: #374151;" {% if locked %}disabled{% endif %}>Verify with Code</button>
+            <button type="submit" class="mfa-btn mfa-btn-dark mfa-btn-block" {% if locked %}disabled{% endif %}>Verify with Code</button>
         </form>
         {% endif %}
 
         {% if has_webauthn %}
         {% if has_totp %}<div class="mfa-divider">or</div>{% endif %}
-        <div id="webauthn-status" style="display:none; padding: 10px 16px; border-radius: 6px; margin-bottom: 12px;"></div>
-        <button type="button" class="mfa-btn" style="background: #1a1a2e;" onclick="reauthWithPasskey()" {% if locked %}disabled{% endif %}>
+        <div id="webauthn-status" class="mfa-status"></div>
+        <button type="button" class="mfa-btn-passkey" onclick="reauthWithPasskey()" {% if locked %}disabled{% endif %}>
             Use Passkey
         </button>
         {% endif %}
@@ -71,10 +59,10 @@
                 <label for="email_code" class="mfa-label">Email Verification Code</label>
                 <input type="text" name="email_code" id="email_code" class="mfa-input"
                        maxlength="6" autocomplete="one-time-code"
-                       placeholder="000000" style="letter-spacing: 4px; text-align: center;"
+                       placeholder="000000" class="otp-input"
                        {% if locked %}disabled{% endif %}>
             </div>
-            <button type="submit" class="mfa-btn" style="background: #065f46;" {% if locked %}disabled{% endif %}>Verify Email Code</button>
+            <button type="submit" class="mfa-btn mfa-btn-teal mfa-btn-block" {% if locked %}disabled{% endif %}>Verify Email Code</button>
         </form>
         {% else %}
         <form method="post">
@@ -82,13 +70,13 @@
             <input type="hidden" name="next" value="{{ next }}">
             <input type="hidden" name="method" value="email_otp">
             <input type="hidden" name="email_action" value="send">
-            <button type="submit" class="mfa-btn" style="background: #065f46;" {% if locked %}disabled{% endif %}>Send Code to Email</button>
+            <button type="submit" class="mfa-btn mfa-btn-teal mfa-btn-block" {% if locked %}disabled{% endif %}>Send Code to Email</button>
         </form>
         {% endif %}
     </div>
 
-    <div style="margin-top: 12px; text-align: center;">
-        <a href="{% url 'admin:index' %}" style="color: #666; font-size: 13px;">Cancel</a>
+    <div class="mt-12 text-center">
+        <a href="{% url 'admin:index' %}" class="text-quiet-sm">Cancel</a>
     </div>
 </div>
 
@@ -114,8 +102,7 @@ function showStatus(msg, isError) {
     var el = document.getElementById('webauthn-status');
     el.style.display = 'block';
     el.textContent = msg;
-    el.style.background = isError ? '#fecaca' : '#bbf7d0';
-    el.style.color = isError ? '#991b1b' : '#166534';
+    el.className = 'mfa-status ' + (isError ? 'mfa-status-error' : 'mfa-status-ok');
 }
 
 function getCookie(name) {
@@ -162,7 +149,6 @@ async function reauthWithPasskey() {
         var completeData = await completeResp.json();
 
         if (completeData.ok) {
-            // WebAuthn also sets admin_reauth_verified via the complete endpoint
             window.location.href = '{{ next }}';
         } else {
             showStatus(completeData.error || 'Verification failed.', true);

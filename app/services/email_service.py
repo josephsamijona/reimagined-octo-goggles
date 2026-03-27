@@ -23,7 +23,7 @@ class ContractEmailService:
             interpreter = invitation.interpreter
             user = interpreter.user
             
-            base_url = getattr(settings, 'SITE_URL', 'https://jhbridges.up.railway.app').rstrip('/')
+            base_url = getattr(settings, 'SITE_URL', 'https://portal.jhbridgetranslation.com').rstrip('/')
 
             accept_path = reverse('dbdint:contract_direct_accept', kwargs={'accept_token': invitation.accept_token})
             review_path = reverse('dbdint:contract_review_link', kwargs={'review_token': invitation.review_token})
@@ -153,7 +153,7 @@ class OnboardingEmailService:
     def send_invitation_email(cls, onboarding_invitation, request=None, template_type=None):
         """Send the onboarding invitation email with tracking pixel."""
         try:
-            base_url = getattr(settings, 'SITE_URL', 'https://jhbridges.up.railway.app').rstrip('/')
+            base_url = getattr(settings, 'SITE_URL', 'https://portal.jhbridgetranslation.com').rstrip('/')
 
             onboarding_path = reverse('dbdint:onboarding_entry', kwargs={'token': onboarding_invitation.token})
             tracking_path = reverse('dbdint:onboarding_tracking_pixel', kwargs={'token': onboarding_invitation.token})
@@ -258,7 +258,7 @@ class ContractReminderService:
         try:
             user = interpreter.user
             
-            base_url = getattr(settings, 'SITE_URL', 'https://jhbridges.up.railway.app').rstrip('/')
+            base_url = getattr(settings, 'SITE_URL', 'https://portal.jhbridgetranslation.com').rstrip('/')
             if invitation:
                 review_path = reverse('dbdint:contract_review_link', kwargs={'review_token': invitation.review_token})
                 accept_path = reverse('dbdint:contract_direct_accept', kwargs={'accept_token': invitation.accept_token})

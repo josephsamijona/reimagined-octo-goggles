@@ -1,32 +1,16 @@
 {% extends "admin/base_site.html" %}
-{% load i18n %}
+{% load i18n static %}
 
 {% block title %}MFA Settings{% endblock %}
 
-{% block content %}
-<style>
-    .mfa-container { max-width: 640px; margin: 0 auto; }
-    .mfa-card { background: #fff; padding: 24px; border-radius: 8px; border: 1px solid #ddd; margin-bottom: 20px; }
-    .mfa-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-    .mfa-card-title { font-size: 16px; font-weight: bold; margin: 0; }
-    .mfa-badge { padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: bold; }
-    .mfa-badge-active { background: #bbf7d0; color: #166534; }
-    .mfa-badge-inactive { background: #fecaca; color: #991b1b; }
-    .mfa-table { width: 100%; border-collapse: collapse; }
-    .mfa-table th, .mfa-table td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #eee; font-size: 14px; }
-    .mfa-table th { background: #f8f8f8; font-weight: bold; color: #555; font-size: 12px; text-transform: uppercase; }
-    .mfa-btn { padding: 8px 16px; background: #417690; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: bold; text-decoration: none; display: inline-block; }
-    .mfa-btn:hover { background: #205067; }
-    .mfa-btn-danger { background: #dc2626; }
-    .mfa-btn-danger:hover { background: #b91c1c; }
-    .mfa-btn-secondary { padding: 8px 16px; background: #eee; color: #333; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; text-decoration: none; display: inline-block; }
-    .mfa-btn-sm { padding: 5px 10px; font-size: 12px; }
-    .mfa-empty { color: #999; font-size: 14px; padding: 20px; text-align: center; }
-    .mfa-info { background: #dbeafe; color: #1e40af; padding: 10px 16px; border-radius: 6px; font-size: 13px; margin-bottom: 20px; }
-</style>
+{% block extrahead %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'css/admin_theme.css' %}">
+{% endblock %}
 
-<div class="mfa-container">
-    <h2 style="margin-bottom: 20px;">MFA Settings</h2>
+{% block content %}
+<div class="mfa-container mfa-container-lg">
+    <h2 class="mb-20 mfa-title">MFA Settings</h2>
 
     <!-- TOTP Status -->
     <div class="mfa-card">
@@ -67,10 +51,10 @@
                     <td>{{ pk.created_at|date:"M d, Y" }}</td>
                     <td>{{ pk.last_used|date:"M d, Y"|default:"Never" }}</td>
                     <td>
-                        <form method="post" action="{% url 'admin_mfa:delete_passkey' pk.pk %}" style="display:inline;"
+                        <form method="post" action="{% url 'admin_mfa:delete_passkey' pk.pk %}" class="inline-form"
                               onsubmit="return confirm('Delete this passkey?');">
                             {% csrf_token %}
-                            <button type="submit" class="mfa-btn-sm mfa-btn-danger" style="border:none; color:white; cursor:pointer; border-radius:4px;">Delete</button>
+                            <button type="submit" class="mfa-btn mfa-btn-sm mfa-btn-danger">Delete</button>
                         </form>
                     </td>
                 </tr>
@@ -86,20 +70,20 @@
     <div class="mfa-card">
         <div class="mfa-card-header">
             <h3 class="mfa-card-title">Backup Codes</h3>
-            <span style="color: #666; font-size: 13px;">{{ backup_count }} remaining</span>
+            <span class="text-quiet-sm">{{ backup_count }} remaining</span>
         </div>
-        <form method="post" action="{% url 'admin_mfa:regen_backup_codes' %}" style="display:inline;">
+        <form method="post" action="{% url 'admin_mfa:regen_backup_codes' %}" class="inline-form">
             {% csrf_token %}
             <button type="submit" class="mfa-btn-secondary">Regenerate Codes</button>
         </form>
     </div>
 
     <!-- Danger Zone -->
-    <div class="mfa-card" style="border-color: #fca5a5;">
+    <div class="mfa-card mfa-card-danger">
         <div class="mfa-card-header">
-            <h3 class="mfa-card-title" style="color: #dc2626;">Reset MFA</h3>
+            <h3 class="mfa-card-title">Reset MFA</h3>
         </div>
-        <p style="font-size: 13px; color: #666; margin-bottom: 12px;">
+        <p class="text-quiet-p">
             This will remove your authenticator app and all passkeys.
             You will be required to set up MFA again on your next login.
         </p>
@@ -110,13 +94,12 @@
         </form>
     </div>
 
-    <div style="margin-top: 12px;">
+    <div class="mt-12">
         <a href="{% url 'admin:index' %}" class="mfa-btn-secondary">Back to Admin</a>
     </div>
 </div>
 
 {% if request.GET.urlencode and 'add-passkey' in request.get_full_path %}
-<!-- Auto-trigger passkey registration after reauth -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     registerNewPasskey();

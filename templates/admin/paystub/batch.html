@@ -1,5 +1,5 @@
 {% extends "admin/base_site.html" %}
-{% load i18n %}
+{% load i18n static %}
 
 {% block title %}Batch Paystub Generator{% endblock %}
 {% block breadcrumbs %}
@@ -11,43 +11,7 @@
 {% endblock %}
 
 {% block extrahead %}{{ block.super }}
-<style>
-:root { --navy:#1a3c5e; --gold:#c9a227; --green:#16a34a; --red:#dc2626; --light:#f8fafc; --border:#e2e8f0; }
-.bp-wrap { max-width:1000px; margin:0 auto; }
-.bp-card { background:#fff; border:1px solid var(--border); border-radius:10px; padding:24px; margin-bottom:18px; }
-.bp-card h3 { margin:0 0 14px; color:var(--navy); font-size:15px; }
-.bp-row { display:flex; gap:14px; margin-bottom:12px; flex-wrap:wrap; }
-.bp-row > * { flex:1; min-width:180px; }
-.bp-label { display:block; font-weight:600; font-size:12px; color:#475569; margin-bottom:4px; }
-.bp-date { width:100%; padding:9px 12px; border:1px solid var(--border); border-radius:6px; font-size:13px; box-sizing:border-box; }
-.bp-date:focus { border-color:var(--navy); outline:none; }
-.bp-btn { padding:10px 20px; border:none; border-radius:6px; font-size:13px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:6px; }
-.bp-btn:disabled { opacity:.5; cursor:not-allowed; }
-.bp-btn-navy { background:var(--navy); color:#fff; } .bp-btn-navy:hover:not(:disabled) { background:#132d47; }
-.bp-btn-green { background:var(--green); color:#fff; } .bp-btn-green:hover:not(:disabled) { background:#15803d; }
-.bp-btn-sm { padding:6px 12px; font-size:12px; }
-.bp-btn-outline { background:transparent; border:1px solid var(--border); color:#475569; } .bp-btn-outline:hover { background:var(--light); }
-.bp-table { width:100%; border-collapse:collapse; font-size:13px; }
-.bp-table thead th { background:var(--navy); color:#fff; padding:9px 10px; text-align:left; font-size:12px; }
-.bp-table thead th:first-child { border-radius:6px 0 0 0; } .bp-table thead th:last-child { border-radius:0 6px 0 0; }
-.bp-table tbody td { padding:9px 10px; border-bottom:1px solid var(--border); }
-.bp-table tbody tr:nth-child(even) { background:var(--light); }
-.bp-table tbody tr:hover { background:#f1f5f9; }
-.bp-check { width:16px; height:16px; cursor:pointer; }
-.bp-badge { display:inline-block; background:var(--navy); color:#fff; font-size:11px; padding:2px 10px; border-radius:12px; margin-left:8px; }
-.bp-summary { background:linear-gradient(135deg,var(--navy),#2d5a8e); color:#fff; border-radius:10px; padding:22px; }
-.bp-summary h3 { color:#fff; margin:0 0 14px; }
-.bp-sum-line { display:flex; justify-content:space-between; padding:5px 0; font-size:14px; }
-.bp-sum-line.total { border-top:2px solid rgba(255,255,255,.3); margin-top:8px; padding-top:10px; font-size:18px; font-weight:700; }
-.bp-search { width:100%; padding:9px 12px; border:1px solid var(--border); border-radius:6px; font-size:13px; box-sizing:border-box; margin-bottom:10px; }
-.bp-search:focus { border-color:var(--navy); outline:none; }
-.bp-toast { position:fixed; top:20px; right:20px; padding:14px 24px; border-radius:8px; color:#fff; font-size:14px; font-weight:600; z-index:9999; opacity:0; transition:opacity .3s; box-shadow:0 4px 12px rgba(0,0,0,.15); }
-.bp-toast.show { opacity:1; } .bp-toast.success { background:var(--green); } .bp-toast.error { background:var(--red); }
-.bp-progress { display:none; margin-top:12px; }
-.bp-progress-bar { height:8px; background:#e2e8f0; border-radius:4px; overflow:hidden; }
-.bp-progress-fill { height:100%; background:var(--green); border-radius:4px; transition:width .3s; width:0%; }
-.bp-progress-text { font-size:12px; color:#94a3b8; margin-top:4px; }
-</style>
+<link rel="stylesheet" href="{% static 'css/admin_theme.css' %}">
 {% endblock %}
 
 {% block content %}
@@ -63,15 +27,15 @@
     <div class="bp-card">
         <h3>Select Interpreters <span class="bp-badge" id="sel-count">0 selected</span></h3>
         <input type="text" id="search-box" class="bp-search" placeholder="Search interpreters by name or email..." oninput="filterList()">
-        <div style="margin-bottom:10px;">
+        <div class="mb-10">
             <button type="button" class="bp-btn bp-btn-sm bp-btn-outline" onclick="toggleAll(true)">Select All</button>
             <button type="button" class="bp-btn bp-btn-sm bp-btn-outline" onclick="toggleAll(false)">Deselect All</button>
         </div>
-        <div style="max-height:400px; overflow-y:auto;">
+        <div class="scroll-y-400">
             <table class="bp-table" id="interp-table">
                 <thead>
                     <tr>
-                        <th style="width:40px;"><input type="checkbox" class="bp-check" id="check-all" onchange="toggleAll(this.checked)"></th>
+                        <th class="th-w40"><input type="checkbox" class="bp-check" id="check-all" onchange="toggleAll(this.checked)"></th>
                         <th>Name</th>
                         <th>Email</th>
                     </tr>
@@ -89,8 +53,8 @@
         </div>
     </div>
 
-    <div class="bp-row" style="align-items:flex-start;">
-        <div style="flex:1;">
+    <div class="bp-row align-start">
+        <div class="flex-1">
             <div class="bp-summary">
                 <h3>Batch Summary</h3>
                 <div class="bp-sum-line"><span>Interpreters selected</span><span id="sum-count">0</span></div>
@@ -102,10 +66,10 @@
                 <div class="bp-progress-text" id="progress-text">Generating...</div>
             </div>
         </div>
-        <div style="flex:0 0 auto; display:flex; flex-direction:column; gap:10px;">
+        <div class="flex-auto flex-col">
             <button type="button" class="bp-btn bp-btn-navy" onclick="generateBatch('download')" id="btn-gen">Download ZIP</button>
             <button type="button" class="bp-btn bp-btn-green" onclick="generateBatch('email')" id="btn-email">Email Each Interpreter</button>
-            <a href="{% url 'admin:app_payrolldocument_changelist' %}" class="bp-btn bp-btn-outline" style="text-decoration:none; text-align:center;">Back to Payroll</a>
+            <a href="{% url 'admin:app_payrolldocument_changelist' %}" class="bp-btn bp-btn-outline text-no-dec text-center">Back to Payroll</a>
         </div>
     </div>
 </div>

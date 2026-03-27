@@ -411,7 +411,12 @@ class Invoice(models.Model):
         DISPUTED = 'DISPUTED'
 
     invoice_number = models.CharField(max_length=50, unique=True)  # INV-2026-0001
-    client = models.ForeignKey('Client', on_delete=models.PROTECT)
+    client = models.ForeignKey('Client', on_delete=models.PROTECT, null=True, blank=True)
+    # Manual client info (when client is not registered)
+    client_name = models.CharField(max_length=255, blank=True)
+    client_email = models.EmailField(blank=True)
+    client_address = models.TextField(blank=True)
+    client_phone = models.CharField(max_length=50, blank=True)
     assignments = models.ManyToManyField('Assignment', blank=True)  # Missions facturées
     
     subtotal = models.DecimalField(max_digits=10, decimal_places=2)

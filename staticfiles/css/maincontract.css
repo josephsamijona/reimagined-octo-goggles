@@ -1,0 +1,374 @@
+/* 
+ * main.css - Styles principaux pour le contrat d'interprète JH Bridge
+ * Ce fichier gère l'affichage pour tous types d'appareils
+ */
+
+/* --- RESET ET BASE --- */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 16px;
+    line-height: 1.5;
+    color: #333333;
+    background-color: #f9f9f9;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* --- CONTENEUR PRINCIPAL --- */
+.contract-container {
+    width: 100%;
+    max-width: 210mm; /* Largeur A4 */
+    margin: 0 auto;
+    background: white;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+    position: relative;
+    overflow: hidden;
+}
+
+/* --- EN-TÊTE AVEC VAGUES --- */
+.header {
+    position: relative;
+    height: 150px;
+    background: linear-gradient(90deg, #0B3C5D, #0099CC);
+    color: white;
+    overflow: hidden;
+}
+
+.logo-container {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    display: flex;
+    align-items: center;
+    z-index: 2;
+}
+
+.logo {
+    height: 60px;
+    width: auto;
+}
+
+.logo-text {
+    margin-left: 10px;
+}
+
+.logo-text h2 {
+    font-size: 1.5rem;
+    margin: 0;
+}
+
+.logo-text p {
+    font-size: 0.8rem;
+    margin: 0;
+}
+
+.header-info {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    text-align: right;
+    z-index: 2;
+}
+
+.header-wave {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 40px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 100' preserveAspectRatio='none'%3E%3Cpath fill='white' d='M0,32L60,37.3C120,43,240,53,360,58.7C480,64,600,64,720,58.7C840,53,960,43,1080,42.7C1200,43,1320,53,1380,58.7L1440,64L1440,100L1380,100C1320,100,1200,100,1080,100C960,100,840,100,720,100C600,100,480,100,360,100C240,100,120,100,60,100L0,100Z'%3E%3C/path%3E%3C/svg%3E");
+    background-size: cover;
+    z-index: 1;
+}
+
+/* --- CONTENU PRINCIPAL --- */
+.contract-content {
+    padding: 2rem;
+}
+
+.contract-title {
+    text-align: center;
+    font-size: 1.75rem;
+    margin: 1.5rem 0;
+    color: #0B3C5D;
+}
+
+/* Intro et parties contractantes */
+.contract-intro {
+    margin-bottom: 1.5rem;
+}
+
+/* Boîtes d'information colorées */
+.info-box {
+    background-color: #0099CC;
+    color: white;
+    padding: 1rem;
+    margin: 1rem 0;
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.info-box strong {
+    font-weight: bold;
+}
+
+.and-separator {
+    text-align: center;
+    margin: 1rem 0;
+    font-weight: bold;
+}
+
+/* Sections du contrat */
+.section {
+    margin-bottom: 1.5rem;
+}
+
+.section-title {
+    font-size: 1.1rem;
+    font-weight: bold;
+    color: #0B3C5D;
+    margin-bottom: 0.5rem;
+}
+
+.section-content {
+    margin-bottom: 1rem;
+}
+
+/* Liste des langues et tarifs */
+.language-rates {
+    list-style-type: none;
+    margin: 1rem 0;
+}
+
+.language-rates li {
+    margin-bottom: 0.5rem;
+    padding-left: 1.5rem;
+    position: relative;
+}
+
+.language-rates li:before {
+    content: "•";
+    position: absolute;
+    left: 0.5rem;
+    color: #0099CC;
+}
+
+/* --- ZONE DE SIGNATURE --- */
+.signature-area {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    margin-top: 2rem;
+    padding-top: 1rem;
+    border-top: 1px solid #eaeaea;
+}
+
+.signature-box {
+    width: 48%;
+    margin-bottom: 1.5rem;
+}
+
+@media (max-width: 768px) {
+    .signature-box {
+        width: 100%;
+    }
+}
+
+.signature-title {
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+}
+
+.signature-name {
+    margin-bottom: 0.5rem;
+}
+
+.signature-placeholder {
+    height: 70px;
+    margin: 0.5rem 0;
+    border: 1px dashed #ccc;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-style: italic;
+    color: #999;
+}
+
+/* Types de signatures */
+.company-signature {
+    font-family: 'Helvetica', sans-serif;
+    font-size: 1.5rem;
+    color: #0B3C5D;
+    margin: 1rem 0;
+    min-height: 50px;
+}
+
+.typography-signature {
+    font-size: 1.5rem;
+    min-height: 60px;
+}
+
+.drawn-signature svg,
+.drawn-signature img {
+    max-width: 100%;
+    max-height: 70px;
+}
+
+.uploaded-signature img {
+    max-width: 100%;
+    max-height: 70px;
+}
+
+.signature-date {
+    margin-top: 0.5rem;
+}
+
+/* --- INFORMATIONS BANCAIRES --- */
+.payment-info {
+    background-color: #f5f5f5;
+    padding: 1.5rem;
+    border-radius: 4px;
+    margin-top: 2rem;
+}
+
+.payment-info-title {
+    font-size: 1.1rem;
+    font-weight: bold;
+    color: #0B3C5D;
+    margin-bottom: 1rem;
+}
+
+.payment-info-field {
+    margin-bottom: 0.75rem;
+}
+
+.payment-info-field label {
+    font-weight: bold;
+    display: block;
+    margin-bottom: 0.25rem;
+}
+
+.masked-field {
+    font-family: monospace;
+}
+
+/* --- PIED DE PAGE AVEC VAGUE --- */
+.footer {
+    position: relative;
+    height: 80px;
+    margin-top: 2rem;
+    background: linear-gradient(90deg, #0099CC, #0B3C5D);
+}
+
+.footer-wave {
+    position: absolute;
+    top: -40px;
+    left: 0;
+    width: 100%;
+    height: 40px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 100' preserveAspectRatio='none'%3E%3Cpath fill='%230099CC' d='M0,64L60,58.7C120,53,240,43,360,42.7C480,43,600,53,720,58.7C840,64,960,64,1080,58.7C1200,53,1320,43,1380,37.3L1440,32L1440,100L1380,100C1320,100,1200,100,1080,100C960,100,840,100,720,100C600,100,480,100,360,100C240,100,120,100,60,100L0,100Z'%3E%3C/path%3E%3C/svg%3E");
+    background-size: cover;
+}
+
+.footer-logo {
+    position: absolute;
+    right: 20px;
+    bottom: 20px;
+    height: 40px;
+    width: auto;
+}
+
+/* --- POLICES POUR SIGNATURES --- */
+@font-face {
+    font-family: 'Helvetica';
+    src: url('/static/fonts/helvetica.woff2') format('woff2');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+.font-script {
+    font-family: 'Brush Script MT', cursive;
+}
+
+.font-elegant {
+    font-family: 'Palatino Linotype', 'Book Antiqua', Palatino, serif;
+}
+
+.font-formal {
+    font-family: 'Times New Roman', Times, serif;
+}
+
+/* --- RESPONSIVE MEDIA QUERIES --- */
+@media (max-width: 992px) {
+    .contract-container {
+        max-width: 100%;
+        box-shadow: none;
+    }
+    
+    .contract-content {
+        padding: 1.5rem;
+    }
+}
+
+@media (max-width: 768px) {
+    .header {
+        height: auto;
+        padding-bottom: 40px;
+    }
+    
+    .logo-container,
+    .header-info {
+        position: relative;
+        top: 0;
+        left: 0;
+        right: 0;
+        text-align: center;
+        margin: 0 auto;
+        padding: 1rem;
+    }
+    
+    .logo-container {
+        flex-direction: column;
+    }
+    
+    .logo {
+        margin-bottom: 0.5rem;
+    }
+    
+    .logo-text {
+        margin-left: 0;
+    }
+    
+    .contract-content {
+        padding: 1rem;
+    }
+    
+    .signature-area {
+        flex-direction: column;
+    }
+    
+    .signature-box {
+        width: 100%;
+    }
+}
+
+@media (max-width: 480px) {
+    .contract-title {
+        font-size: 1.5rem;
+    }
+    
+    .section-title {
+        font-size: 1rem;
+    }
+    
+    .payment-info {
+        padding: 1rem;
+    }
+}

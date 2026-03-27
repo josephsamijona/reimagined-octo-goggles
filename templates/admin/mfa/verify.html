@@ -1,27 +1,16 @@
 {% extends "admin/base_site.html" %}
-{% load i18n %}
+{% load i18n static %}
 
 {% block title %}MFA Verification{% endblock %}
 {% block breadcrumbs %}{% endblock %}
 
-{% block content %}
-<style>
-    .mfa-container { max-width: 420px; margin: 0 auto; }
-    .mfa-card { background: #fff; padding: 30px; border-radius: 8px; border: 1px solid #ddd; }
-    .mfa-title { margin-bottom: 8px; }
-    .mfa-subtitle { color: #666; margin-bottom: 24px; font-size: 14px; }
-    .mfa-error { background: #fecaca; color: #991b1b; padding: 10px 16px; border-radius: 6px; margin-bottom: 16px; }
-    .mfa-input { width: 100%; padding: 12px 14px; border: 1px solid #ccc; border-radius: 4px; font-size: 20px; letter-spacing: 8px; text-align: center; box-sizing: border-box; }
-    .mfa-btn { width: 100%; padding: 12px; background: #417690; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: bold; }
-    .mfa-btn:hover { background: #205067; }
-    .mfa-btn-passkey { width: 100%; padding: 12px; background: #1a1a2e; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: bold; }
-    .mfa-btn-passkey:hover { background: #16213e; }
-    .mfa-divider { display: flex; align-items: center; gap: 12px; margin: 20px 0; color: #999; font-size: 13px; }
-    .mfa-divider::before, .mfa-divider::after { content: ''; flex: 1; height: 1px; background: #ddd; }
-    .mfa-status { padding: 10px 16px; border-radius: 6px; margin-bottom: 16px; display: none; }
-</style>
+{% block extrahead %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'css/admin_theme.css' %}">
+{% endblock %}
 
-<div class="mfa-container">
+{% block content %}
+<div class="mfa-container mfa-container-sm">
     <h2 class="mfa-title">Verify Your Identity</h2>
     <p class="mfa-subtitle">Enter the code from your authenticator app{% if has_webauthn %} or use your passkey{% endif %}.</p>
 
@@ -32,13 +21,14 @@
     <div class="mfa-card">
         <form method="post">
             {% csrf_token %}
-            <div style="margin-bottom: 16px;">
-                <label for="code" style="display: block; font-weight: bold; margin-bottom: 6px; font-size: 13px;">6-digit Code or Backup Code</label>
+            <div class="mb-16">
+                <label for="code" class="mfa-label">6-digit Code or Backup Code</label>
                 <input type="text" name="code" id="code" class="mfa-input"
                        maxlength="8" autocomplete="one-time-code" autofocus
+                       class="otp-input"
                        placeholder="000000">
             </div>
-            <button type="submit" class="mfa-btn">Verify</button>
+            <button type="submit" class="mfa-btn mfa-btn-block">Verify</button>
         </form>
 
         {% if has_webauthn %}
@@ -73,8 +63,7 @@ function showStatus(msg, isError) {
     var el = document.getElementById('webauthn-status');
     el.style.display = 'block';
     el.textContent = msg;
-    el.style.background = isError ? '#fecaca' : '#bbf7d0';
-    el.style.color = isError ? '#991b1b' : '#166534';
+    el.className = 'mfa-status ' + (isError ? 'mfa-status-error' : 'mfa-status-ok');
 }
 
 function getCookie(name) {

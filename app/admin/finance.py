@@ -227,15 +227,21 @@ class DeductionAdmin(admin.ModelAdmin):
 
 @admin.register(models.Invoice)
 class InvoiceAdmin(admin.ModelAdmin):
-    list_display = ('invoice_number', 'client', 'total', 'status', 'issued_date', 'due_date')
+    list_display = ('invoice_number', 'display_client', 'total', 'status', 'issued_date', 'due_date')
     list_filter = ('status', 'issued_date', 'due_date')
-    search_fields = ('invoice_number', 'client__company_name')
+    search_fields = ('invoice_number', 'client__company_name', 'client_name')
     raw_id_fields = ('client', 'created_by')
     readonly_fields = ('created_at', 'updated_at')
     filter_horizontal = ('assignments',)
     fieldsets = (
         ('Invoice', {
-            'fields': ('invoice_number', 'client', 'status')
+            'fields': ('invoice_number', 'status')
+        }),
+        ('Client (registered)', {
+            'fields': ('client',),
+        }),
+        ('Client (manual)', {
+            'fields': ('client_name', 'client_email', 'client_address', 'client_phone'),
         }),
         ('Amounts', {
             'fields': (('subtotal', 'tax_amount', 'total'),)
@@ -259,6 +265,12 @@ class InvoiceAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
+
+    def display_client(self, obj):
+        if obj.client:
+            return obj.client.company_name
+        return obj.client_name or '—'
+    display_client.short_description = 'Client'
 
 
 @admin.register(models.Payment)

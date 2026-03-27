@@ -158,21 +158,28 @@ class InvoiceMakerView(View):
             return JsonResponse({'error': 'Invalid request data.'}, status=400)
 
         client_id = data.get('client_id')
+        manual_client = data.get('manual_client')
         items = data.get('items', [])
         tax_rate = data.get('tax_rate', 0)
         notes = data.get('notes', '')
         action = data.get('action', 'download')
         due_days = data.get('due_days', 30)
 
-        if not client_id:
-            return JsonResponse({'error': 'Please select a client.'}, status=400)
+        if not client_id and not manual_client:
+            return JsonResponse({'error': 'Please select or enter a client.'}, status=400)
         if not items:
             return JsonResponse({'error': 'Add at least one line item.'}, status=400)
 
-        try:
-            client = Client.objects.select_related('user').get(pk=client_id)
-        except Client.DoesNotExist:
-            return JsonResponse({'error': 'Client not found.'}, status=400)
+        # Resolve client info
+        client = None
+        if client_id:
+            try:
+                client = Client.objects.select_related('user').get(pk=client_id)
+            except Client.DoesNotExist:
+                return JsonResponse({'error': 'Client not found.'}, status=400)
+        elif manual_client:
+            if not manual_client.get('name', '').strip():
+                return JsonResponse({'error': 'Client name is required.'}, status=400)
 
         # Calculate totals
         subtotal = Decimal('0')
@@ -205,10 +212,32 @@ class InvoiceMakerView(View):
         today = date.today()
         due = today + timedelta(days=int(due_days))
 
+        # Determine client display info
+        if client:
+            display_name = client.company_name
+            billing_addr = ''
+            if client.billing_address:
+                billing_addr = f"{client.billing_address}, {client.billing_city or ''}, {client.billing_state or ''} {client.billing_zip_code or ''}"
+            elif client.address:
+                billing_addr = f"{client.address}, {client.city}, {client.state} {client.zip_code}"
+            display_email = client.email or client.user.email
+            display_phone = client.phone or ''
+            display_tax_id = client.tax_id or ''
+        else:
+            display_name = manual_client['name']
+            billing_addr = manual_client.get('address', '')
+            display_email = manual_client.get('email', '')
+            display_phone = manual_client.get('phone', '')
+            display_tax_id = ''
+
         # Create Invoice record
         invoice = Invoice.objects.create(
             invoice_number=inv_number,
             client=client,
+            client_name=display_name,
+            client_email=display_email,
+            client_address=billing_addr,
+            client_phone=display_phone,
             subtotal=subtotal,
             tax_amount=tax_amount,
             total=total,
@@ -222,22 +251,16 @@ class InvoiceMakerView(View):
             invoice.assignments.set(assignment_ids)
 
         # Build PDF data
-        billing_addr = ''
-        if client.billing_address:
-            billing_addr = f"{client.billing_address}, {client.billing_city or ''}, {client.billing_state or ''} {client.billing_zip_code or ''}"
-        elif client.address:
-            billing_addr = f"{client.address}, {client.city}, {client.state} {client.zip_code}"
-
         pdf_data = {
             'invoice_number': inv_number,
             'issued_date': str(today),
             'due_date': str(due),
             'status': 'DRAFT',
-            'client_name': client.company_name,
+            'client_name': display_name,
             'client_address': billing_addr,
-            'client_email': client.email or client.user.email,
-            'client_phone': client.phone or '',
-            'client_tax_id': client.tax_id or '',
+            'client_email': display_email,
+            'client_phone': display_phone,
+            'client_tax_id': display_tax_id,
             'items': processed_items,
             'subtotal': float(subtotal),
             'tax_amount': float(tax_amount),
@@ -249,26 +272,27 @@ class InvoiceMakerView(View):
         pdf_bytes = pdf_buffer.read()
 
         if action == 'email':
+            if not display_email:
+                return JsonResponse({'error': 'No email address for this client.'}, status=400)
             from django.core.mail import EmailMessage
-            email_addr = client.email or client.user.email
             email = EmailMessage(
                 subject=f'Invoice {inv_number} — JHBridge Translation Services',
                 body=(
-                    f'Dear {client.company_name},\n\n'
+                    f'Dear {display_name},\n\n'
                     f'Please find attached invoice {inv_number} for ${total:.2f}.\n'
                     f'Payment is due by {due}.\n\n'
                     f'Thank you for your business.\n\n'
                     f'— JHBridge Translation Services'
                 ),
                 from_email='JHBridge Billing <billing@jhbridgetranslation.com>',
-                to=[email_addr],
+                to=[display_email],
             )
             email.attach(f'invoice-{inv_number}.pdf', pdf_bytes, 'application/pdf')
             try:
                 email.send(fail_silently=False)
                 invoice.status = 'SENT'
                 invoice.save(update_fields=['status'])
-                return JsonResponse({'ok': True, 'message': f'Invoice {inv_number} sent to {email_addr}.'})
+                return JsonResponse({'ok': True, 'message': f'Invoice {inv_number} sent to {display_email}.'})
             except Exception as e:
                 logger.exception("Failed to send invoice email")
                 return JsonResponse({'error': f'Email failed: {str(e)}. Invoice was created as draft.'}, status=500)
