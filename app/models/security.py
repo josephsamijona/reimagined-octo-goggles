@@ -4,7 +4,7 @@ import uuid
 from django.utils import timezone
 
 class AuditLog(models.Model):
-    user = models.ForeignKey('User', on_delete=models.PROTECT, null=True)
+    user = models.ForeignKey('User', on_delete=models.SET_NULL, null=True)
     action = models.CharField(max_length=50)
     model_name = models.CharField(max_length=50)
     object_id = models.CharField(max_length=50)
