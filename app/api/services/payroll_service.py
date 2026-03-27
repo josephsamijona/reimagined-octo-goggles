@@ -1,7 +1,11 @@
 """Payroll PDF generation using ReportLab."""
 import io
 import logging
+import os
 from decimal import Decimal
+from pathlib import Path
+
+from django.conf import settings
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
@@ -22,29 +26,35 @@ COMPANY_ADDRESS = "500 Grossman Dr, Braintree, MA 02184, United States"
 COMPANY_PHONE   = "+1 774-223-8771"
 COMPANY_EMAIL   = "contact@jhbridgetranslation.com"
 COMPANY_WEB     = "jhbridgetranslation.com"
-COMPANY_LOGO    = "https://jhbridgetranslation.com/images/logo.png"
 
 # ---------------------------------------------------------------------------
-# Module-level logo cache (fetched once per server process)
+# Logo: load from local static file
 # ---------------------------------------------------------------------------
 _LOGO_BUFFER = None
-_LOGO_LOADED = False   # True = already attempted (success or fail)
+_LOGO_LOADED = False
 
 
 def _get_logo_buffer():
-    """Return a fresh BytesIO of the logo, or None on failure.  Fetches once."""
+    """Return a fresh BytesIO of the logo from local static files, or None."""
     global _LOGO_BUFFER, _LOGO_LOADED
     if _LOGO_LOADED:
         return io.BytesIO(_LOGO_BUFFER) if _LOGO_BUFFER is not None else None
     _LOGO_LOADED = True
-    try:
-        import urllib.request
-        with urllib.request.urlopen(COMPANY_LOGO, timeout=5) as resp:
-            _LOGO_BUFFER = resp.read()
-        return io.BytesIO(_LOGO_BUFFER)
-    except Exception as exc:
-        logger.warning("Could not fetch company logo: %s", exc)
-        return None
+    # Try local static file first, then collected staticfiles
+    candidates = [
+        Path(settings.BASE_DIR) / 'static' / 'images' / 'logo.png',
+        Path(settings.STATIC_ROOT) / 'images' / 'logo.png' if settings.STATIC_ROOT else None,
+    ]
+    for path in candidates:
+        if path and path.is_file():
+            try:
+                _LOGO_BUFFER = path.read_bytes()
+                logger.info("Logo loaded from %s", path)
+                return io.BytesIO(_LOGO_BUFFER)
+            except Exception as exc:
+                logger.warning("Could not read logo file %s: %s", path, exc)
+    logger.warning("Company logo not found in static files")
+    return None
 
 
 NAVY   = colors.HexColor('#1a3c5e')
