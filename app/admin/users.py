@@ -207,9 +207,9 @@ class InterpreterAdmin(admin.ModelAdmin):
                                     'classes': ('collapse',)}),
         ('Compliance', {'fields': (('background_check_date', 'background_check_status'), 'w9_on_file'),
                         'classes': ('collapse',)}),
-        ('Banking Information (ACH)', {'fields': ('bank_name', 'account_holder_name', 'routing_number', 'account_number', 'account_type'),
+        ('Banking Information (ACH)', {'fields': ('bank_name', 'account_holder_name', 'routing_number_display', 'account_number_display', 'account_type'),
                                          'classes': ('collapse',),
-                                         'description': 'Secure banking information for ACH payments.'}),
+                                         'description': 'Banking data is encrypted. Click "Voir" to reveal, "Masquer" to hide.'}),
         ('Contract Invitation', {'fields': ('contract_invite_token', 'contract_invite_expires_at', 'signature_ip'),
                                  'classes': ('collapse',)}),
     )
@@ -254,8 +254,47 @@ class InterpreterAdmin(admin.ModelAdmin):
             language_list.append(f"{lang.language.name} ({lang.get_proficiency_display()}){cert_icon}{primary_icon}")
         return mark_safe("<br>".join(language_list))
     get_languages.short_description = 'Languages'
+    def _make_banking_reveal(self, masked, clear, field_id):
+        return mark_safe(
+            f'<span id="masked-{field_id}">{masked}</span>'
+            f'<span id="clear-{field_id}" style="display:none;">{clear}</span> '
+            f'<a href="#" style="font-size:11px;" onclick="'
+            f"var m=document.getElementById('masked-{field_id}'),"
+            f"c=document.getElementById('clear-{field_id}'),"
+            f"t=this;"
+            f"if(c.style.display==='none'){{c.style.display='inline';m.style.display='none';t.textContent='Masquer';}}"
+            f"else{{c.style.display='none';m.style.display='inline';t.textContent='Voir';}}"
+            f"return false;"
+            f'">Voir</a>'
+        )
+
+    def _decrypt_field(self, raw_value):
+        if not raw_value:
+            return None
+        try:
+            from app.models.documents import InterpreterContractSignature
+            return InterpreterContractSignature.decrypt_data(raw_value.encode() if isinstance(raw_value, str) else raw_value)
+        except Exception:
+            return None
+
+    def routing_number_display(self, obj):
+        clear = self._decrypt_field(obj.routing_number)
+        if not clear:
+            return '—'
+        masked = clear[:2] + '*' * (len(clear) - 4) + clear[-2:]
+        return self._make_banking_reveal(masked, clear, f'interp-rout-{obj.pk}')
+    routing_number_display.short_description = 'Routing Number'
+
+    def account_number_display(self, obj):
+        clear = self._decrypt_field(obj.account_number)
+        if not clear:
+            return '—'
+        masked = '*' * (len(clear) - 4) + clear[-4:]
+        return self._make_banking_reveal(masked, clear, f'interp-acct-{obj.pk}')
+    account_number_display.short_description = 'Account Number'
+
     def get_readonly_fields(self, request, obj=None):
-        readonly = ('profile_photo_preview',)
+        readonly = ('profile_photo_preview', 'routing_number_display', 'account_number_display')
         if obj:
             return readonly + ('user',)
         return readonly
@@ -266,7 +305,7 @@ class InterpreterAdmin(admin.ModelAdmin):
     def get_form(self, request, obj=None, **kwargs):
         form = super().get_form(request, obj, **kwargs)
         if not request.user.is_superuser:
-            for field in ['routing_number', 'account_number', 'hourly_rate']:
+            for field in ['hourly_rate']:
                 if field in form.base_fields:
                     form.base_fields[field].disabled = True
         return form
