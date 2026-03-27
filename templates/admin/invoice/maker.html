@@ -1,0 +1,237 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block title %}Invoice Maker{% endblock %}
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">Home</a> &rsaquo;
+    <a href="{% url 'admin:app_payrolldocument_changelist' %}">Payroll</a> &rsaquo;
+    Invoice Maker
+</div>
+{% endblock %}
+
+{% block extrahead %}{{ block.super }}
+<style>
+:root { --navy:#1a3c5e; --gold:#c9a227; --green:#16a34a; --red:#dc2626; --light:#f8fafc; --border:#e2e8f0; }
+.iv-wrap { max-width:1100px; margin:0 auto; }
+.iv-card { background:#fff; border:1px solid var(--border); border-radius:10px; padding:24px; margin-bottom:18px; }
+.iv-card h3 { margin:0 0 14px; color:var(--navy); font-size:15px; }
+.iv-row { display:flex; gap:14px; margin-bottom:12px; flex-wrap:wrap; }
+.iv-row > * { flex:1; min-width:180px; }
+.iv-label { display:block; font-weight:600; font-size:12px; color:#475569; margin-bottom:4px; }
+.iv-select,.iv-input,.iv-date,.iv-textarea { width:100%; padding:9px 12px; border:1px solid var(--border); border-radius:6px; font-size:13px; box-sizing:border-box; }
+.iv-select:focus,.iv-input:focus,.iv-date:focus,.iv-textarea:focus { border-color:var(--navy); outline:none; }
+.iv-textarea { min-height:60px; resize:vertical; }
+.iv-btn { padding:10px 20px; border:none; border-radius:6px; font-size:13px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:6px; }
+.iv-btn:disabled { opacity:.5; cursor:not-allowed; }
+.iv-btn-navy { background:var(--navy); color:#fff; } .iv-btn-navy:hover:not(:disabled) { background:#132d47; }
+.iv-btn-green { background:var(--green); color:#fff; } .iv-btn-green:hover:not(:disabled) { background:#15803d; }
+.iv-btn-sm { padding:6px 12px; font-size:12px; }
+.iv-btn-outline { background:transparent; border:1px solid var(--border); color:#475569; } .iv-btn-outline:hover { background:var(--light); }
+.iv-table { width:100%; border-collapse:collapse; font-size:13px; }
+.iv-table thead th { background:var(--navy); color:#fff; padding:9px 10px; text-align:left; font-size:12px; }
+.iv-table thead th:first-child { border-radius:6px 0 0 0; } .iv-table thead th:last-child { border-radius:0 6px 0 0; }
+.iv-table tbody td { padding:9px 10px; border-bottom:1px solid var(--border); }
+.iv-table tbody tr:nth-child(even) { background:var(--light); }
+.iv-table .text-right { text-align:right; }
+.iv-check { width:16px; height:16px; cursor:pointer; }
+.iv-dyn-row { display:flex; gap:10px; align-items:center; margin-bottom:8px; }
+.iv-dyn-row .iv-input { flex:2; } .iv-dyn-row .iv-input-sm { flex:0 0 100px; text-align:right; }
+.iv-remove { background:none; border:none; color:var(--red); cursor:pointer; font-size:18px; }
+.iv-summary { background:linear-gradient(135deg,var(--navy),#2d5a8e); color:#fff; border-radius:10px; padding:22px; }
+.iv-summary h3 { color:#fff; margin:0 0 14px; }
+.iv-sum-line { display:flex; justify-content:space-between; padding:5px 0; font-size:14px; }
+.iv-sum-line.total { border-top:2px solid rgba(255,255,255,.3); margin-top:8px; padding-top:10px; font-size:20px; font-weight:700; }
+.iv-toast { position:fixed; top:20px; right:20px; padding:14px 24px; border-radius:8px; color:#fff; font-size:14px; font-weight:600; z-index:9999; opacity:0; transition:opacity .3s; box-shadow:0 4px 12px rgba(0,0,0,.15); }
+.iv-toast.show { opacity:1; } .iv-toast.success { background:var(--green); } .iv-toast.error { background:var(--red); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="iv-wrap">
+    <div class="iv-card">
+        <h3>Client & Period</h3>
+        <div class="iv-row">
+            <div style="flex:2;">
+                <label class="iv-label">Client</label>
+                <select id="client-select" class="iv-select">
+                    <option value="">-- Select a client --</option>
+                    {% for c in clients %}<option value="{{ c.pk }}">{{ c.company_name }} ({{ c.user.email }})</option>{% endfor %}
+                </select>
+            </div>
+            <div><label class="iv-label">From</label><input type="date" id="date-from" class="iv-date"></div>
+            <div><label class="iv-label">To</label><input type="date" id="date-to" class="iv-date"></div>
+            <div style="flex:0 0 auto; display:flex; align-items:flex-end;">
+                <button type="button" class="iv-btn iv-btn-navy" onclick="fetchAssignments()">Load Assignments</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="iv-card">
+        <h3>Completed Assignments</h3>
+        <div style="margin-bottom:8px;">
+            <button type="button" class="iv-btn iv-btn-sm iv-btn-outline" onclick="toggleAll(true)">Select All</button>
+            <button type="button" class="iv-btn iv-btn-sm iv-btn-outline" onclick="toggleAll(false)">Deselect All</button>
+            <button type="button" class="iv-btn iv-btn-sm iv-btn-navy" onclick="addSelectedToItems()">Add Selected to Invoice</button>
+        </div>
+        <div id="assignments-container"><div style="text-align:center; padding:30px; color:#94a3b8;">Select a client and load assignments.</div></div>
+    </div>
+
+    <div class="iv-card">
+        <h3>Invoice Line Items</h3>
+        <div id="items-container"></div>
+        <button type="button" class="iv-btn iv-btn-sm iv-btn-outline" onclick="addBlankItem()">+ Add Line Item</button>
+    </div>
+
+    <div class="iv-card">
+        <h3>Invoice Settings</h3>
+        <div class="iv-row">
+            <div><label class="iv-label">Tax Rate (%)</label><input type="number" id="tax-rate" class="iv-input" value="0" step="0.01" min="0" oninput="recalc()"></div>
+            <div><label class="iv-label">Payment Due (days)</label><input type="number" id="due-days" class="iv-input" value="30" min="1"></div>
+        </div>
+        <div><label class="iv-label">Notes</label><textarea id="notes" class="iv-textarea" placeholder="Payment instructions, terms, etc."></textarea></div>
+    </div>
+
+    <div class="iv-row" style="align-items:flex-start;">
+        <div style="flex:1;">
+            <div class="iv-summary">
+                <h3>Invoice Summary</h3>
+                <div class="iv-sum-line"><span>Subtotal</span><span id="sum-sub">$0.00</span></div>
+                <div class="iv-sum-line"><span>Tax</span><span id="sum-tax">$0.00</span></div>
+                <div class="iv-sum-line total"><span>TOTAL DUE</span><span id="sum-total">$0.00</span></div>
+            </div>
+        </div>
+        <div style="flex:0 0 auto; display:flex; flex-direction:column; gap:10px;">
+            <button type="button" class="iv-btn iv-btn-navy" onclick="generateInvoice('download')" id="btn-dl">Download PDF</button>
+            <button type="button" class="iv-btn iv-btn-green" onclick="generateInvoice('email')" id="btn-em">Send to Client</button>
+            <a href="{% url 'admin:app_payrolldocument_changelist' %}" class="iv-btn iv-btn-outline" style="text-decoration:none; text-align:center;">Back</a>
+        </div>
+    </div>
+</div>
+
+<div id="toast" class="iv-toast"></div>
+
+<script>
+var assignments = [];
+var csrfToken = '{{ csrf_token }}';
+var itemCounter = 0;
+
+function showToast(msg, type) { var t=document.getElementById('toast'); t.textContent=msg; t.className='iv-toast '+type+' show'; setTimeout(function(){t.classList.remove('show');},4000); }
+
+function fetchAssignments() {
+    var cid = document.getElementById('client-select').value;
+    if (!cid) { showToast('Select a client.','error'); return; }
+    var p = 'client_id='+cid;
+    var df = document.getElementById('date-from').value; if(df) p+='&date_from='+df;
+    var dt = document.getElementById('date-to').value; if(dt) p+='&date_to='+dt;
+    document.getElementById('assignments-container').innerHTML='<div style="text-align:center;padding:30px;color:#94a3b8;">Loading...</div>';
+    fetch('{% url "admin:invoice_fetch_assignments" %}?'+p, {headers:{'X-CSRFToken':csrfToken}})
+    .then(function(r){return r.json();})
+    .then(function(d){assignments=d.assignments||[];renderAssignments();})
+    .catch(function(){document.getElementById('assignments-container').innerHTML='<div style="text-align:center;padding:30px;color:#dc2626;">Error loading.</div>';});
+}
+
+function renderAssignments() {
+    var c = document.getElementById('assignments-container');
+    if(!assignments.length){c.innerHTML='<div style="text-align:center;padding:30px;color:#94a3b8;">No completed assignments found.</div>';return;}
+    var h='<table class="iv-table"><thead><tr><th><input type="checkbox" class="iv-check" onchange="toggleAll(this.checked)" checked></th><th>Date</th><th>Interpreter</th><th>Service</th><th>Languages</th><th class="text-right">Hours</th><th class="text-right">Rate</th><th class="text-right">Amount</th></tr></thead><tbody>';
+    for(var i=0;i<assignments.length;i++){var a=assignments[i];
+        h+='<tr><td><input type="checkbox" class="iv-check asgn-check" data-idx="'+i+'" checked></td><td>'+a.date+'</td><td>'+a.interpreter+'</td><td>'+a.service_type+'</td><td>'+a.source_language+' &rarr; '+a.target_language+'</td><td class="text-right">'+a.duration+'h</td><td class="text-right">$'+a.rate.toFixed(2)+'</td><td class="text-right"><b>$'+a.amount.toFixed(2)+'</b></td></tr>';}
+    h+='</tbody></table>';c.innerHTML=h;
+}
+
+function toggleAll(v){document.querySelectorAll('.asgn-check').forEach(function(b){b.checked=v;});}
+
+function addSelectedToItems() {
+    var checks = document.querySelectorAll('.asgn-check:checked');
+    if(!checks.length){showToast('No assignments selected.','error');return;}
+    checks.forEach(function(cb){
+        var a = assignments[parseInt(cb.dataset.idx)];
+        addItemRow({
+            description: a.service_type+' — '+a.source_language+' to '+a.target_language+(a.interpreter?' ('+a.interpreter+')':''),
+            date: a.date, quantity: a.duration+'h', rate: a.rate, amount: a.amount, assignment_id: a.id
+        });
+        cb.checked = false;
+    });
+    recalc();
+    showToast(checks.length+' item(s) added.','success');
+}
+
+function addBlankItem(){addItemRow({description:'',date:'',quantity:'',rate:'',amount:0,assignment_id:null});recalc();}
+
+function addItemRow(data) {
+    var c = document.getElementById('items-container');
+    var id = itemCounter++;
+    var row = document.createElement('div'); row.className='iv-dyn-row'; row.id='item-'+id;
+    row.innerHTML=
+        '<input type="text" class="iv-input" placeholder="Description" value="'+esc(data.description)+'" data-field="description">'+
+        '<input type="text" class="iv-input iv-input-sm" placeholder="Date" value="'+esc(data.date)+'" data-field="date">'+
+        '<input type="text" class="iv-input iv-input-sm" placeholder="Qty" value="'+esc(data.quantity)+'" data-field="quantity">'+
+        '<input type="number" step="0.01" class="iv-input iv-input-sm" placeholder="Rate" value="'+(data.rate||'')+'" data-field="rate" oninput="recalcRow(this);recalc();">'+
+        '<input type="number" step="0.01" class="iv-input iv-input-sm" placeholder="Amount" value="'+(data.amount||'')+'" data-field="amount" oninput="recalc();">'+
+        '<input type="hidden" data-field="assignment_id" value="'+(data.assignment_id||'')+'">'+
+        '<button type="button" class="iv-remove" onclick="this.parentElement.remove();recalc();">&times;</button>';
+    c.appendChild(row);
+}
+
+function esc(s){return String(s||'').replace(/"/g,'&quot;');}
+
+function recalcRow(el) {
+    var row = el.closest('.iv-dyn-row');
+    var qty = parseFloat((row.querySelector('[data-field="quantity"]').value||'').replace(/[^0-9.]/g,''))||0;
+    var rate = parseFloat(row.querySelector('[data-field="rate"]').value)||0;
+    if(qty && rate) row.querySelector('[data-field="amount"]').value = (qty*rate).toFixed(2);
+}
+
+function getItems() {
+    var rows = document.querySelectorAll('#items-container .iv-dyn-row');
+    var items = [];
+    rows.forEach(function(r){
+        items.push({
+            description: r.querySelector('[data-field="description"]').value,
+            date: r.querySelector('[data-field="date"]').value,
+            quantity: r.querySelector('[data-field="quantity"]').value,
+            rate: parseFloat(r.querySelector('[data-field="rate"]').value)||0,
+            amount: parseFloat(r.querySelector('[data-field="amount"]').value)||0,
+            assignment_id: r.querySelector('[data-field="assignment_id"]').value||null,
+        });
+    });
+    return items;
+}
+
+function recalc() {
+    var items = getItems();
+    var sub = items.reduce(function(s,i){return s+i.amount;},0);
+    var taxRate = parseFloat(document.getElementById('tax-rate').value)||0;
+    var tax = sub * taxRate / 100;
+    document.getElementById('sum-sub').textContent = '$'+sub.toFixed(2);
+    document.getElementById('sum-tax').textContent = '$'+tax.toFixed(2);
+    document.getElementById('sum-total').textContent = '$'+(sub+tax).toFixed(2);
+}
+
+function generateInvoice(action) {
+    var cid = document.getElementById('client-select').value;
+    if(!cid){showToast('Select a client.','error');return;}
+    var items = getItems().filter(function(i){return i.amount>0;});
+    if(!items.length){showToast('Add at least one line item.','error');return;}
+    document.getElementById('btn-dl').disabled=true; document.getElementById('btn-em').disabled=true;
+    var payload = {
+        client_id: cid, items: items, tax_rate: parseFloat(document.getElementById('tax-rate').value)||0,
+        notes: document.getElementById('notes').value, due_days: parseInt(document.getElementById('due-days').value)||30, action: action
+    };
+    if(action==='download'){
+        fetch('{% url "admin:invoice_maker" %}',{method:'POST',headers:{'X-CSRFToken':csrfToken,'Content-Type':'application/json'},body:JSON.stringify(payload)})
+        .then(function(r){if(!r.ok)return r.json().then(function(d){throw new Error(d.error);});return r.blob();})
+        .then(function(b){var u=URL.createObjectURL(b);var a=document.createElement('a');a.href=u;a.download='invoice.pdf';a.click();URL.revokeObjectURL(u);showToast('PDF downloaded!','success');})
+        .catch(function(e){showToast(e.message,'error');})
+        .finally(function(){document.getElementById('btn-dl').disabled=false;document.getElementById('btn-em').disabled=false;});
+    } else {
+        fetch('{% url "admin:invoice_maker" %}',{method:'POST',headers:{'X-CSRFToken':csrfToken,'Content-Type':'application/json'},body:JSON.stringify(payload)})
+        .then(function(r){return r.json();})
+        .then(function(d){if(d.ok)showToast(d.message,'success');else showToast(d.error,'error');})
+        .catch(function(){showToast('Failed.','error');})
+        .finally(function(){document.getElementById('btn-dl').disabled=false;document.getElementById('btn-em').disabled=false;});
+    }
+}
+</script>
+{% endblock %}

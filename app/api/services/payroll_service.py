@@ -342,6 +342,37 @@ def generate_payroll_pdf(payroll_document):
         ]))
         elements.append(tbl)
 
+    # ---- Net Pay Summary ----
+    elements.append(Spacer(1, 16))
+
+    svc_total = sum(s.amount for s in services) if services.exists() else Decimal('0')
+    reimb_total = sum(r.amount for r in reimbursements) if reimbursements.exists() else Decimal('0')
+    ded_total_val = sum(d.amount for d in deductions) if deductions.exists() else Decimal('0')
+    net_pay = svc_total + reimb_total - ded_total_val
+
+    summary_data = [
+        ['Gross Earnings (Services)', f"${svc_total:.2f}"],
+    ]
+    if reimb_total:
+        summary_data.append(['+ Reimbursements', f"+${reimb_total:.2f}"])
+    if ded_total_val:
+        summary_data.append(['- Deductions & Taxes', f"-${ded_total_val:.2f}"])
+    summary_data.append(['NET PAY', f"${net_pay:.2f}"])
+
+    summary_tbl = Table(summary_data, colWidths=[4.8 * inch, 1.6 * inch])
+    summary_tbl.setStyle(TableStyle([
+        ('FONTSIZE',      (0, 0), (-1, -1), 10),
+        ('ALIGN',         (-1, 0), (-1, -1), 'RIGHT'),
+        ('TOPPADDING',    (0, 0), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ('TEXTCOLOR',     (0, -1), (-1, -1), NAVY),
+        ('FONTNAME',      (0, -1), (-1, -1), 'Helvetica-Bold'),
+        ('FONTSIZE',      (0, -1), (-1, -1), 14),
+        ('LINEABOVE',     (0, -1), (-1, -1), 2, NAVY),
+        ('BACKGROUND',    (0, -1), (-1, -1), colors.HexColor('#dbeafe')),
+    ]))
+    elements.append(summary_tbl)
+
     _build_footer(elements, styles)
     doc.build(elements)
     buffer.seek(0)

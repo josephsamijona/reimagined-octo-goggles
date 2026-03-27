@@ -1,0 +1,176 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block title %}Earnings Report (Tax){% endblock %}
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">Home</a> &rsaquo;
+    <a href="{% url 'admin:app_payrolldocument_changelist' %}">Payroll Documents</a> &rsaquo;
+    Earnings Report
+</div>
+{% endblock %}
+
+{% block extrahead %}{{ block.super }}
+<style>
+:root { --navy:#1a3c5e; --gold:#c9a227; --green:#16a34a; --red:#dc2626; --light:#f8fafc; --border:#e2e8f0; }
+.er-wrap { max-width:900px; margin:0 auto; }
+.er-card { background:#fff; border:1px solid var(--border); border-radius:10px; padding:24px; margin-bottom:18px; }
+.er-card h3 { margin:0 0 14px; color:var(--navy); font-size:15px; }
+.er-row { display:flex; gap:14px; margin-bottom:12px; flex-wrap:wrap; }
+.er-row > * { flex:1; min-width:180px; }
+.er-label { display:block; font-weight:600; font-size:12px; color:#475569; margin-bottom:4px; }
+.er-select { width:100%; padding:9px 12px; border:1px solid var(--border); border-radius:6px; font-size:13px; box-sizing:border-box; }
+.er-select:focus { border-color:var(--navy); outline:none; }
+.er-btn { padding:10px 20px; border:none; border-radius:6px; font-size:13px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:6px; }
+.er-btn:disabled { opacity:.5; cursor:not-allowed; }
+.er-btn-navy { background:var(--navy); color:#fff; } .er-btn-navy:hover:not(:disabled) { background:#132d47; }
+.er-btn-green { background:var(--green); color:#fff; } .er-btn-green:hover:not(:disabled) { background:#15803d; }
+.er-btn-outline { background:transparent; border:1px solid var(--border); color:#475569; } .er-btn-outline:hover { background:var(--light); }
+.er-preview { background:linear-gradient(135deg,var(--navy),#2d5a8e); color:#fff; border-radius:10px; padding:24px; text-align:center; }
+.er-preview h3 { color:#fff; margin:0 0 6px; font-size:14px; }
+.er-preview .year-label { font-size:32px; font-weight:700; opacity:.9; margin-bottom:16px; }
+.er-preview .stat { margin-bottom:12px; }
+.er-preview .stat-value { font-size:36px; font-weight:700; color:#86efac; }
+.er-preview .stat-label { font-size:12px; opacity:.7; text-transform:uppercase; letter-spacing:1px; }
+.er-preview .stat-sub { font-size:14px; opacity:.8; margin-top:4px; }
+.er-info { background:var(--light); border:1px solid var(--border); border-radius:8px; padding:16px; font-size:13px; color:#475569; line-height:1.6; }
+.er-info b { color:var(--navy); }
+.er-toast { position:fixed; top:20px; right:20px; padding:14px 24px; border-radius:8px; color:#fff; font-size:14px; font-weight:600; z-index:9999; opacity:0; transition:opacity .3s; box-shadow:0 4px 12px rgba(0,0,0,.15); }
+.er-toast.show { opacity:1; } .er-toast.success { background:var(--green); } .er-toast.error { background:var(--red); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="er-wrap">
+    <div class="er-card">
+        <h3>Interpreter & Tax Year</h3>
+        <div class="er-row">
+            <div style="flex:2;">
+                <label class="er-label">Interpreter</label>
+                <select id="interp-select" class="er-select" onchange="loadPreview()">
+                    <option value="">-- Select an interpreter --</option>
+                    {% for interp in interpreters %}
+                    <option value="{{ interp.pk }}">{{ interp.user.last_name }}, {{ interp.user.first_name }} ({{ interp.user.email }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="er-label">Year</label>
+                <select id="year-select" class="er-select" onchange="loadPreview()">
+                    {% for y in years %}
+                    <option value="{{ y }}">{{ y }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <div class="er-row" style="align-items:flex-start;">
+        <div style="flex:1;">
+            <div class="er-preview" id="preview-panel">
+                <h3>Total Earnings Summary</h3>
+                <div class="year-label" id="preview-year">{{ years.0 }}</div>
+                <div class="stat">
+                    <div class="stat-label">Total Nonemployee Compensation</div>
+                    <div class="stat-value" id="preview-total">$0.00</div>
+                    <div class="stat-sub" id="preview-count">0 assignments</div>
+                </div>
+            </div>
+        </div>
+        <div style="flex:0 0 auto; display:flex; flex-direction:column; gap:10px;">
+            <button type="button" class="er-btn er-btn-navy" onclick="generateReport('download')" id="btn-dl">Download PDF</button>
+            <button type="button" class="er-btn er-btn-green" onclick="generateReport('email')" id="btn-em">Email to Interpreter</button>
+            <a href="{% url 'admin:app_payrolldocument_changelist' %}" class="er-btn er-btn-outline" style="text-decoration:none; text-align:center;">Back to Payroll</a>
+        </div>
+    </div>
+
+    <div class="er-card">
+        <div class="er-info">
+            <b>About this report:</b> Generates a detailed earnings summary for tax reporting purposes (1099-NEC).
+            The report includes all completed assignments for the selected year with dates, clients, languages,
+            hours, rates, and amounts. The total nonemployee compensation figure can be used for IRS Form 1099-NEC reporting.
+        </div>
+    </div>
+</div>
+
+<div id="toast" class="er-toast"></div>
+
+<script>
+var csrfToken = '{{ csrf_token }}';
+
+function showToast(msg, type) { var t=document.getElementById('toast'); t.textContent=msg; t.className='er-toast '+type+' show'; setTimeout(function(){t.classList.remove('show');},4000); }
+
+function loadPreview() {
+    var interpId = document.getElementById('interp-select').value;
+    var year = document.getElementById('year-select').value;
+    document.getElementById('preview-year').textContent = year;
+
+    if (!interpId) {
+        document.getElementById('preview-total').textContent = '$0.00';
+        document.getElementById('preview-count').textContent = '0 assignments';
+        return;
+    }
+
+    fetch('{% url "admin:earnings_preview" %}?interpreter_id=' + interpId + '&year=' + year, {
+        headers: {'X-CSRFToken': csrfToken}
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+        document.getElementById('preview-total').textContent = '$' + d.total.toFixed(2);
+        document.getElementById('preview-count').textContent = d.count + ' assignment' + (d.count !== 1 ? 's' : '');
+    })
+    .catch(function() {
+        document.getElementById('preview-total').textContent = '$0.00';
+        document.getElementById('preview-count').textContent = 'Error loading';
+    });
+}
+
+function generateReport(action) {
+    var interpId = document.getElementById('interp-select').value;
+    var year = document.getElementById('year-select').value;
+    if (!interpId) { showToast('Select an interpreter.', 'error'); return; }
+
+    var btnDl = document.getElementById('btn-dl');
+    var btnEm = document.getElementById('btn-em');
+    btnDl.disabled = true; btnEm.disabled = true;
+
+    var payload = { interpreter_id: interpId, year: year, action: action };
+
+    if (action === 'download') {
+        fetch('{% url "admin:earnings_report" %}', {
+            method: 'POST',
+            headers: {'X-CSRFToken': csrfToken, 'Content-Type': 'application/json'},
+            body: JSON.stringify(payload),
+        })
+        .then(function(r) {
+            if (!r.ok) return r.json().then(function(d) { throw new Error(d.error); });
+            return r.blob();
+        })
+        .then(function(blob) {
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = 'earnings-report-' + year + '.pdf';
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast('Earnings report downloaded!', 'success');
+        })
+        .catch(function(err) { showToast(err.message, 'error'); })
+        .finally(function() { btnDl.disabled = false; btnEm.disabled = false; });
+    } else {
+        fetch('{% url "admin:earnings_report" %}', {
+            method: 'POST',
+            headers: {'X-CSRFToken': csrfToken, 'Content-Type': 'application/json'},
+            body: JSON.stringify(payload),
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (d.ok) showToast(d.message, 'success');
+            else showToast(d.error, 'error');
+        })
+        .catch(function() { showToast('Failed to send email.', 'error'); })
+        .finally(function() { btnDl.disabled = false; btnEm.disabled = false; });
+    }
+}
+</script>
+{% endblock %}

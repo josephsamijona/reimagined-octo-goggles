@@ -2,7 +2,7 @@ from django.contrib import admin
 from .users import CustomUserAdmin, ClientAdmin, InterpreterAdmin
 from .languages import LanguageAdmin
 from .services import ServiceTypeAdmin, QuoteRequestAdmin, QuoteAdmin, AssignmentAdmin, PublicQuoteRequestAdmin
-from .finance import FinancialTransactionAdmin, ClientPaymentAdmin, InterpreterPaymentAdmin, ExpenseAdmin, PayrollDocumentAdmin, ServiceAdmin, ReimbursementAdmin, DeductionAdmin, PaymentAdmin
+from .finance import FinancialTransactionAdmin, ClientPaymentAdmin, InterpreterPaymentAdmin, ExpenseAdmin, PayrollDocumentAdmin, ServiceAdmin, ReimbursementAdmin, DeductionAdmin, PaymentAdmin, InvoiceAdmin
 from .communication import NotificationAdmin, ContactMessageAdmin
 from .security import AuditLogAdmin, APIKeyAdmin, PGPKeyAdmin
 from .documents import InterpreterContractSignatureAdmin, DocumentAdmin

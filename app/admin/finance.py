@@ -1,6 +1,10 @@
 from django.contrib import admin
+from django.urls import path, reverse
+from django.utils.safestring import mark_safe
 from app import models
 from .utils import format_boston_datetime
+from .paystub import PaystubGeneratorView, FetchAssignmentsView, BatchPaystubView, EarningsReportView, EarningsPreviewView
+from .invoice_maker import InvoiceMakerView, FetchClientAssignmentsView
 
 @admin.register(models.FinancialTransaction)
 class FinancialTransactionAdmin(admin.ModelAdmin):
@@ -181,6 +185,28 @@ class PayrollDocumentAdmin(admin.ModelAdmin):
         }),
     )
 
+    def get_urls(self):
+        custom_urls = [
+            path('generate-paystub/', self.admin_site.admin_view(PaystubGeneratorView.as_view()), name='paystub_generator'),
+            path('generate-paystub/fetch-assignments/', self.admin_site.admin_view(FetchAssignmentsView.as_view()), name='paystub_fetch_assignments'),
+            path('batch-paystub/', self.admin_site.admin_view(BatchPaystubView.as_view()), name='batch_paystub'),
+            path('earnings-report/', self.admin_site.admin_view(EarningsReportView.as_view()), name='earnings_report'),
+            path('earnings-report/preview/', self.admin_site.admin_view(EarningsPreviewView.as_view()), name='earnings_preview'),
+            path('invoice-maker/', self.admin_site.admin_view(InvoiceMakerView.as_view()), name='invoice_maker'),
+            path('invoice-maker/fetch-assignments/', self.admin_site.admin_view(FetchClientAssignmentsView.as_view()), name='invoice_fetch_assignments'),
+        ]
+        return custom_urls + super().get_urls()
+
+    def changelist_view(self, request, extra_context=None):
+        extra_context = extra_context or {}
+        extra_context['generator_url'] = reverse('admin:paystub_generator')
+        extra_context['batch_url'] = reverse('admin:batch_paystub')
+        extra_context['earnings_url'] = reverse('admin:earnings_report')
+        extra_context['invoice_url'] = reverse('admin:invoice_maker')
+        return super().changelist_view(request, extra_context=extra_context)
+
+    change_list_template = 'admin/paystub/changelist.html'
+
 @admin.register(models.Service)
 class ServiceAdmin(admin.ModelAdmin):
     list_display = ('payroll', 'date', 'client', 'source_language', 'target_language', 'duration', 'rate', 'amount')
@@ -198,6 +224,42 @@ class DeductionAdmin(admin.ModelAdmin):
     list_display = ('payroll', 'date', 'deduction_type', 'description', 'amount')
     list_filter = ('date', 'deduction_type')
     search_fields = ('description',)
+
+@admin.register(models.Invoice)
+class InvoiceAdmin(admin.ModelAdmin):
+    list_display = ('invoice_number', 'client', 'total', 'status', 'issued_date', 'due_date')
+    list_filter = ('status', 'issued_date', 'due_date')
+    search_fields = ('invoice_number', 'client__company_name')
+    raw_id_fields = ('client', 'created_by')
+    readonly_fields = ('created_at', 'updated_at')
+    filter_horizontal = ('assignments',)
+    fieldsets = (
+        ('Invoice', {
+            'fields': ('invoice_number', 'client', 'status')
+        }),
+        ('Amounts', {
+            'fields': (('subtotal', 'tax_amount', 'total'),)
+        }),
+        ('Dates', {
+            'fields': (('issued_date', 'due_date', 'paid_date'),)
+        }),
+        ('Payment', {
+            'fields': ('payment_method',),
+            'classes': ('collapse',)
+        }),
+        ('Details', {
+            'fields': ('assignments', 'notes', 'pdf_file', 'created_by'),
+        }),
+        ('Reminders', {
+            'fields': ('last_reminder_sent', 'reminder_count'),
+            'classes': ('collapse',)
+        }),
+        ('System', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
 
 @admin.register(models.Payment)
 class PaymentAdmin(admin.ModelAdmin):

@@ -1,0 +1,431 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block title %}Paystub Generator{% endblock %}
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">Home</a> &rsaquo;
+    <a href="{% url 'admin:app_payrolldocument_changelist' %}">Payroll Documents</a> &rsaquo;
+    Paystub Generator
+</div>
+{% endblock %}
+
+{% block extrahead %}
+{{ block.super }}
+<style>
+:root {
+    --navy: #1a3c5e;
+    --gold: #c9a227;
+    --green: #16a34a;
+    --red: #dc2626;
+    --light: #f8fafc;
+    --border: #e2e8f0;
+}
+.ps-wrap { max-width: 1100px; margin: 0 auto; }
+.ps-card { background: #fff; border: 1px solid var(--border); border-radius: 10px; padding: 28px; margin-bottom: 20px; }
+.ps-card h3 { margin: 0 0 16px; color: var(--navy); font-size: 16px; display: flex; align-items: center; gap: 8px; }
+.ps-card h3 .badge { background: var(--navy); color: #fff; font-size: 11px; padding: 2px 10px; border-radius: 12px; }
+.ps-row { display: flex; gap: 16px; margin-bottom: 14px; flex-wrap: wrap; }
+.ps-row > * { flex: 1; min-width: 200px; }
+.ps-label { display: block; font-weight: 600; font-size: 12px; color: #475569; margin-bottom: 4px; }
+.ps-select, .ps-input, .ps-date {
+    width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: 6px;
+    font-size: 13px; box-sizing: border-box; background: #fff;
+}
+.ps-select:focus, .ps-input:focus, .ps-date:focus { border-color: var(--navy); outline: none; box-shadow: 0 0 0 2px rgba(26,60,94,.1); }
+.ps-btn {
+    padding: 10px 20px; border: none; border-radius: 6px; font-size: 13px; font-weight: 600;
+    cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: .15s;
+}
+.ps-btn:disabled { opacity: .5; cursor: not-allowed; }
+.ps-btn-navy { background: var(--navy); color: #fff; }
+.ps-btn-navy:hover:not(:disabled) { background: #132d47; }
+.ps-btn-green { background: var(--green); color: #fff; }
+.ps-btn-green:hover:not(:disabled) { background: #15803d; }
+.ps-btn-gold { background: var(--gold); color: #fff; }
+.ps-btn-gold:hover:not(:disabled) { background: #a68520; }
+.ps-btn-sm { padding: 6px 12px; font-size: 12px; }
+.ps-btn-outline { background: transparent; border: 1px solid var(--border); color: #475569; }
+.ps-btn-outline:hover { background: var(--light); }
+.ps-btn-red { background: var(--red); color: #fff; }
+.ps-btn-red:hover:not(:disabled) { background: #b91c1c; }
+
+/* Table */
+.ps-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.ps-table thead th { background: var(--navy); color: #fff; padding: 10px 12px; text-align: left; font-weight: 600; font-size: 12px; }
+.ps-table thead th:first-child { border-radius: 6px 0 0 0; }
+.ps-table thead th:last-child { border-radius: 0 6px 0 0; }
+.ps-table tbody td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+.ps-table tbody tr:nth-child(even) { background: var(--light); }
+.ps-table tbody tr:hover { background: #f1f5f9; }
+.ps-table .text-right { text-align: right; }
+.ps-table .text-center { text-align: center; }
+.ps-check { width: 16px; height: 16px; cursor: pointer; }
+
+/* Dynamic rows */
+.ps-dyn-row { display: flex; gap: 10px; align-items: center; margin-bottom: 8px; }
+.ps-dyn-row .ps-input { flex: 2; }
+.ps-dyn-row .ps-select { flex: 1; }
+.ps-dyn-row .ps-input-amount { flex: 0 0 120px; text-align: right; }
+.ps-remove { background: none; border: none; color: var(--red); cursor: pointer; font-size: 18px; padding: 4px 8px; }
+.ps-remove:hover { background: #fef2f2; border-radius: 4px; }
+
+/* Summary */
+.ps-summary { background: linear-gradient(135deg, var(--navy) 0%, #2d5a8e 100%); color: #fff; border-radius: 10px; padding: 24px; }
+.ps-summary h3 { color: #fff; margin: 0 0 16px; }
+.ps-summary-line { display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px; }
+.ps-summary-line.total { border-top: 2px solid rgba(255,255,255,.3); margin-top: 8px; padding-top: 12px; font-size: 20px; font-weight: 700; }
+.ps-summary-line .label { opacity: .85; }
+.ps-summary-line .value { font-weight: 600; }
+.ps-summary-line .value.green { color: #86efac; }
+.ps-summary-line .value.red { color: #fca5a5; }
+
+/* Actions */
+.ps-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+
+/* Loading */
+.ps-loading { text-align: center; padding: 40px; color: #94a3b8; }
+.ps-empty { text-align: center; padding: 30px; color: #94a3b8; font-size: 14px; }
+
+/* Status badges */
+.ps-badge-paid { background: #dcfce7; color: var(--green); padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+.ps-badge-unpaid { background: #fef3c7; color: #92400e; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+
+/* Toast */
+.ps-toast {
+    position: fixed; top: 20px; right: 20px; padding: 14px 24px; border-radius: 8px;
+    color: #fff; font-size: 14px; font-weight: 600; z-index: 9999; opacity: 0;
+    transition: opacity .3s; box-shadow: 0 4px 12px rgba(0,0,0,.15);
+}
+.ps-toast.show { opacity: 1; }
+.ps-toast.success { background: var(--green); }
+.ps-toast.error { background: var(--red); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ps-wrap">
+
+    <!-- Interpreter & Date Selection -->
+    <div class="ps-card">
+        <h3>Select Interpreter & Period</h3>
+        <div class="ps-row">
+            <div style="flex:2;">
+                <label class="ps-label">Interpreter</label>
+                <select id="interpreter-select" class="ps-select">
+                    <option value="">-- Select an interpreter --</option>
+                    {% for interp in interpreters %}
+                    <option value="{{ interp.pk }}">{{ interp.user.last_name }}, {{ interp.user.first_name }} ({{ interp.user.email }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="ps-label">From</label>
+                <input type="date" id="date-from" class="ps-date">
+            </div>
+            <div>
+                <label class="ps-label">To</label>
+                <input type="date" id="date-to" class="ps-date">
+            </div>
+            <div style="flex:0 0 auto; display:flex; align-items:flex-end;">
+                <button type="button" class="ps-btn ps-btn-navy" onclick="fetchAssignments()">Load Assignments</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Assignments Table -->
+    <div class="ps-card">
+        <h3>Completed Assignments <span class="badge" id="count-badge" style="display:none;">0</span></h3>
+        <div style="margin-bottom: 10px;">
+            <button type="button" class="ps-btn ps-btn-sm ps-btn-outline" onclick="toggleAll(true)">Select All</button>
+            <button type="button" class="ps-btn ps-btn-sm ps-btn-outline" onclick="toggleAll(false)">Deselect All</button>
+        </div>
+        <div id="assignments-container">
+            <div class="ps-empty">Select an interpreter and click "Load Assignments" to begin.</div>
+        </div>
+    </div>
+
+    <!-- Additional Earnings -->
+    <div class="ps-card">
+        <h3>Additional Earnings</h3>
+        <div id="extras-container"></div>
+        <button type="button" class="ps-btn ps-btn-sm ps-btn-outline" onclick="addRow('extras')">+ Add Earning</button>
+    </div>
+
+    <!-- Deductions -->
+    <div class="ps-card">
+        <h3>Deductions</h3>
+        <div id="deductions-container"></div>
+        <button type="button" class="ps-btn ps-btn-sm ps-btn-outline" onclick="addRow('deductions')">+ Add Deduction</button>
+    </div>
+
+    <!-- Taxes & Fees -->
+    <div class="ps-card">
+        <h3>Taxes & Fees</h3>
+        <div id="taxes-container"></div>
+        <button type="button" class="ps-btn ps-btn-sm ps-btn-outline" onclick="addRow('taxes')">+ Add Tax/Fee</button>
+    </div>
+
+    <!-- Summary & Actions -->
+    <div class="ps-row" style="align-items:flex-start;">
+        <div style="flex:1;">
+            <div class="ps-summary">
+                <h3>Pay Summary</h3>
+                <div class="ps-summary-line"><span class="label">Services Earnings</span><span class="value" id="sum-services">$0.00</span></div>
+                <div class="ps-summary-line"><span class="label">+ Additional Earnings</span><span class="value green" id="sum-extras">$0.00</span></div>
+                <div class="ps-summary-line"><span class="label">- Deductions</span><span class="value red" id="sum-deductions">$0.00</span></div>
+                <div class="ps-summary-line"><span class="label">- Taxes & Fees</span><span class="value red" id="sum-taxes">$0.00</span></div>
+                <div class="ps-summary-line total"><span class="label">NET PAY</span><span class="value" id="sum-net">$0.00</span></div>
+            </div>
+        </div>
+        <div style="flex:0 0 auto; display:flex; flex-direction:column; gap:10px;">
+            <button type="button" class="ps-btn ps-btn-navy" onclick="generate('download')" id="btn-download">Download PDF</button>
+            <button type="button" class="ps-btn ps-btn-green" onclick="generate('email')" id="btn-email">Send via Email</button>
+            <a href="{% url 'admin:app_payrolldocument_changelist' %}" class="ps-btn ps-btn-outline" style="text-decoration:none; text-align:center;">Back to Payroll</a>
+        </div>
+    </div>
+</div>
+
+<div id="toast" class="ps-toast"></div>
+
+<script>
+var assignments = [];
+var csrfToken = '{{ csrf_token }}';
+
+function getCookie(name) {
+    var v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+    return v ? v.pop() : '';
+}
+
+function showToast(msg, type) {
+    var t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'ps-toast ' + type + ' show';
+    setTimeout(function() { t.classList.remove('show'); }, 4000);
+}
+
+function fetchAssignments() {
+    var interpId = document.getElementById('interpreter-select').value;
+    if (!interpId) { showToast('Please select an interpreter.', 'error'); return; }
+
+    var dateFrom = document.getElementById('date-from').value;
+    var dateTo = document.getElementById('date-to').value;
+    var params = 'interpreter_id=' + interpId;
+    if (dateFrom) params += '&date_from=' + dateFrom;
+    if (dateTo) params += '&date_to=' + dateTo;
+
+    document.getElementById('assignments-container').innerHTML = '<div class="ps-loading">Loading assignments...</div>';
+
+    fetch('{% url "admin:paystub_fetch_assignments" %}?' + params, {
+        headers: {'X-CSRFToken': csrfToken}
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        assignments = data.assignments || [];
+        renderTable();
+        recalc();
+    })
+    .catch(function(err) {
+        document.getElementById('assignments-container').innerHTML = '<div class="ps-empty">Error loading assignments.</div>';
+    });
+}
+
+function renderTable() {
+    var c = document.getElementById('assignments-container');
+    var badge = document.getElementById('count-badge');
+    if (!assignments.length) {
+        c.innerHTML = '<div class="ps-empty">No completed assignments found for this period.</div>';
+        badge.style.display = 'none';
+        return;
+    }
+    badge.style.display = 'inline';
+    badge.textContent = assignments.length;
+
+    var html = '<table class="ps-table"><thead><tr>' +
+        '<th class="text-center"><input type="checkbox" class="ps-check" onchange="toggleAll(this.checked)" checked></th>' +
+        '<th>Date</th><th>Client</th><th>Service</th><th>Languages</th>' +
+        '<th class="text-right">Hours</th><th class="text-right">Rate</th>' +
+        '<th class="text-right">Amount</th><th class="text-center">Paid</th>' +
+        '</tr></thead><tbody>';
+
+    for (var i = 0; i < assignments.length; i++) {
+        var a = assignments[i];
+        html += '<tr>' +
+            '<td class="text-center"><input type="checkbox" class="ps-check assign-check" data-idx="' + i + '" checked onchange="recalc()"></td>' +
+            '<td>' + a.date + '</td>' +
+            '<td>' + a.client + '</td>' +
+            '<td>' + a.service_type + '</td>' +
+            '<td>' + a.source_language + ' &rarr; ' + a.target_language + '</td>' +
+            '<td class="text-right">' + a.duration + 'h</td>' +
+            '<td class="text-right">$' + a.rate.toFixed(2) + '</td>' +
+            '<td class="text-right"><b>$' + a.amount.toFixed(2) + '</b></td>' +
+            '<td class="text-center">' + (a.is_paid ? '<span class="ps-badge-paid">Paid</span>' : '<span class="ps-badge-unpaid">Unpaid</span>') + '</td>' +
+            '</tr>';
+    }
+    html += '</tbody></table>';
+    c.innerHTML = html;
+}
+
+function toggleAll(checked) {
+    var boxes = document.querySelectorAll('.assign-check');
+    boxes.forEach(function(b) { b.checked = checked; });
+    recalc();
+}
+
+function addRow(section) {
+    var container = document.getElementById(section + '-container');
+    var row = document.createElement('div');
+    row.className = 'ps-dyn-row';
+
+    if (section === 'deductions') {
+        row.innerHTML =
+            '<input type="text" class="ps-input" placeholder="Description" data-field="description">' +
+            '<select class="ps-select" data-field="type">' +
+                '<option value="ADVANCE">Payment advance</option>' +
+                '<option value="EQUIPMENT">Provided equipment</option>' +
+                '<option value="CANCELLATION">Cancellation penalty</option>' +
+                '<option value="LATE">Late penalty</option>' +
+                '<option value="ADMIN_FEE">Administrative fees</option>' +
+                '<option value="ADJUSTMENT">Invoice adjustment</option>' +
+                '<option value="OTHER" selected>Other deduction</option>' +
+            '</select>' +
+            '<input type="number" step="0.01" min="0" class="ps-input ps-input-amount" placeholder="0.00" data-field="amount" oninput="recalc()">' +
+            '<button type="button" class="ps-remove" onclick="this.parentElement.remove();recalc();">&times;</button>';
+    } else if (section === 'taxes') {
+        row.innerHTML =
+            '<input type="text" class="ps-input" placeholder="e.g. Federal Tax, State Tax, Medicare..." data-field="description">' +
+            '<input type="number" step="0.01" min="0" class="ps-input ps-input-amount" placeholder="0.00" data-field="amount" oninput="recalc()">' +
+            '<button type="button" class="ps-remove" onclick="this.parentElement.remove();recalc();">&times;</button>';
+    } else {
+        row.innerHTML =
+            '<input type="text" class="ps-input" placeholder="Description (e.g. Bonus, Training pay...)" data-field="description">' +
+            '<input type="number" step="0.01" min="0" class="ps-input ps-input-amount" placeholder="0.00" data-field="amount" oninput="recalc()">' +
+            '<button type="button" class="ps-remove" onclick="this.parentElement.remove();recalc();">&times;</button>';
+    }
+    container.appendChild(row);
+}
+
+function getSectionData(section) {
+    var rows = document.querySelectorAll('#' + section + '-container .ps-dyn-row');
+    var items = [];
+    rows.forEach(function(row) {
+        var desc = row.querySelector('[data-field="description"]');
+        var amount = row.querySelector('[data-field="amount"]');
+        var type = row.querySelector('[data-field="type"]');
+        var item = {
+            description: desc ? desc.value : '',
+            amount: amount ? parseFloat(amount.value) || 0 : 0,
+        };
+        if (type) item.type = type.value;
+        if (item.description && item.amount > 0) items.push(item);
+    });
+    return items;
+}
+
+function recalc() {
+    // Services
+    var servicesTotal = 0;
+    var checks = document.querySelectorAll('.assign-check');
+    checks.forEach(function(cb) {
+        if (cb.checked) {
+            var idx = parseInt(cb.dataset.idx);
+            servicesTotal += assignments[idx].amount;
+        }
+    });
+
+    // Extras
+    var extras = getSectionData('extras');
+    var extrasTotal = extras.reduce(function(s, e) { return s + e.amount; }, 0);
+
+    // Deductions
+    var deductions = getSectionData('deductions');
+    var deductionsTotal = deductions.reduce(function(s, d) { return s + d.amount; }, 0);
+
+    // Taxes
+    var taxes = getSectionData('taxes');
+    var taxesTotal = taxes.reduce(function(s, t) { return s + t.amount; }, 0);
+
+    var net = servicesTotal + extrasTotal - deductionsTotal - taxesTotal;
+
+    document.getElementById('sum-services').textContent = '$' + servicesTotal.toFixed(2);
+    document.getElementById('sum-extras').textContent = '+$' + extrasTotal.toFixed(2);
+    document.getElementById('sum-deductions').textContent = '-$' + deductionsTotal.toFixed(2);
+    document.getElementById('sum-taxes').textContent = '-$' + taxesTotal.toFixed(2);
+    document.getElementById('sum-net').textContent = '$' + net.toFixed(2);
+}
+
+function generate(action) {
+    var interpId = document.getElementById('interpreter-select').value;
+    if (!interpId) { showToast('Please select an interpreter.', 'error'); return; }
+
+    // Collect selected assignment IDs
+    var assignmentIds = [];
+    var checks = document.querySelectorAll('.assign-check');
+    checks.forEach(function(cb) {
+        if (cb.checked) {
+            var idx = parseInt(cb.dataset.idx);
+            assignmentIds.push(assignments[idx].id);
+        }
+    });
+
+    var extras = getSectionData('extras');
+    var deductions = getSectionData('deductions');
+    var taxes = getSectionData('taxes');
+
+    if (!assignmentIds.length && !extras.length) {
+        showToast('Select at least one assignment or add an earning.', 'error');
+        return;
+    }
+
+    var btnDown = document.getElementById('btn-download');
+    var btnEmail = document.getElementById('btn-email');
+    btnDown.disabled = true;
+    btnEmail.disabled = true;
+
+    var payload = {
+        interpreter_id: interpId,
+        assignment_ids: assignmentIds,
+        extras: extras,
+        deductions: deductions,
+        taxes: taxes,
+        action: action,
+    };
+
+    if (action === 'download') {
+        fetch('{% url "admin:paystub_generator" %}', {
+            method: 'POST',
+            headers: {'X-CSRFToken': csrfToken, 'Content-Type': 'application/json'},
+            body: JSON.stringify(payload),
+        })
+        .then(function(r) {
+            if (!r.ok) return r.json().then(function(d) { throw new Error(d.error || 'Error'); });
+            return r.blob();
+        })
+        .then(function(blob) {
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = 'paystub.pdf';
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast('PDF downloaded successfully!', 'success');
+        })
+        .catch(function(err) { showToast(err.message, 'error'); })
+        .finally(function() { btnDown.disabled = false; btnEmail.disabled = false; });
+    } else {
+        fetch('{% url "admin:paystub_generator" %}', {
+            method: 'POST',
+            headers: {'X-CSRFToken': csrfToken, 'Content-Type': 'application/json'},
+            body: JSON.stringify(payload),
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.ok) showToast(data.message, 'success');
+            else showToast(data.error || 'Error', 'error');
+        })
+        .catch(function(err) { showToast('Failed to send email.', 'error'); })
+        .finally(function() { btnDown.disabled = false; btnEmail.disabled = false; });
+    }
+}
+</script>
+{% endblock %}
