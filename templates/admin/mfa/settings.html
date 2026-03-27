@@ -1,0 +1,197 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block title %}MFA Settings{% endblock %}
+
+{% block content %}
+<style>
+    .mfa-container { max-width: 640px; margin: 0 auto; }
+    .mfa-card { background: #fff; padding: 24px; border-radius: 8px; border: 1px solid #ddd; margin-bottom: 20px; }
+    .mfa-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .mfa-card-title { font-size: 16px; font-weight: bold; margin: 0; }
+    .mfa-badge { padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: bold; }
+    .mfa-badge-active { background: #bbf7d0; color: #166534; }
+    .mfa-badge-inactive { background: #fecaca; color: #991b1b; }
+    .mfa-table { width: 100%; border-collapse: collapse; }
+    .mfa-table th, .mfa-table td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #eee; font-size: 14px; }
+    .mfa-table th { background: #f8f8f8; font-weight: bold; color: #555; font-size: 12px; text-transform: uppercase; }
+    .mfa-btn { padding: 8px 16px; background: #417690; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: bold; text-decoration: none; display: inline-block; }
+    .mfa-btn:hover { background: #205067; }
+    .mfa-btn-danger { background: #dc2626; }
+    .mfa-btn-danger:hover { background: #b91c1c; }
+    .mfa-btn-secondary { padding: 8px 16px; background: #eee; color: #333; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; text-decoration: none; display: inline-block; }
+    .mfa-btn-sm { padding: 5px 10px; font-size: 12px; }
+    .mfa-empty { color: #999; font-size: 14px; padding: 20px; text-align: center; }
+    .mfa-info { background: #dbeafe; color: #1e40af; padding: 10px 16px; border-radius: 6px; font-size: 13px; margin-bottom: 20px; }
+</style>
+
+<div class="mfa-container">
+    <h2 style="margin-bottom: 20px;">MFA Settings</h2>
+
+    <!-- TOTP Status -->
+    <div class="mfa-card">
+        <div class="mfa-card-header">
+            <h3 class="mfa-card-title">Authenticator App (TOTP)</h3>
+            {% if has_totp %}
+            <span class="mfa-badge mfa-badge-active">Active</span>
+            {% else %}
+            <span class="mfa-badge mfa-badge-inactive">Not configured</span>
+            {% endif %}
+        </div>
+        {% if not has_totp %}
+        <a href="{% url 'admin_mfa:setup' %}" class="mfa-btn">Set Up Authenticator</a>
+        {% endif %}
+    </div>
+
+    <!-- Passkeys -->
+    <div class="mfa-card">
+        <div class="mfa-card-header">
+            <h3 class="mfa-card-title">Passkeys</h3>
+            <a href="{% url 'admin_mfa:reauth' %}?next={% url 'admin_mfa:settings' %}%23add-passkey" class="mfa-btn mfa-btn-sm">+ Add Passkey</a>
+        </div>
+
+        {% if passkeys %}
+        <table class="mfa-table">
+            <thead>
+                <tr>
+                    <th>Device</th>
+                    <th>Added</th>
+                    <th>Last Used</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for pk in passkeys %}
+                <tr>
+                    <td>{{ pk.device_name }}</td>
+                    <td>{{ pk.created_at|date:"M d, Y" }}</td>
+                    <td>{{ pk.last_used|date:"M d, Y"|default:"Never" }}</td>
+                    <td>
+                        <form method="post" action="{% url 'admin_mfa:delete_passkey' pk.pk %}" style="display:inline;"
+                              onsubmit="return confirm('Delete this passkey?');">
+                            {% csrf_token %}
+                            <button type="submit" class="mfa-btn-sm mfa-btn-danger" style="border:none; color:white; cursor:pointer; border-radius:4px;">Delete</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="mfa-empty">No passkeys registered yet.</div>
+        {% endif %}
+    </div>
+
+    <!-- Backup Codes -->
+    <div class="mfa-card">
+        <div class="mfa-card-header">
+            <h3 class="mfa-card-title">Backup Codes</h3>
+            <span style="color: #666; font-size: 13px;">{{ backup_count }} remaining</span>
+        </div>
+        <form method="post" action="{% url 'admin_mfa:regen_backup_codes' %}" style="display:inline;">
+            {% csrf_token %}
+            <button type="submit" class="mfa-btn-secondary">Regenerate Codes</button>
+        </form>
+    </div>
+
+    <!-- Danger Zone -->
+    <div class="mfa-card" style="border-color: #fca5a5;">
+        <div class="mfa-card-header">
+            <h3 class="mfa-card-title" style="color: #dc2626;">Reset MFA</h3>
+        </div>
+        <p style="font-size: 13px; color: #666; margin-bottom: 12px;">
+            This will remove your authenticator app and all passkeys.
+            You will be required to set up MFA again on your next login.
+        </p>
+        <form method="post" action="{% url 'admin_mfa:reset_mfa' %}"
+              onsubmit="return confirm('Are you sure? This will remove ALL MFA methods and force a new setup.');">
+            {% csrf_token %}
+            <button type="submit" class="mfa-btn mfa-btn-danger">Reset All MFA</button>
+        </form>
+    </div>
+
+    <div style="margin-top: 12px;">
+        <a href="{% url 'admin:index' %}" class="mfa-btn-secondary">Back to Admin</a>
+    </div>
+</div>
+
+{% if request.GET.urlencode and 'add-passkey' in request.get_full_path %}
+<!-- Auto-trigger passkey registration after reauth -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    registerNewPasskey();
+});
+
+function b64urlToBuffer(b64url) {
+    var padding = '='.repeat((4 - b64url.length % 4) % 4);
+    var b64 = (b64url + padding).replace(/-/g, '+').replace(/_/g, '/');
+    var raw = atob(b64);
+    var arr = new Uint8Array(raw.length);
+    for (var i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+    return arr.buffer;
+}
+
+function bufferToB64url(buffer) {
+    var bytes = new Uint8Array(buffer);
+    var binary = '';
+    for (var i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+    return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
+
+function getCookie(name) {
+    var v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+    return v ? v.pop() : '';
+}
+
+async function registerNewPasskey() {
+    var deviceName = prompt('Enter a name for this device (e.g. MacBook Pro, Office PC):', 'Admin Device');
+    if (!deviceName) return;
+
+    try {
+        var beginResp = await fetch('{% url "admin_mfa:webauthn_register_begin" %}', {
+            method: 'POST',
+            headers: {'X-CSRFToken': getCookie('csrftoken'), 'Content-Type': 'application/json'},
+        });
+        var beginData = await beginResp.json();
+        if (beginData.error) { alert(beginData.error); return; }
+
+        var publicKey = beginData.publicKey;
+        publicKey.challenge = b64urlToBuffer(publicKey.challenge);
+        publicKey.user.id = b64urlToBuffer(publicKey.user.id);
+        if (publicKey.excludeCredentials) {
+            publicKey.excludeCredentials = publicKey.excludeCredentials.map(function(c) {
+                return {type: c.type, id: b64urlToBuffer(c.id)};
+            });
+        }
+
+        var credential = await navigator.credentials.create({publicKey: publicKey});
+
+        var credentialData = {
+            id: credential.id,
+            rawId: bufferToB64url(credential.rawId),
+            type: credential.type,
+            response: {
+                attestationObject: bufferToB64url(credential.response.attestationObject),
+                clientDataJSON: bufferToB64url(credential.response.clientDataJSON),
+            },
+        };
+
+        var completeResp = await fetch('{% url "admin_mfa:webauthn_register_complete" %}', {
+            method: 'POST',
+            headers: {'X-CSRFToken': getCookie('csrftoken'), 'Content-Type': 'application/json'},
+            body: JSON.stringify({credential: credentialData, device_name: deviceName}),
+        });
+        var completeData = await completeResp.json();
+
+        if (completeData.ok) {
+            window.location.href = '{% url "admin_mfa:settings" %}';
+        } else {
+            alert(completeData.error || 'Registration failed.');
+        }
+    } catch (err) {
+        alert('Error: ' + err.message);
+    }
+}
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,58 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block title %}Secure Your Account{% endblock %}
+{% block breadcrumbs %}{% endblock %}
+
+{% block content %}
+<style>
+    .mfa-container { max-width: 480px; margin: 0 auto; }
+    .mfa-card { background: #fff; padding: 30px; border-radius: 8px; border: 1px solid #ddd; }
+    .mfa-title { margin-bottom: 8px; }
+    .mfa-subtitle { color: #666; margin-bottom: 24px; font-size: 14px; line-height: 1.6; }
+    .mfa-btn { width: 100%; padding: 14px; background: #417690; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 15px; font-weight: bold; }
+    .mfa-btn:hover { background: #205067; }
+    .mfa-btn-skip { width: 100%; padding: 12px; background: transparent; color: #666; border: 1px solid #ddd; border-radius: 4px; cursor: pointer; font-size: 13px; margin-top: 12px; }
+    .mfa-btn-skip:hover { background: #f5f5f5; }
+    .mfa-benefit { display: flex; align-items: flex-start; gap: 12px; padding: 10px 0; font-size: 14px; color: #444; }
+    .mfa-benefit-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+    .mfa-info { background: #fef3c7; color: #92400e; padding: 12px 16px; border-radius: 6px; margin-bottom: 20px; font-size: 13px; line-height: 1.5; }
+</style>
+
+<div class="mfa-container">
+    <h2 class="mfa-title">Secure Your Account</h2>
+    <p class="mfa-subtitle">
+        You signed in with an email code. For stronger security and faster logins,
+        set up a permanent authentication method.
+    </p>
+
+    <div class="mfa-card">
+        <div class="mfa-info">
+            Without MFA, you'll need to enter an email code every time you sign in.
+        </div>
+
+        <div style="margin-bottom: 20px;">
+            <div class="mfa-benefit">
+                <span class="mfa-benefit-icon">&#128272;</span>
+                <span><strong>Authenticator App</strong> — Google Authenticator, Authy, or similar. Fast 6-digit codes.</span>
+            </div>
+            <div class="mfa-benefit">
+                <span class="mfa-benefit-icon">&#128273;</span>
+                <span><strong>Passkey</strong> — Windows Hello, Face ID, fingerprint, or security key. One tap to sign in.</span>
+            </div>
+        </div>
+
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="setup">
+            <button type="submit" class="mfa-btn">Set Up MFA Now</button>
+        </form>
+
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="skip">
+            <button type="submit" class="mfa-btn-skip">Skip for now</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

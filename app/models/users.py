@@ -41,6 +41,11 @@ class User(AbstractUser):
     contract_acceptance_date = models.DateTimeField(null=True, blank=True, help_text="Date d'acceptation du contrat")
     is_dashboard_enabled = models.BooleanField(default=False, help_text="Accès au tableau de bord activé")
 
+    admin_pin_hash = models.CharField(
+        max_length=128, blank=True, default='',
+        help_text="SHA-256 hash of the admin PIN for banking data access"
+    )
+
     class Meta:
         verbose_name = _('user')
         verbose_name_plural = _('users')

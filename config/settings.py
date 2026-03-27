@@ -173,6 +173,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "app.admin.middleware.AdminMFAMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     'social_django.middleware.SocialAuthExceptionMiddleware',
@@ -364,7 +365,7 @@ STRIPE_PUBLISHABLE_KEY = os.getenv('STRIPE_PUBLISHABLE_KEY')
 LOGIN_URL = 'dbdint:login'
 LOGIN_REDIRECT_URL = 'dashboard'
 LOGOUT_URL = 'logout'
-LOGOUT_REDIRECT_URL = 'home'
+LOGOUT_REDIRECT_URL = '/admin/login/'
 
 # Phone number settings
 PHONENUMBER_DEFAULT_REGION = 'US'

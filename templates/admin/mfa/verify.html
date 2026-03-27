@@ -1,0 +1,135 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block title %}MFA Verification{% endblock %}
+{% block breadcrumbs %}{% endblock %}
+
+{% block content %}
+<style>
+    .mfa-container { max-width: 420px; margin: 0 auto; }
+    .mfa-card { background: #fff; padding: 30px; border-radius: 8px; border: 1px solid #ddd; }
+    .mfa-title { margin-bottom: 8px; }
+    .mfa-subtitle { color: #666; margin-bottom: 24px; font-size: 14px; }
+    .mfa-error { background: #fecaca; color: #991b1b; padding: 10px 16px; border-radius: 6px; margin-bottom: 16px; }
+    .mfa-input { width: 100%; padding: 12px 14px; border: 1px solid #ccc; border-radius: 4px; font-size: 20px; letter-spacing: 8px; text-align: center; box-sizing: border-box; }
+    .mfa-btn { width: 100%; padding: 12px; background: #417690; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: bold; }
+    .mfa-btn:hover { background: #205067; }
+    .mfa-btn-passkey { width: 100%; padding: 12px; background: #1a1a2e; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: bold; }
+    .mfa-btn-passkey:hover { background: #16213e; }
+    .mfa-divider { display: flex; align-items: center; gap: 12px; margin: 20px 0; color: #999; font-size: 13px; }
+    .mfa-divider::before, .mfa-divider::after { content: ''; flex: 1; height: 1px; background: #ddd; }
+    .mfa-status { padding: 10px 16px; border-radius: 6px; margin-bottom: 16px; display: none; }
+</style>
+
+<div class="mfa-container">
+    <h2 class="mfa-title">Verify Your Identity</h2>
+    <p class="mfa-subtitle">Enter the code from your authenticator app{% if has_webauthn %} or use your passkey{% endif %}.</p>
+
+    {% if error %}
+    <div class="mfa-error">{{ error }}</div>
+    {% endif %}
+
+    <div class="mfa-card">
+        <form method="post">
+            {% csrf_token %}
+            <div style="margin-bottom: 16px;">
+                <label for="code" style="display: block; font-weight: bold; margin-bottom: 6px; font-size: 13px;">6-digit Code or Backup Code</label>
+                <input type="text" name="code" id="code" class="mfa-input"
+                       maxlength="8" autocomplete="one-time-code" autofocus
+                       placeholder="000000">
+            </div>
+            <button type="submit" class="mfa-btn">Verify</button>
+        </form>
+
+        {% if has_webauthn %}
+        <div class="mfa-divider">or</div>
+        <div id="webauthn-status" class="mfa-status"></div>
+        <button type="button" class="mfa-btn-passkey" onclick="loginWithPasskey()">
+            Use Passkey
+        </button>
+        {% endif %}
+    </div>
+</div>
+
+{% if has_webauthn %}
+<script>
+function b64urlToBuffer(b64url) {
+    var padding = '='.repeat((4 - b64url.length % 4) % 4);
+    var b64 = (b64url + padding).replace(/-/g, '+').replace(/_/g, '/');
+    var raw = atob(b64);
+    var arr = new Uint8Array(raw.length);
+    for (var i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+    return arr.buffer;
+}
+
+function bufferToB64url(buffer) {
+    var bytes = new Uint8Array(buffer);
+    var binary = '';
+    for (var i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+    return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
+
+function showStatus(msg, isError) {
+    var el = document.getElementById('webauthn-status');
+    el.style.display = 'block';
+    el.textContent = msg;
+    el.style.background = isError ? '#fecaca' : '#bbf7d0';
+    el.style.color = isError ? '#991b1b' : '#166534';
+}
+
+function getCookie(name) {
+    var v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+    return v ? v.pop() : '';
+}
+
+async function loginWithPasskey() {
+    try {
+        var beginResp = await fetch('{% url "admin_mfa:webauthn_login_begin" %}', {
+            method: 'POST',
+            headers: {'X-CSRFToken': getCookie('csrftoken'), 'Content-Type': 'application/json'},
+        });
+        var beginData = await beginResp.json();
+        if (beginData.error) { showStatus(beginData.error, true); return; }
+
+        var publicKey = beginData.publicKey;
+        publicKey.challenge = b64urlToBuffer(publicKey.challenge);
+        if (publicKey.allowCredentials) {
+            publicKey.allowCredentials = publicKey.allowCredentials.map(function(c) {
+                return {type: c.type, id: b64urlToBuffer(c.id), transports: c.transports};
+            });
+        }
+
+        var assertion = await navigator.credentials.get({publicKey: publicKey});
+
+        var credentialData = {
+            id: assertion.id,
+            rawId: bufferToB64url(assertion.rawId),
+            type: assertion.type,
+            response: {
+                authenticatorData: bufferToB64url(assertion.response.authenticatorData),
+                clientDataJSON: bufferToB64url(assertion.response.clientDataJSON),
+                signature: bufferToB64url(assertion.response.signature),
+                userHandle: assertion.response.userHandle ? bufferToB64url(assertion.response.userHandle) : null,
+            },
+        };
+
+        var completeResp = await fetch('{% url "admin_mfa:webauthn_login_complete" %}', {
+            method: 'POST',
+            headers: {'X-CSRFToken': getCookie('csrftoken'), 'Content-Type': 'application/json'},
+            body: JSON.stringify({credential: credentialData}),
+        });
+        var completeData = await completeResp.json();
+
+        if (completeData.ok) {
+            showStatus('Verified! Redirecting...', false);
+            setTimeout(function() { window.location.href = '{% url "admin:index" %}'; }, 500);
+        } else {
+            showStatus(completeData.error || 'Verification failed.', true);
+        }
+    } catch (err) {
+        showStatus('Error: ' + err.message, true);
+    }
+}
+</script>
+{% endif %}
+{% endblock %}

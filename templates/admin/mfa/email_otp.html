@@ -1,0 +1,72 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block title %}Email Verification{% endblock %}
+{% block breadcrumbs %}{% endblock %}
+
+{% block content %}
+<style>
+    .mfa-container { max-width: 420px; margin: 0 auto; }
+    .mfa-card { background: #fff; padding: 30px; border-radius: 8px; border: 1px solid #ddd; }
+    .mfa-title { margin-bottom: 8px; }
+    .mfa-subtitle { color: #666; margin-bottom: 24px; font-size: 14px; line-height: 1.5; }
+    .mfa-error { background: #fecaca; color: #991b1b; padding: 10px 16px; border-radius: 6px; margin-bottom: 16px; font-size: 14px; }
+    .mfa-success { background: #bbf7d0; color: #166534; padding: 10px 16px; border-radius: 6px; margin-bottom: 16px; font-size: 14px; }
+    .mfa-input { width: 100%; padding: 14px; border: 1px solid #ccc; border-radius: 4px; font-size: 24px; letter-spacing: 10px; text-align: center; box-sizing: border-box; }
+    .mfa-input:disabled { background: #f5f5f5; color: #999; }
+    .mfa-btn { width: 100%; padding: 12px; background: #417690; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: bold; }
+    .mfa-btn:hover { background: #205067; }
+    .mfa-btn:disabled { background: #999; cursor: not-allowed; }
+    .mfa-link { display: block; text-align: center; margin-top: 16px; font-size: 13px; }
+    .mfa-link a { color: #417690; text-decoration: none; }
+    .mfa-link a:hover { text-decoration: underline; }
+    .mfa-divider { display: flex; align-items: center; gap: 12px; margin: 20px 0; color: #999; font-size: 13px; }
+    .mfa-divider::before, .mfa-divider::after { content: ''; flex: 1; height: 1px; background: #ddd; }
+    .mfa-setup-link { display: block; text-align: center; padding: 12px; background: #f0f7ff; border: 1px solid #bdd7ee; border-radius: 6px; color: #1a5276; font-size: 13px; text-decoration: none; margin-top: 12px; }
+    .mfa-setup-link:hover { background: #dbeafe; }
+</style>
+
+<div class="mfa-container">
+    <h2 class="mfa-title">Verify Your Identity</h2>
+    <p class="mfa-subtitle">
+        A verification code has been sent to <strong>{{ masked_email }}</strong>.
+        Enter it below to continue.
+    </p>
+
+    {% if error %}
+    <div class="mfa-error">{{ error }}</div>
+    {% endif %}
+
+    {% if success %}
+    <div class="mfa-success">{{ success }}</div>
+    {% endif %}
+
+    <div class="mfa-card">
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="verify">
+            <div style="margin-bottom: 16px;">
+                <label for="code" style="display: block; font-weight: bold; margin-bottom: 6px; font-size: 13px;">6-digit Code</label>
+                <input type="text" name="code" id="code" class="mfa-input"
+                       maxlength="6" autocomplete="one-time-code" autofocus
+                       placeholder="000000"
+                       {% if locked %}disabled{% endif %}>
+            </div>
+            <button type="submit" class="mfa-btn" {% if locked %}disabled{% endif %}>
+                Verify
+            </button>
+        </form>
+
+        <div class="mfa-link">
+            <form method="post" style="display: inline;">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="resend">
+                <button type="submit" style="background: none; border: none; color: #417690; cursor: pointer; font-size: 13px; text-decoration: underline;">
+                    Resend code
+                </button>
+            </form>
+        </div>
+
+    </div>
+</div>
+{% endblock %}

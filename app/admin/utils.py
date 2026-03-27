@@ -121,6 +121,17 @@ def mark_as_inactive(modeladmin, request, queryset):
 mark_as_inactive.short_description = "Mark as inactive"
 
 def reset_password(modeladmin, request, queryset):
+    """Reset password — requires MFA reauth for security."""
+    from django.contrib import messages
+    from django.shortcuts import redirect
+    from django.urls import reverse
+
+    if not request.session.get('admin_reauth_verified'):
+        messages.warning(request, 'Password reset requires re-authentication. Please verify your identity first.')
+        reauth_url = reverse('admin_mfa:reauth')
+        next_url = request.get_full_path()
+        return redirect(f"{reauth_url}?next={next_url}")
+
     for user in queryset:
         # Implémenter ici la logique de réinitialisation de mot de passe
         pass

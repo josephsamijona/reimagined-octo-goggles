@@ -1,5 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
+from django.shortcuts import redirect
+from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 from django.utils.safestring import mark_safe
 from app import models
@@ -33,19 +35,33 @@ class ContractBankingInline(admin.TabularInline):
     def has_add_permission(self, request, obj=None):
         return False
 
+    def _is_unlocked(self):
+        request = getattr(self, '_current_request', None)
+        return request and request.session.get('admin_reauth_verified')
+
     def _make_reveal(self, masked, clear, field_id):
-        return mark_safe(
-            f'<span id="masked-{field_id}">{masked}</span>'
-            f'<span id="clear-{field_id}" style="display:none;">{clear}</span> '
-            f'<a href="#" style="font-size:11px;" onclick="'
-            f"var m=document.getElementById('masked-{field_id}'),"
-            f"c=document.getElementById('clear-{field_id}'),"
-            f"t=this;"
-            f"if(c.style.display==='none'){{c.style.display='inline';m.style.display='none';t.textContent='Masquer';}}"
-            f"else{{c.style.display='none';m.style.display='inline';t.textContent='Voir';}}"
-            f"return false;"
-            f'">Voir</a>'
-        )
+        if self._is_unlocked():
+            return mark_safe(
+                f'<span id="masked-{field_id}">{masked}</span>'
+                f'<span id="clear-{field_id}" style="display:none;">{clear}</span> '
+                f'<a href="#" style="font-size:11px;" onclick="'
+                f"var m=document.getElementById('masked-{field_id}'),"
+                f"c=document.getElementById('clear-{field_id}'),"
+                f"t=this;"
+                f"if(c.style.display==='none'){{c.style.display='inline';m.style.display='none';t.textContent='Masquer';}}"
+                f"else{{c.style.display='none';m.style.display='inline';t.textContent='Voir';}}"
+                f"return false;"
+                f'">Voir</a>'
+            )
+        else:
+            request = getattr(self, '_current_request', None)
+            path = request.path if request else ''
+            reauth_url = f"/admin/mfa/reauth/?next={path}"
+            return mark_safe(f'{masked} <a href="{reauth_url}" style="font-size:11px; color:#417690;">Unlock to view</a>')
+
+    def get_formset(self, request, obj=None, **kwargs):
+        self._current_request = request
+        return super().get_formset(request, obj, **kwargs)
 
     def account_number_reveal(self, obj):
         val = obj.get_account_number()
@@ -137,6 +153,14 @@ class CustomUserAdmin(UserAdmin):
         if not request.user.is_superuser:
             form.base_fields['role'].disabled = True
         return form
+
+    def user_change_password(self, request, id, form_url=''):
+        """Gate password change behind MFA reauth."""
+        if not request.session.get('admin_reauth_verified'):
+            reauth_url = reverse('admin_mfa:reauth')
+            next_url = request.get_full_path()
+            return redirect(f"{reauth_url}?next={next_url}")
+        return super().user_change_password(request, id, form_url)
 
 @admin.register(models.Client)
 class ClientAdmin(admin.ModelAdmin):
@@ -254,19 +278,28 @@ class InterpreterAdmin(admin.ModelAdmin):
             language_list.append(f"{lang.language.name} ({lang.get_proficiency_display()}){cert_icon}{primary_icon}")
         return mark_safe("<br>".join(language_list))
     get_languages.short_description = 'Languages'
-    def _make_banking_reveal(self, masked, clear, field_id):
-        return mark_safe(
-            f'<span id="masked-{field_id}">{masked}</span>'
-            f'<span id="clear-{field_id}" style="display:none;">{clear}</span> '
-            f'<a href="#" style="font-size:11px;" onclick="'
-            f"var m=document.getElementById('masked-{field_id}'),"
-            f"c=document.getElementById('clear-{field_id}'),"
-            f"t=this;"
-            f"if(c.style.display==='none'){{c.style.display='inline';m.style.display='none';t.textContent='Masquer';}}"
-            f"else{{c.style.display='none';m.style.display='inline';t.textContent='Voir';}}"
-            f"return false;"
-            f'">Voir</a>'
-        )
+    def _make_banking_reveal(self, masked, clear, field_id, request):
+        """Show masked value. If reauth verified, allow toggle. Otherwise link to reauth."""
+        is_unlocked = request and request.session.get('admin_reauth_verified')
+        if is_unlocked:
+            return mark_safe(
+                f'<span id="masked-{field_id}">{masked}</span>'
+                f'<span id="clear-{field_id}" style="display:none;">{clear}</span> '
+                f'<a href="#" style="font-size:11px;" onclick="'
+                f"var m=document.getElementById('masked-{field_id}'),"
+                f"c=document.getElementById('clear-{field_id}'),"
+                f"t=this;"
+                f"if(c.style.display==='none'){{c.style.display='inline';m.style.display='none';t.textContent='Masquer';}}"
+                f"else{{c.style.display='none';m.style.display='inline';t.textContent='Voir';}}"
+                f"return false;"
+                f'">Voir</a>'
+            )
+        else:
+            reauth_url = f"/admin/mfa/reauth/?next={request.path}" if request else "#"
+            return mark_safe(
+                f'{masked} '
+                f'<a href="{reauth_url}" style="font-size:11px; color:#417690;">Unlock to view</a>'
+            )
 
     def _decrypt_field(self, raw_value):
         if not raw_value:
@@ -282,7 +315,8 @@ class InterpreterAdmin(admin.ModelAdmin):
         if not clear:
             return '—'
         masked = clear[:2] + '*' * (len(clear) - 4) + clear[-2:]
-        return self._make_banking_reveal(masked, clear, f'interp-rout-{obj.pk}')
+        request = getattr(self, '_current_request', None)
+        return self._make_banking_reveal(masked, clear, f'interp-rout-{obj.pk}', request)
     routing_number_display.short_description = 'Routing Number'
 
     def account_number_display(self, obj):
@@ -290,8 +324,13 @@ class InterpreterAdmin(admin.ModelAdmin):
         if not clear:
             return '—'
         masked = '*' * (len(clear) - 4) + clear[-4:]
-        return self._make_banking_reveal(masked, clear, f'interp-acct-{obj.pk}')
+        request = getattr(self, '_current_request', None)
+        return self._make_banking_reveal(masked, clear, f'interp-acct-{obj.pk}', request)
     account_number_display.short_description = 'Account Number'
+
+    def changeform_view(self, request, object_id=None, form_url='', extra_context=None):
+        self._current_request = request
+        return super().changeform_view(request, object_id, form_url, extra_context)
 
     def get_readonly_fields(self, request, obj=None):
         readonly = ('profile_photo_preview', 'routing_number_display', 'account_number_display')

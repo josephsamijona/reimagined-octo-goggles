@@ -1,0 +1,176 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block title %}Confirm Identity{% endblock %}
+{% block breadcrumbs %}{% endblock %}
+
+{% block content %}
+<style>
+    .mfa-container { max-width: 420px; margin: 0 auto; }
+    .mfa-card { background: #fff; padding: 30px; border-radius: 8px; border: 1px solid #ddd; }
+    .mfa-title { margin-bottom: 8px; }
+    .mfa-subtitle { color: #666; margin-bottom: 24px; font-size: 14px; }
+    .mfa-error { background: #fecaca; color: #991b1b; padding: 10px 16px; border-radius: 6px; margin-bottom: 16px; }
+    .mfa-info { background: #dbeafe; color: #1e40af; padding: 10px 16px; border-radius: 6px; margin-bottom: 16px; font-size: 13px; }
+    .mfa-input { width: 100%; padding: 10px 14px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; box-sizing: border-box; }
+    .mfa-btn { width: 100%; padding: 12px; background: #417690; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: bold; }
+    .mfa-btn:hover { background: #205067; }
+    .mfa-btn:disabled { background: #999; cursor: not-allowed; }
+    .mfa-divider { display: flex; align-items: center; gap: 12px; margin: 16px 0; color: #999; font-size: 13px; }
+    .mfa-divider::before, .mfa-divider::after { content: ''; flex: 1; height: 1px; background: #ddd; }
+    .mfa-section { margin-bottom: 16px; padding-bottom: 16px; }
+    .mfa-label { display: block; font-weight: bold; margin-bottom: 6px; font-size: 13px; }
+</style>
+
+<div class="mfa-container">
+    <h2 class="mfa-title">Confirm Your Identity</h2>
+    <p class="mfa-subtitle">This action requires re-authentication for security.</p>
+
+    <div class="mfa-info">Password authentication is not accepted for sensitive actions. Use one of the methods below.</div>
+
+    {% if error %}
+    <div class="mfa-error">{{ error }}</div>
+    {% endif %}
+
+    <div class="mfa-card">
+        {% if has_totp %}
+        <!-- TOTP method -->
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ next }}">
+            <input type="hidden" name="method" value="totp">
+            <div class="mfa-section">
+                <label for="code" class="mfa-label">Authenticator Code</label>
+                <input type="text" name="code" id="code" class="mfa-input"
+                       maxlength="8" autocomplete="one-time-code" autofocus
+                       placeholder="000000" style="letter-spacing: 4px; text-align: center;"
+                       {% if locked %}disabled{% endif %}>
+            </div>
+            <button type="submit" class="mfa-btn" style="background: #374151;" {% if locked %}disabled{% endif %}>Verify with Code</button>
+        </form>
+        {% endif %}
+
+        {% if has_webauthn %}
+        {% if has_totp %}<div class="mfa-divider">or</div>{% endif %}
+        <div id="webauthn-status" style="display:none; padding: 10px 16px; border-radius: 6px; margin-bottom: 12px;"></div>
+        <button type="button" class="mfa-btn" style="background: #1a1a2e;" onclick="reauthWithPasskey()" {% if locked %}disabled{% endif %}>
+            Use Passkey
+        </button>
+        {% endif %}
+
+        {% if has_totp or has_webauthn %}<div class="mfa-divider">or</div>{% endif %}
+
+        <!-- Email OTP method (always available) -->
+        {% if email_otp_sent %}
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ next }}">
+            <input type="hidden" name="method" value="email_otp">
+            <input type="hidden" name="email_action" value="verify">
+            <div class="mfa-section">
+                <label for="email_code" class="mfa-label">Email Verification Code</label>
+                <input type="text" name="email_code" id="email_code" class="mfa-input"
+                       maxlength="6" autocomplete="one-time-code"
+                       placeholder="000000" style="letter-spacing: 4px; text-align: center;"
+                       {% if locked %}disabled{% endif %}>
+            </div>
+            <button type="submit" class="mfa-btn" style="background: #065f46;" {% if locked %}disabled{% endif %}>Verify Email Code</button>
+        </form>
+        {% else %}
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ next }}">
+            <input type="hidden" name="method" value="email_otp">
+            <input type="hidden" name="email_action" value="send">
+            <button type="submit" class="mfa-btn" style="background: #065f46;" {% if locked %}disabled{% endif %}>Send Code to Email</button>
+        </form>
+        {% endif %}
+    </div>
+
+    <div style="margin-top: 12px; text-align: center;">
+        <a href="{% url 'admin:index' %}" style="color: #666; font-size: 13px;">Cancel</a>
+    </div>
+</div>
+
+{% if has_webauthn %}
+<script>
+function b64urlToBuffer(b64url) {
+    var padding = '='.repeat((4 - b64url.length % 4) % 4);
+    var b64 = (b64url + padding).replace(/-/g, '+').replace(/_/g, '/');
+    var raw = atob(b64);
+    var arr = new Uint8Array(raw.length);
+    for (var i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+    return arr.buffer;
+}
+
+function bufferToB64url(buffer) {
+    var bytes = new Uint8Array(buffer);
+    var binary = '';
+    for (var i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+    return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
+
+function showStatus(msg, isError) {
+    var el = document.getElementById('webauthn-status');
+    el.style.display = 'block';
+    el.textContent = msg;
+    el.style.background = isError ? '#fecaca' : '#bbf7d0';
+    el.style.color = isError ? '#991b1b' : '#166534';
+}
+
+function getCookie(name) {
+    var v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+    return v ? v.pop() : '';
+}
+
+async function reauthWithPasskey() {
+    try {
+        var beginResp = await fetch('{% url "admin_mfa:webauthn_login_begin" %}', {
+            method: 'POST',
+            headers: {'X-CSRFToken': getCookie('csrftoken'), 'Content-Type': 'application/json'},
+        });
+        var beginData = await beginResp.json();
+        if (beginData.error) { showStatus(beginData.error, true); return; }
+
+        var publicKey = beginData.publicKey;
+        publicKey.challenge = b64urlToBuffer(publicKey.challenge);
+        if (publicKey.allowCredentials) {
+            publicKey.allowCredentials = publicKey.allowCredentials.map(function(c) {
+                return {type: c.type, id: b64urlToBuffer(c.id), transports: c.transports};
+            });
+        }
+
+        var assertion = await navigator.credentials.get({publicKey: publicKey});
+
+        var credentialData = {
+            id: assertion.id,
+            rawId: bufferToB64url(assertion.rawId),
+            type: assertion.type,
+            response: {
+                authenticatorData: bufferToB64url(assertion.response.authenticatorData),
+                clientDataJSON: bufferToB64url(assertion.response.clientDataJSON),
+                signature: bufferToB64url(assertion.response.signature),
+                userHandle: assertion.response.userHandle ? bufferToB64url(assertion.response.userHandle) : null,
+            },
+        };
+
+        var completeResp = await fetch('{% url "admin_mfa:webauthn_login_complete" %}', {
+            method: 'POST',
+            headers: {'X-CSRFToken': getCookie('csrftoken'), 'Content-Type': 'application/json'},
+            body: JSON.stringify({credential: credentialData}),
+        });
+        var completeData = await completeResp.json();
+
+        if (completeData.ok) {
+            // WebAuthn also sets admin_reauth_verified via the complete endpoint
+            window.location.href = '{{ next }}';
+        } else {
+            showStatus(completeData.error || 'Verification failed.', true);
+        }
+    } catch (err) {
+        showStatus('Error: ' + err.message, true);
+    }
+}
+</script>
+{% endif %}
+{% endblock %}

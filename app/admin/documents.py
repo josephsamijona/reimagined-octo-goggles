@@ -105,22 +105,67 @@ class InterpreterContractSignatureAdmin(admin.ModelAdmin):
     signed_date.short_description = 'Signed On'
     
     def _make_reveal_field(self, masked_value, clear_value, field_id):
-        """Generate HTML with masked value and a toggle button to reveal the clear value"""
-        return mark_safe(
-            f'<span id="masked-{field_id}">🔒 {masked_value}</span>'
-            f'<span id="clear-{field_id}" style="display:none;">🔓 {clear_value}</span> '
-            f'<a href="#" style="margin-left:8px;font-size:12px;" onclick="'
-            f"var m=document.getElementById('masked-{field_id}'),"
-            f"c=document.getElementById('clear-{field_id}'),"
-            f"t=this;"
-            f"if(c.style.display==='none'){{c.style.display='inline';m.style.display='none';t.textContent='Masquer';}}"
-            f"else{{c.style.display='none';m.style.display='inline';t.textContent='Voir';}}"
-            f"return false;"
-            f'">Voir</a>'
-        )
+        """Show masked value. If reauth verified, allow toggle. Otherwise link to reauth."""
+        request = getattr(self, '_current_request', None)
+        is_unlocked = request and request.session.get('admin_reauth_verified')
+        if is_unlocked:
+            return mark_safe(
+                f'<span id="masked-{field_id}">🔒 {masked_value}</span>'
+                f'<span id="clear-{field_id}" style="display:none;">🔓 {clear_value}</span> '
+                f'<a href="#" style="margin-left:8px;font-size:12px;" onclick="'
+                f"var m=document.getElementById('masked-{field_id}'),"
+                f"c=document.getElementById('clear-{field_id}'),"
+                f"t=this;"
+                f"if(c.style.display==='none'){{c.style.display='inline';m.style.display='none';t.textContent='Masquer';}}"
+                f"else{{c.style.display='none';m.style.display='inline';t.textContent='Voir';}}"
+                f"return false;"
+                f'">Voir</a>'
+            )
+        else:
+            path = request.path if request else ''
+            reauth_url = f"/admin/mfa/reauth/?next={path}"
+            return mark_safe(
+                f'🔒 {masked_value} '
+                f'<a href="{reauth_url}" style="margin-left:8px;font-size:12px;color:#417690;">Unlock to view</a>'
+            )
+
+    def change_view(self, request, object_id, form_url='', extra_context=None):
+        self._current_request = request
+        extra_context = extra_context or {}
+        user_to_interpreter, interpreter_to_user = self.get_user_interpreter_mappings()
+
+        script = f"""
+        <script>
+            var userToInterpreter = {user_to_interpreter};
+            var interpreterToUser = {interpreter_to_user};
+
+            document.addEventListener('DOMContentLoaded', function() {{
+                var userSelect = document.getElementById('id_user');
+                var interpreterSelect = document.getElementById('id_interpreter');
+
+                if (userSelect && interpreterSelect) {{
+                    userSelect.addEventListener('change', function() {{
+                        var userId = this.value;
+                        if (userId && userToInterpreter[userId]) {{
+                            interpreterSelect.value = userToInterpreter[userId];
+                        }}
+                    }});
+
+                    interpreterSelect.addEventListener('change', function() {{
+                        var interpreterId = this.value;
+                        if (interpreterId && interpreterToUser[interpreterId]) {{
+                            userSelect.value = interpreterToUser[interpreterId];
+                        }}
+                    }});
+                }}
+            }});
+        </script>
+        """
+
+        extra_context['after_related_objects'] = mark_safe(script)
+        return super().change_view(request, object_id, form_url, extra_context=extra_context)
 
     def account_number_display(self, obj):
-        """Display account number with reveal toggle"""
         account_number = obj.get_account_number()
         if not account_number:
             return '—'
@@ -129,7 +174,6 @@ class InterpreterContractSignatureAdmin(admin.ModelAdmin):
     account_number_display.short_description = 'Account Number'
 
     def routing_number_display(self, obj):
-        """Display routing number with reveal toggle"""
         routing_number = obj.get_routing_number()
         if not routing_number:
             return '—'
@@ -138,7 +182,6 @@ class InterpreterContractSignatureAdmin(admin.ModelAdmin):
     routing_number_display.short_description = 'Routing Number'
 
     def swift_code_display(self, obj):
-        """Display SWIFT code with reveal toggle"""
         swift_code = obj.get_swift_code()
         if not swift_code:
             return '—'
@@ -171,56 +214,6 @@ class InterpreterContractSignatureAdmin(admin.ModelAdmin):
     
     class Media:
         js = ('admin/js/interpreter_contract_admin.js',)
-    
-    def changelist_view(self, request, extra_context=None):
-        """Ajoute le script JS pour la liaison user-interprète"""
-        extra_context = extra_context or {}
-        return super().changelist_view(request, extra_context=extra_context)
-    
-    def change_view(self, request, object_id, form_url='', extra_context=None):
-        """Ajoute les mappings user-interprète au contexte pour la page de détail"""
-        extra_context = extra_context or {}
-        user_to_interpreter, interpreter_to_user = self.get_user_interpreter_mappings()
-        
-        # Ajoute ces data dans une balise script pour les récupérer en JS
-        script = f"""
-        <script>
-            // Mappings User -> Interpreter
-            var userToInterpreter = {user_to_interpreter};
-            // Mappings Interpreter -> User
-            var interpreterToUser = {interpreter_to_user};
-            
-            document.addEventListener('DOMContentLoaded', function() {{
-                // Sélection des champs d'entrée
-                var userSelect = document.getElementById('id_user');
-                var interpreterSelect = document.getElementById('id_interpreter');
-                
-                if (userSelect && interpreterSelect) {{
-                    // Ajouter les écouteurs d'événements
-                    userSelect.addEventListener('change', function() {{
-                        var userId = this.value;
-                        if (userId && userToInterpreter[userId]) {{
-                            // Mise à jour du champ interpreter quand user change
-                            interpreterSelect.value = userToInterpreter[userId];
-                        }}
-                    }});
-                    
-                    interpreterSelect.addEventListener('change', function() {{
-                        var interpreterId = this.value;
-                        if (interpreterId && interpreterToUser[interpreterId]) {{
-                            // Mise à jour du champ user quand interpreter change
-                            userSelect.value = interpreterToUser[interpreterId];
-                        }}
-                    }});
-                }}
-            }});
-        </script>
-        """
-        
-        # Ajoute le script au contexte
-        extra_context['after_related_objects'] = mark_safe(script)
-        
-        return super().change_view(request, object_id, form_url, extra_context=extra_context)
     
     def add_view(self, request, form_url='', extra_context=None):
         """Ajoute les mappings user-interprète au contexte pour la page d'ajout"""
