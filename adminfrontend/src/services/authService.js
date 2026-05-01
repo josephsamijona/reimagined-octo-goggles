@@ -14,6 +14,11 @@ const authService = {
     return api.post(`${AUTH}/login/`, payload);
   },
 
+  googleAuth(idToken) {
+    console.log("[AUTH_SERVICE] googleAuth() called");
+    return api.post(`${AUTH}/google/`, { id_token: idToken });
+  },
+
   mfaSetup() {
     console.log("[AUTH_SERVICE] mfaSetup() called");
     return api.post(`${AUTH}/mfa/setup/`);

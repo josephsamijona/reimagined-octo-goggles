@@ -3,18 +3,19 @@ frontend:
   phases:
     preBuild:
       commands:
+        - cd adminfrontend
         - nvm use 20
-        - npm install --force
+        - npm ci
     build:
       commands:
         - npm run build
   artifacts:
-    baseDirectory: build
+    baseDirectory: adminfrontend/build
     files:
       - '**/*'
   cache:
     paths:
-      - node_modules/**/*
+      - adminfrontend/node_modules/**/*
   customHeaders:
     - pattern: '**/*'
       headers:

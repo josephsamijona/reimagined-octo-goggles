@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,7 +19,79 @@ export const LoginPage = () => {
   // "credentials" = default, "passkey" = passkey selection menu
   const [mode, setMode] = useState("credentials");
 
-  const { handleLogin, handleWebAuthnLogin, handleDeviceTrust } = useAuth();
+  const googleButtonRef = useRef(null);
+  const googleInitializedRef = useRef(false);
+
+  const {
+    handleLogin,
+    handleGoogleLogin,
+    handleWebAuthnLogin,
+    handleDeviceTrust,
+  } = useAuth();
+
+  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+
+  useEffect(() => {
+    if (mode !== "credentials") return;
+    if (!googleClientId) return;
+
+    let cancelled = false;
+
+    const renderGoogleButton = () => {
+      if (cancelled) return;
+      if (!window.google?.accounts?.id || !googleButtonRef.current) return;
+
+      if (!googleInitializedRef.current) {
+        window.google.accounts.id.initialize({
+          client_id: googleClientId,
+          callback: async (response) => {
+            if (!response?.credential) {
+              toast.error("Google authentication failed. Missing credential.");
+              return;
+            }
+
+            setIsLoading(true);
+            try {
+              await handleGoogleLogin(response.credential);
+            } catch (err) {
+              const detail = err.response?.data?.detail || "Google login failed. Please try again.";
+              toast.error(detail);
+            } finally {
+              setIsLoading(false);
+            }
+          },
+        });
+        googleInitializedRef.current = true;
+      }
+
+      googleButtonRef.current.innerHTML = "";
+      window.google.accounts.id.renderButton(googleButtonRef.current, {
+        theme: "outline",
+        size: "large",
+        text: "signin_with",
+        shape: "rectangular",
+        logo_alignment: "left",
+        width: 340,
+      });
+    };
+
+    const waitForGoogleScript = () => {
+      if (cancelled) return;
+
+      if (window.google?.accounts?.id) {
+        renderGoogleButton();
+        return;
+      }
+
+      window.setTimeout(waitForGoogleScript, 200);
+    };
+
+    waitForGoogleScript();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [mode, googleClientId, handleGoogleLogin]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -101,7 +173,7 @@ export const LoginPage = () => {
         <Card className="border-white/10 bg-navy/50 backdrop-blur-xl shadow-2xl overflow-hidden">
           <div className="h-1 bg-gradient-to-r from-gold/50 via-gold to-gold/50" />
 
-          {/* ── Password Login Mode ─────────────────────────── */}
+          {/* Password Login Mode */}
           {mode === "credentials" && (
             <>
               <CardHeader className="space-y-1 pb-4">
@@ -192,12 +264,32 @@ export const LoginPage = () => {
                     <Fingerprint className="w-5 h-5 text-gold group-hover:scale-110 transition-transform" />
                     Sign in with Passkey
                   </Button>
+
+                  <div className="relative w-full py-2">
+                    <div className="absolute inset-0 flex items-center px-4">
+                      <span className="w-full border-t border-white/10" />
+                    </div>
+                    <div className="relative flex justify-center text-[10px] uppercase font-bold">
+                      <span className="bg-navy px-2 text-white/30 font-mono">or continue with google</span>
+                    </div>
+                  </div>
+
+                  <div className="w-full flex justify-center min-h-[44px]">
+                    {googleClientId ? (
+                      <div
+                        ref={googleButtonRef}
+                        className={isLoading ? "pointer-events-none opacity-60" : ""}
+                      />
+                    ) : (
+                      <p className="text-xs text-white/40">Google login is unavailable (missing VITE_GOOGLE_CLIENT_ID).</p>
+                    )}
+                  </div>
                 </CardFooter>
               </form>
             </>
           )}
 
-          {/* ── Passkey Login Mode ──────────────────────────── */}
+          {/* Passkey Login Mode */}
           {mode === "passkey" && (
             <>
               <CardHeader className="space-y-1 pb-4">
@@ -206,7 +298,7 @@ export const LoginPage = () => {
                   Sign in with Passkey
                 </CardTitle>
                 <CardDescription className="text-white/40">
-                  No password needed — use your biometrics, phone, or security key
+                  No password needed - use your biometrics, phone, or security key
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">

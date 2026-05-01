@@ -6,29 +6,96 @@ import {
   getTokens,
   clearTokens,
   setStoredUser,
-  getStoredUser,
   setDeviceTrustToken,
 } from "@/services/api";
 
 const AuthContext = createContext(null);
+
+function decodeBase64Url(value) {
+  const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+  return atob(padded);
+}
+
+function getTokenExpiryMs(token) {
+  if (!token) return null;
+
+  try {
+    const parts = token.split(".");
+    if (parts.length < 2) return null;
+
+    const payload = JSON.parse(decodeBase64Url(parts[1]));
+    if (!payload?.exp) return null;
+
+    return payload.exp * 1000;
+  } catch {
+    return null;
+  }
+}
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [authPhase, setAuthPhase] = useState("loading"); // loading | login | mfa_setup | mfa_verify | authenticated
   const [mfaSetupData, setMfaSetupData] = useState(null);
   const [error, setError] = useState(null);
-  const initRef = useRef(false);
 
-  // ── Init: check existing tokens on mount ───────────────────────
+  const initRef = useRef(false);
+  const sessionTimerRef = useRef(null);
+
+  const clearSessionTimeout = useCallback(() => {
+    if (sessionTimerRef.current) {
+      window.clearTimeout(sessionTimerRef.current);
+      sessionTimerRef.current = null;
+    }
+  }, []);
+
+  const resetAuthState = useCallback(() => {
+    clearSessionTimeout();
+    clearTokens();
+    setUser(null);
+    setMfaSetupData(null);
+    setAuthPhase("login");
+  }, [clearSessionTimeout]);
+
+  const scheduleSessionTimeout = useCallback((accessToken) => {
+    clearSessionTimeout();
+
+    const expiryMs = getTokenExpiryMs(accessToken);
+    if (!expiryMs) return;
+
+    const remainingMs = expiryMs - Date.now();
+    if (remainingMs <= 0) {
+      console.log("[AUTH_CONTEXT] Access token expired, forcing logout");
+      resetAuthState();
+      return;
+    }
+
+    sessionTimerRef.current = window.setTimeout(() => {
+      console.log("[AUTH_CONTEXT] Session reached 1h limit, forcing logout");
+      resetAuthState();
+    }, remainingMs);
+
+    console.log("[AUTH_CONTEXT] Session timeout scheduled in ms:", remainingMs);
+  }, [clearSessionTimeout, resetAuthState]);
+
+  // Init: check existing tokens on mount
   useEffect(() => {
     if (initRef.current) return;
     initRef.current = true;
 
     console.log("[AUTH_CONTEXT] Init: checking existing tokens...");
     const { access } = getTokens();
+
     if (!access) {
       console.log("[AUTH_CONTEXT] No access token found, going to login");
       setAuthPhase("login");
+      return;
+    }
+
+    const expiryMs = getTokenExpiryMs(access);
+    if (expiryMs && expiryMs <= Date.now()) {
+      console.log("[AUTH_CONTEXT] Stored token already expired");
+      resetAuthState();
       return;
     }
 
@@ -40,37 +107,41 @@ export function AuthProvider({ children }) {
         setUser(data);
         setStoredUser(data);
         setAuthPhase("authenticated");
+        scheduleSessionTimeout(access);
       })
       .catch((err) => {
         console.error("[AUTH_CONTEXT] /auth/me/ failed:", err.response?.status, err.response?.data);
-        clearTokens();
-        setAuthPhase("login");
+        resetAuthState();
       });
-  }, []);
+  }, [resetAuthState, scheduleSessionTimeout]);
 
-  // ── Listen for forced logout from interceptor ──────────────────
+  // Listen for forced logout from interceptor
   useEffect(() => {
     const onForceLogout = () => {
       console.log("[AUTH_CONTEXT] Force logout event received");
-      setUser(null);
-      setAuthPhase("login");
+      resetAuthState();
     };
+
     window.addEventListener("auth:logout", onForceLogout);
     return () => window.removeEventListener("auth:logout", onForceLogout);
-  }, []);
+  }, [resetAuthState]);
 
-  // ── Login ──────────────────────────────────────────────────────
+  // Ensure timer cleanup on unmount
+  useEffect(() => {
+    return () => clearSessionTimeout();
+  }, [clearSessionTimeout]);
+
   const handleLogin = useCallback(async (identifier, password) => {
     console.log("[AUTH_CONTEXT] handleLogin() called with identifier:", JSON.stringify(identifier));
     setError(null);
+
     const { data } = await authService.login(identifier, password);
     console.log("[AUTH_CONTEXT] Login response data:", JSON.stringify(data, null, 2));
 
-    // Store tokens (partial if MFA required, full otherwise)
-    console.log("[AUTH_CONTEXT] Storing tokens...");
     setTokens(data.access, data.refresh);
     setStoredUser(data.user);
     setUser(data.user);
+    scheduleSessionTimeout(data.access);
 
     if (data.mfa_setup_required) {
       console.log("[AUTH_CONTEXT] -> Phase: mfa_setup");
@@ -84,36 +155,61 @@ export function AuthProvider({ children }) {
     }
 
     return data;
-  }, []);
+  }, [scheduleSessionTimeout]);
 
-  // ── MFA Setup ──────────────────────────────────────────────────
+  const handleGoogleLogin = useCallback(async (idToken) => {
+    console.log("[AUTH_CONTEXT] handleGoogleLogin() called");
+    setError(null);
+
+    const { data } = await authService.googleAuth(idToken);
+    console.log("[AUTH_CONTEXT] Google login response data:", JSON.stringify(data, null, 2));
+
+    setTokens(data.access, data.refresh);
+    setStoredUser(data.user);
+    setUser(data.user);
+    scheduleSessionTimeout(data.access);
+
+    if (data.mfa_setup_required) {
+      console.log("[AUTH_CONTEXT] -> Phase: mfa_setup");
+      setAuthPhase("mfa_setup");
+    } else if (data.mfa_required) {
+      console.log("[AUTH_CONTEXT] -> Phase: mfa_verify");
+      setAuthPhase("mfa_verify");
+    } else {
+      console.log("[AUTH_CONTEXT] -> Phase: authenticated");
+      setAuthPhase("authenticated");
+    }
+
+    return data;
+  }, [scheduleSessionTimeout]);
+
   const handleMfaSetup = useCallback(async () => {
     console.log("[AUTH_CONTEXT] handleMfaSetup() called");
     setError(null);
+
     const { data } = await authService.mfaSetup();
     console.log("[AUTH_CONTEXT] MFA setup response, has qr_code:", !!data.qr_code, "has secret:", !!data.secret);
     setMfaSetupData(data);
     return data;
   }, []);
 
-  // ── MFA Verify ─────────────────────────────────────────────────
   const handleMfaVerify = useCallback(async (code) => {
     console.log("[AUTH_CONTEXT] handleMfaVerify() called with code length:", code?.length);
     setError(null);
+
     const { data } = await authService.mfaVerify(code);
     console.log("[AUTH_CONTEXT] MFA verify response, mfa_verified:", data.mfa_verified);
 
-    // Replace partial tokens with full tokens
     setTokens(data.access, data.refresh);
     setStoredUser(data.user);
     setUser(data.user);
     setMfaSetupData(null);
     setAuthPhase("authenticated");
+    scheduleSessionTimeout(data.access);
 
     return data;
-  }, []);
+  }, [scheduleSessionTimeout]);
 
-  // ── MFA Backup Codes ──────────────────────────────────────────
   const handleMfaBackupCodes = useCallback(async () => {
     console.log("[AUTH_CONTEXT] handleMfaBackupCodes() called");
     const { data } = await authService.mfaBackupCodes();
@@ -121,18 +217,14 @@ export function AuthProvider({ children }) {
     return data;
   }, []);
 
-  // ── WebAuthn Login ─────────────────────────────────────────────
   const handleWebAuthnLogin = useCallback(async (email) => {
     console.log("[AUTH_CONTEXT] handleWebAuthnLogin() called with:", email);
     setError(null);
 
-    // 1. Get challenge options
     const { data: rawOptions } = await authService.webauthnLoginOptions(email);
-    // fido2 v2 wraps options in {publicKey: {...}}
     const opts = rawOptions.publicKey || rawOptions;
     console.log("[AUTH_CONTEXT] WebAuthn options received");
 
-    // 2. Convert base64url to ArrayBuffer for WebAuthn API
     const publicKey = {
       ...opts,
       challenge: base64urlToBuffer(opts.challenge),
@@ -142,12 +234,10 @@ export function AuthProvider({ children }) {
       })),
     };
 
-    // 3. Get credential from browser
     console.log("[AUTH_CONTEXT] Requesting browser credential...");
     const credential = await navigator.credentials.get({ publicKey });
     console.log("[AUTH_CONTEXT] Browser credential received");
 
-    // 4. Serialize response for backend
     const credentialJSON = {
       id: credential.id,
       rawId: bufferToBase64url(credential.rawId),
@@ -162,7 +252,6 @@ export function AuthProvider({ children }) {
       },
     };
 
-    // 5. Verify with backend
     const { data } = await authService.webauthnLoginVerify(credentialJSON);
     console.log("[AUTH_CONTEXT] WebAuthn login verified, user:", data.user?.email);
 
@@ -170,11 +259,11 @@ export function AuthProvider({ children }) {
     setStoredUser(data.user);
     setUser(data.user);
     setAuthPhase("authenticated");
+    scheduleSessionTimeout(data.access);
 
     return data;
-  }, []);
+  }, [scheduleSessionTimeout]);
 
-  // ── Device Trust ───────────────────────────────────────────────
   const handleDeviceTrust = useCallback(async (fingerprint) => {
     console.log("[AUTH_CONTEXT] handleDeviceTrust() called");
     const { data } = await authService.deviceTrust(fingerprint);
@@ -182,23 +271,20 @@ export function AuthProvider({ children }) {
     return data;
   }, []);
 
-  // ── Logout ─────────────────────────────────────────────────────
   const handleLogout = useCallback(async () => {
     console.log("[AUTH_CONTEXT] handleLogout() called");
     const { refresh } = getTokens();
+
     try {
       if (refresh) await authService.logout(refresh);
     } catch {
-      // Ignore errors — we're logging out regardless
+      // Ignore errors, we still clear local auth state
     }
-    clearTokens();
-    setUser(null);
-    setMfaSetupData(null);
-    setAuthPhase("login");
-    console.log("[AUTH_CONTEXT] Logout complete, phase: login");
-  }, []);
 
-  // Log phase changes
+    resetAuthState();
+    console.log("[AUTH_CONTEXT] Logout complete, phase: login");
+  }, [resetAuthState]);
+
   useEffect(() => {
     console.log("[AUTH_CONTEXT] authPhase changed to:", authPhase);
   }, [authPhase]);
@@ -210,6 +296,7 @@ export function AuthProvider({ children }) {
     error,
     isAuthenticated: authPhase === "authenticated",
     handleLogin,
+    handleGoogleLogin,
     handleMfaSetup,
     handleMfaVerify,
     handleMfaBackupCodes,
@@ -227,4 +314,3 @@ export function useAuth() {
   if (!ctx) throw new Error("useAuth must be used within AuthProvider");
   return ctx;
 }
-
