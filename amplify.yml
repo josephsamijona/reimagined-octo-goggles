@@ -5,7 +5,7 @@ frontend:
       commands:
         - cd adminfrontend
         - nvm use 20
-        - npm ci
+        - npm install --force
     build:
       commands:
         - npm run build
