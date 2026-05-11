@@ -11,6 +11,10 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenRefreshView as SimpleJWTTokenRefreshView
 
+from django.conf import settings as django_settings
+from google.oauth2 import id_token as google_id_token
+from google.auth.transport import requests as google_requests
+
 from app.api.services.auth_service import (
     AuthService,
     MFAService,
@@ -22,9 +26,127 @@ from app.api.services.auth_service import (
     user_payload,
 )
 from app.models import User
-from app.models.auth_security import MFADevice, WebAuthnCredential
+from app.models.auth_security import MFADevice, WebAuthnCredential, LoginAttempt
+from shared.constants import ROLE_ADMIN
 
 logger = logging.getLogger(__name__)
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  GOOGLE OAUTH
+# ═══════════════════════════════════════════════════════════════════
+
+class GoogleAuthView(APIView):
+    """
+    POST /auth/google/
+    Accepts a Google id_token (from Google Identity Services on frontend).
+    Verifies it, matches email to an existing ADMIN user, and issues JWT tokens.
+    MFA is still enforced: new admins get mfa_setup_required, existing MFA users
+    get mfa_required, so they must complete MFA before accessing the dashboard.
+    """
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def post(self, request):
+        id_token_str = request.data.get("id_token", "")
+        if not id_token_str:
+            return Response(
+                {"detail": "Google id_token is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Verify token with Google
+        client_id = django_settings.GOOGLE_OAUTH_CLIENT_ID
+        if not client_id:
+            logger.error("GOOGLE_OAUTH_CLIENT_ID not configured in settings")
+            return Response(
+                {"detail": "Google authentication is not configured."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        try:
+            idinfo = google_id_token.verify_oauth2_token(
+                id_token_str,
+                google_requests.Request(),
+                client_id,
+            )
+        except ValueError as e:
+            logger.warning(f"Google id_token verification failed: {e}")
+            return Response(
+                {"detail": "Invalid Google token."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        email = idinfo.get("email", "").lower().strip()
+        if not email:
+            return Response(
+                {"detail": "Google token does not include an email."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        if LoginAttempt.is_locked_out(email):
+            return Response(
+                {"detail": "Account temporarily locked due to too many failed attempts. Try again in 15 minutes."},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+
+        issuer = idinfo.get("iss")
+        if issuer not in ("accounts.google.com", "https://accounts.google.com"):
+            ip = get_client_ip(request)
+            LoginAttempt.record_attempt(email, ip, False, "invalid_google_issuer")
+            return Response(
+                {"detail": "Invalid Google token issuer."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        if not email or not idinfo.get("email_verified", False):
+            ip = get_client_ip(request)
+            LoginAttempt.record_attempt(email, ip, False, "unverified_google_email")
+            return Response(
+                {"detail": "Google account email is not verified."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        # Lookup existing admin user by email
+        try:
+            user = User.objects.get(email__iexact=email, role=ROLE_ADMIN, is_active=True)
+        except User.DoesNotExist:
+            logger.info(f"Google login rejected: no active ADMIN user for {email}")
+            ip = get_client_ip(request)
+            LoginAttempt.record_attempt(email, ip, False, "admin_user_not_found")
+            return Response(
+                {"detail": "No admin account is associated with this Google email."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # Update last login IP
+        ip = get_client_ip(request)
+        LoginAttempt.record_attempt(email, ip, True)
+        User.objects.filter(pk=user.pk).update(last_login_ip=ip)
+
+        # MFA check — same logic as password login
+        has_mfa = MFADevice.objects.filter(user=user, is_verified=True).exists()
+
+        if has_mfa:
+            # Has MFA → partial token, must verify TOTP
+            tokens = get_tokens_for_user(user, mfa_verified=False, auth_method="google")
+            return Response({
+                "access": tokens["access"],
+                "refresh": tokens["refresh"],
+                "user": user_payload(user),
+                "mfa_required": True,
+                "mfa_setup_required": False,
+            })
+        else:
+            # No MFA → must set up MFA first (admin requirement)
+            tokens = get_tokens_for_user(user, mfa_verified=False, auth_method="google")
+            return Response({
+                "access": tokens["access"],
+                "refresh": tokens["refresh"],
+                "user": user_payload(user),
+                "mfa_required": False,
+                "mfa_setup_required": True,
+            })
 
 
 # ═══════════════════════════════════════════════════════════════════

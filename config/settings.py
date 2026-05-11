@@ -32,9 +32,9 @@ ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '').split(',') if os.getenv('ALLOWED_
 SESSION_COOKIE_DOMAIN = None if DEBUG else '.jhbridgetranslation.com'
 CSRF_COOKIE_DOMAIN = None if DEBUG else '.jhbridgetranslation.com'
 
-# Session security: expire after 2 hours of inactivity
-SESSION_COOKIE_AGE = 7200  # 2 hours in seconds
-SESSION_SAVE_EVERY_REQUEST = True  # Reset timer on each request
+# Session security: force logout after 1 hour (absolute timeout)
+SESSION_COOKIE_AGE = 3600
+SESSION_SAVE_EVERY_REQUEST = False
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 SITE_URL = os.getenv('SITE_URL', 'https://portal.jhbridgetranslation.com')
 
@@ -313,8 +313,9 @@ REST_FRAMEWORK = {
 
 # JWT Settings
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(seconds=int(os.getenv('JWT_ACCESS_TOKEN_LIFETIME', 3600))),
-    'REFRESH_TOKEN_LIFETIME': timedelta(seconds=int(os.getenv('JWT_REFRESH_TOKEN_LIFETIME', 86400))),
+    'ACCESS_TOKEN_LIFETIME': timedelta(seconds=3600),
+    'REFRESH_TOKEN_LIFETIME': timedelta(seconds=3600),
+    'ROTATE_REFRESH_TOKENS': False,
     'SIGNING_KEY': os.getenv('JWT_SECRET_KEY', SECRET_KEY),
 }
 
@@ -359,8 +360,9 @@ AUTHENTICATION_BACKENDS = (
     'django.contrib.auth.backends.ModelBackend',
 )
 
-SOCIAL_AUTH_GOOGLE_OAUTH2_KEY =('SOCIAL_AUTH_GOOGLE_CLIENT_ID')
+SOCIAL_AUTH_GOOGLE_OAUTH2_KEY = os.getenv('SOCIAL_AUTH_GOOGLE_CLIENT_ID')
 SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET = os.getenv('SOCIAL_AUTH_GOOGLE_CLIENT_SECRET')
+GOOGLE_OAUTH_CLIENT_ID = os.getenv('GOOGLE_OAUTH_CLIENT_ID', os.getenv('SOCIAL_AUTH_GOOGLE_CLIENT_ID', ''))
 
 # Stripe Configuration
 STRIPE_SECRET_KEY = os.getenv('STRIPE_SECRET_KEY')

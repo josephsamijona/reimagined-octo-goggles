@@ -1,90 +1,47 @@
-# JHBridge Architecture
+# JHBridge Architecture (Post-Split)
 
-## Services Overview
+## Repository Topology
 
-```
-┌──────────────┐   ┌──────────────┐   ┌──────────────┐
-│   Frontend   │   │    Django     │   │   FastAPI    │
-│  React/CRA   │   │   (Legacy)   │   │  (Services)  │
-│  port 3000   │   │   port 8000  │   │  port 8001   │
-└──────┬───────┘   └──────┬───────┘   └──────┬───────┘
-       │                  │                   │
-       │           ┌──────┴───────┐           │
-       │           │    Celery    │           │
-       │           │   (Worker)   │           │
-       │           └──────┬───────┘           │
-       │                  │                   │
-       ▼                  ▼                   ▼
-  ┌──────────┐    ┌──────────────┐    ┌──────────┐
-  │  Nginx   │    │    MySQL     │    │  Redis   │
-  │ (prod)   │    │    8.0       │    │  7.x     │
-  └──────────┘    └──────────────┘    └──────────┘
-```
+The platform is now organized as separate sibling repositories:
 
-## Django Application (`app/`)
+- `jhbridge-backend-django` (this repository): core business backend
+- `jhbridge-backend-fastapi`: AI, Gmail, Calendar sync, realtime endpoints
+- `jhbridge-web-admin`: internal admin SPA
+- `jhbridge-web-customer`: customer web app (scaffold)
+- `jhbridge-web-interpreters`: interpreter web app (scaffold)
+- `jhbridge-mobile-customer`: customer mobile app (scaffold)
+- `jhbridge-mobile-interpreters`: interpreter mobile app (scaffold)
 
-The main application handling the full business lifecycle:
+## This Repository Scope (`jhbridge-backend-django`)
 
-- **Models** (`app/models/`) — User, Client, Interpreter, Assignment, Quote, Contract, Finance
-- **Views** (`app/views/`) — Server-rendered pages for clients, interpreters, and public users
-- **API** (`app/api/`) — DRF REST API with JWT auth for the admin frontend
-- **Signals** (`app/signals.py`) — Event-driven email notifications via Celery
-- **Tasks** (`app/tasks.py`) — Async Celery tasks (emails, reminders)
+Primary Django assets kept in this repository:
 
-### Model Organization
+- `app/`: models, API, services, views, admin
+- `config/`: Django settings, URL routing, WSGI/ASGI, Celery config
+- `templates/`: server-rendered templates
+- `static/` and `staticfiles/`: Django static assets
+- `scripts/` and `tests/`: support scripts and tests
+- `shared/`: shared Python constants/enums (source of truth)
 
-| File | Models |
-|------|--------|
-| `users.py` | User, Client, Interpreter, InterpreterLocation |
-| `services.py` | ServiceType, QuoteRequest, Quote, Assignment, PublicQuoteRequest |
-| `finance.py` | FinancialTransaction, ClientPayment, InterpreterPayment, Expense, etc. |
-| `documents.py` | Document, SignedDocument, InterpreterContractSignature |
-| `contracts.py` | ContractInvitation, ContractTrackingEvent |
-| `communication.py` | ContactMessage, Notification, NotificationPreference |
-| `security.py` | AuditLog, APIKey, PGPKey |
+Removed from this repository:
 
-### Authentication
+- FastAPI service code (`services/`) -> `jhbridge-backend-fastapi`
+- Admin frontend (`adminfrontend/`) -> `jhbridge-web-admin`
+- FastAPI/frontend/nginx docker images from this repo
 
-- **Web sessions**: Django session auth with role-based mixins
-- **API**: SimpleJWT access/refresh tokens
-- **API Keys**: Custom `APIKey` model for service-to-service auth
-- **Token links**: Stateless token URLs for interpreter assignment accept/decline via email
+## Runtime Integration
 
-## FastAPI Microservice (`services/`)
+- Django calls FastAPI over HTTP using `FASTAPI_BASE_URL`.
+- Frontends call Django API for business operations.
+- Frontends call FastAPI only for agent/realtime/integration features.
+- `shared/` is copied into FastAPI repo as a controlled snapshot.
 
-Handles integrations and real-time features:
+## Local Containers (This Repo)
 
-- **Gmail** (`services/gmail/`) — Inbox sync, classification, filters
-- **Calendar** (`services/calendar_sync/`) — Google Calendar integration
-- **AI Agent** (`services/ai_agent/`) — AI-powered assistance
-- **Realtime** (`services/realtime/`) — WebSocket connections
-- **DB** (`services/db/`) — SQLAlchemy mirrors of Django models (read-only)
+`docker/docker-compose.yml` now runs only:
 
-## Admin Frontend (`adminfrontend/`)
+- `db` (MySQL)
+- `redis`
+- `django`
 
-React SPA (Create React App + Craco) for internal administration:
-
-- **UI**: Radix UI + Tailwind CSS + shadcn/ui components
-- **State**: React Hook Form + Zod validation
-- **API**: Axios → Django REST API (JWT auth)
-
-## Shared Code (`shared/`)
-
-Pure Python constants and enums shared between Django and FastAPI:
-
-- `constants.py` — Role strings, status strings, timezone mappings
-- `enums.py` — Type-safe Enum wrappers
-
-## Storage (S3/Backblaze B2)
-
-| Bucket | Purpose |
-|--------|---------|
-| `jhbridge-documents-prod` | General media uploads |
-| `jhbridge-contracts-prod` | Signed contract PDFs (versioned) |
-| `jhbridge-signatures-prod` | Signature images |
-| `jhbridge-assets` | Public assets (no auth) |
-| `jhbridge-temp-uploads` | Temporary files (24h lifecycle) |
-
-## Docker Setup
-
-See `docker/docker-compose.yml` for local development and `docker/docker-compose.prod.yml` for production overrides with nginx reverse proxy.
+FastAPI and frontend containers are managed in their own repositories.

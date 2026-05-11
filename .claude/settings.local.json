@@ -33,7 +33,9 @@
       "Bash(powershell.exe -Command \"cd ''C:\\\\Users\\\\dace\\\\Desktop\\\\workspace\\\\Jhventure\\\\jhbridge\\\\codebase\\\\legacy\\\\legacy''; venv\\\\Scripts\\\\python.exe manage.py shell -c \"\"from django.db import connection; cursor = connection.cursor\\(\\); cursor.execute\\(''DESCRIBE app_mfa_device''\\); print\\(cursor.fetchall\\(\\)\\)\"\"\")",
       "Bash(powershell.exe -Command \"cd ''C:\\\\Users\\\\dace\\\\Desktop\\\\workspace\\\\Jhventure\\\\jhbridge\\\\codebase\\\\legacy\\\\legacy''; venv\\\\Scripts\\\\python.exe manage.py shell -c \"\"\nfrom django.db import connection\ncursor = connection.cursor\\(\\)\ncursor.execute\\(''''''\nCREATE TABLE app_webauthn_credential \\(\n    id CHAR\\(32\\) NOT NULL PRIMARY KEY,\n    credential_id_b64 VARCHAR\\(512\\) NOT NULL UNIQUE,\n    public_key_b64 LONGTEXT NOT NULL,\n    sign_count INT UNSIGNED NOT NULL DEFAULT 0,\n    device_name VARCHAR\\(100\\) NOT NULL DEFAULT ''Unknown Device'',\n    transports JSON DEFAULT NULL,\n    created_at DATETIME\\(6\\) NOT NULL,\n    last_used DATETIME\\(6\\) DEFAULT NULL,\n    user_id BIGINT NOT NULL,\n    CONSTRAINT fk_webauthn_user FOREIGN KEY \\(user_id\\) REFERENCES app_user \\(id\\) ON DELETE CASCADE\n\\)\n''''''\\)\nprint\\(''Table created successfully''\\)\n\"\"\")",
       "Bash(powershell.exe:*)",
-      "WebFetch(domain:developers.yubico.com)"
+      "WebFetch(domain:developers.yubico.com)",
+      "Bash(ssh:*)",
+      "Bash(git push:*)"
     ]
   }
 }

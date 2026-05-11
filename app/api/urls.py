@@ -6,6 +6,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 
 from app.api.viewsets.auth import (
+    GoogleAuthView,
     LoginView, TokenRefreshView, MeView,
     MFASetupView, MFAVerifyView, MFABackupCodesView,
     StepUpAuthView, StepUpAuthStatusView,
@@ -74,6 +75,7 @@ router.register(r'agent-audit', AgentAuditLogViewSet, basename='agent-audit')
 
 urlpatterns = [
     # ── Auth endpoints ──────────────────────────────────────────
+    path('auth/google/', GoogleAuthView.as_view(), name='google-auth'),
     path('auth/login/', LoginView.as_view(), name='login'),
     path('auth/token/refresh/', TokenRefreshView.as_view(), name='token-refresh'),
     path('auth/me/', MeView.as_view(), name='me'),
