@@ -10,6 +10,8 @@ from icalendar import Calendar, Event, vCalAddress, Alarm
 
 from django.conf import settings
 from django.core.mail import EmailMultiAlternatives, EmailMessage
+from django.core.validators import validate_email
+from django.core.exceptions import ValidationError
 from django.template.loader import render_to_string
 from django.utils.html import strip_tags
 from django.utils import timezone
@@ -27,6 +29,26 @@ class AssignmentNotificationService:
     Service central pour la gestion des notifications liées aux missions (Assignments).
     Gère la génération des fichiers ICS et l'envoi des emails aux interprètes et administrateurs.
     """
+
+    @staticmethod
+    def _validate_and_clean_email(email):
+        """
+        Valide et nettoie une adresse email.
+        Retourne l'email nettoyé ou None si invalide.
+        """
+        if not email:
+            return None
+
+        # Nettoyer les espaces
+        email = email.strip()
+
+        # Valider le format
+        try:
+            validate_email(email)
+            return email
+        except ValidationError:
+            logger.warning(f"Invalid email found: {email}")
+            return None
 
     @staticmethod
     def generate_ics_content(assignment, method='REQUEST', status='CONFIRMED'):
@@ -267,11 +289,25 @@ class AssignmentNotificationService:
         Notifie les admins d'une action (accepted, declined, rejected).
         """
         interpreter = interpreter or assignment.interpreter
-        
+
+        # Récupérer et valider les emails admin
         admin_users = User.objects.filter(role='ADMIN', is_active=True)
         if not admin_users.exists():
+            logger.warning("No active admin users found for notification")
             return False
-        admin_emails = [u.email for u in admin_users if u.email]
+
+        # Filtrer et valider les emails
+        admin_emails = []
+        for user in admin_users:
+            clean_email = cls._validate_and_clean_email(user.email)
+            if clean_email:
+                admin_emails.append(clean_email)
+            else:
+                logger.warning(f"Admin user {user.username} (ID: {user.id}) has invalid email: '{user.email}'")
+
+        if not admin_emails:
+            logger.error("No valid admin emails found - cannot send notification")
+            return False
 
         if action == 'accepted':
             template = 'emails/assignments/admin_assignment_response.html' # ou 'emails/admin_assignment_notification.html'

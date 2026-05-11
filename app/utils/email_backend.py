@@ -4,6 +4,8 @@
 
 import resend
 from django.core.mail.backends.base import BaseEmailBackend
+from django.core.validators import validate_email
+from django.core.exceptions import ValidationError
 from django.conf import settings
 import logging
 
@@ -23,50 +25,84 @@ class ResendEmailBackend(BaseEmailBackend):
         if not resend.api_key:
             raise ValueError("RESEND_API_KEY must be configured in Django settings")
     
+    def _clean_email_list(self, emails):
+        """
+        Nettoie et valide une liste d'emails.
+        Retourne uniquement les emails valides.
+        """
+        if not emails:
+            return []
+
+        clean_emails = []
+        for email in emails:
+            if isinstance(email, str):
+                email = email.strip()
+                try:
+                    validate_email(email)
+                    clean_emails.append(email)
+                except ValidationError:
+                    logger.warning(f"Skipping invalid email: {email}")
+
+        return clean_emails
+
     def send_messages(self, email_messages):
         """
         Envoie une liste de messages email via l'API Resend
         """
         if not email_messages:
             return 0
-        
+
         sent_count = 0
-        
+
         for message in email_messages:
             try:
                 # Conversion du message Django vers le format Resend
                 resend_payload = self._convert_message_to_resend(message)
-                
+
+                # Vérifier qu'il y a au moins un destinataire valide
+                if not resend_payload.get('to'):
+                    logger.error("No valid recipients after email validation - skipping message")
+                    if not self.fail_silently:
+                        raise ValueError("No valid email recipients found")
+                    continue
+
                 # Envoi via l'API Resend
                 result = resend.Emails.send(resend_payload)
-                
+
                 logger.info(f"Email sent successfully via Resend API. ID: {result.get('id')}")
                 sent_count += 1
-                
+
             except Exception as e:
                 logger.error(f"Failed to send email via Resend: {str(e)}")
                 if not self.fail_silently:
                     raise
-        
+
         return sent_count
     
     def _convert_message_to_resend(self, message):
         """
         Convertit un message Django EmailMessage vers le format Resend
         """
+        # Valider et nettoyer les emails
+        to_emails = self._clean_email_list(message.to)
+
         # Structure de base du payload Resend
         payload = {
             "from": message.from_email or settings.DEFAULT_FROM_EMAIL,
-            "to": message.to,
+            "to": to_emails,
             "subject": message.subject,
         }
-        
+
         # Gestion des destinataires CC et BCC
         if hasattr(message, 'cc') and message.cc:
-            payload["cc"] = message.cc
-            
+            cc_emails = self._clean_email_list(message.cc)
+            if cc_emails:
+                payload["cc"] = cc_emails
+
         if hasattr(message, 'bcc') and message.bcc:
-            payload["bcc"] = message.bcc
+            bcc_emails = self._clean_email_list(message.bcc)
+            if bcc_emails:
+                payload["bcc"] = bcc_emails
         
         # Gestion du contenu (HTML + texte)
         if hasattr(message, 'alternatives') and message.alternatives:
