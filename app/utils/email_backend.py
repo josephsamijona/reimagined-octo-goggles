@@ -50,6 +50,19 @@ class ResendEmailBackend(BaseEmailBackend):
         
         return sent_count
     
+    def _format_recipients(self, recipients):
+        """
+        Formate une liste de destinataires pour l'API Resend.
+        - Filtre les valeurs vides ou None
+        - Retourne une chaîne si un seul destinataire, une liste sinon
+        """
+        if not recipients:
+            return None
+        filtered = [r for r in recipients if r]
+        if not filtered:
+            return None
+        return filtered[0] if len(filtered) == 1 else filtered
+
     def _convert_message_to_resend(self, message):
         """
         Convertit un message Django EmailMessage vers le format Resend
@@ -57,16 +70,16 @@ class ResendEmailBackend(BaseEmailBackend):
         # Structure de base du payload Resend
         payload = {
             "from": message.from_email or settings.DEFAULT_FROM_EMAIL,
-            "to": message.to,
+            "to": self._format_recipients(message.to),
             "subject": message.subject,
         }
         
         # Gestion des destinataires CC et BCC
         if hasattr(message, 'cc') and message.cc:
-            payload["cc"] = message.cc
+            payload["cc"] = self._format_recipients(message.cc)
             
         if hasattr(message, 'bcc') and message.bcc:
-            payload["bcc"] = message.bcc
+            payload["bcc"] = self._format_recipients(message.bcc)
         
         # Gestion du contenu (HTML + texte)
         if hasattr(message, 'alternatives') and message.alternatives:
