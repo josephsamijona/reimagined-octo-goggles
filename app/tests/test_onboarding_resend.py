@@ -1,6 +1,6 @@
 from django.test import TestCase, RequestFactory
-from django.contrib.auth.models import User
-from django.utils import timezone
+from django.contrib.auth import get_user_model
+from django.contrib.messages.storage.fallback import FallbackStorage
 from app.models import OnboardingInvitation, OnboardingTrackingEvent
 from app.admin.onboarding import OnboardingInvitationAdmin
 from django.contrib.admin.sites import AdminSite
@@ -11,7 +11,14 @@ class OnboardingResendTest(TestCase):
         self.site = AdminSite()
         self.admin = OnboardingInvitationAdmin(OnboardingInvitation, self.site)
         self.factory = RequestFactory()
-        self.user = User.objects.create_superuser(username='admin', email='admin@test.com', password='password')
+        User = get_user_model()
+        with patch("app.signals._safe_celery_delay"):
+            self.user = User.objects.create_superuser(
+                username='admin',
+                email='admin@test.com',
+                password='password',
+                role=User.Roles.ADMIN,
+            )
         
         self.invitation = OnboardingInvitation.objects.create(
             first_name='John',
@@ -20,10 +27,16 @@ class OnboardingResendTest(TestCase):
             created_by=self.user
         )
 
-    @patch('app.services.email_service.OnboardingEmailService.send_invitation_email')
-    def test_resend_issue_email(self, mock_send_email):
+    def get_request(self):
         request = self.factory.get('/')
         request.user = self.user
+        request.session = {}
+        request._messages = FallbackStorage(request)
+        return request
+
+    @patch('app.services.email_service.OnboardingEmailService.send_invitation_email')
+    def test_resend_issue_email(self, mock_send_email):
+        request = self.get_request()
         queryset = OnboardingInvitation.objects.filter(id=self.invitation.id)
         
         self.admin.resend_issue_email(request, queryset)
@@ -49,8 +62,7 @@ class OnboardingResendTest(TestCase):
 
     @patch('app.services.email_service.OnboardingEmailService.send_invitation_email')
     def test_resend_stuck_welcome_email(self, mock_send_email):
-        request = self.factory.get('/')
-        request.user = self.user
+        request = self.get_request()
         queryset = OnboardingInvitation.objects.filter(id=self.invitation.id)
         
         self.admin.resend_stuck_welcome_email(request, queryset)
@@ -60,8 +72,7 @@ class OnboardingResendTest(TestCase):
 
     @patch('app.services.email_service.OnboardingEmailService.send_invitation_email')
     def test_resend_standard_email(self, mock_send_email):
-        request = self.factory.get('/')
-        request.user = self.user
+        request = self.get_request()
         queryset = OnboardingInvitation.objects.filter(id=self.invitation.id)
         
         self.admin.resend_invitations(request, queryset)

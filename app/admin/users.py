@@ -2,16 +2,21 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.shortcuts import redirect
 from django.urls import reverse
+from django.utils.html import format_html_join
 from django.utils.translation import gettext_lazy as _
 from django.utils.safestring import mark_safe
 from app import models
+from .performance import AdminPerformanceMixin
 from .utils import mark_as_active, mark_as_inactive, reset_password
 
 class InterpreterLanguageInline(admin.TabularInline):
     model = models.InterpreterLanguage
-    extra = 1
+    extra = 0
     classes = ['collapse']
     fields = ('language', 'proficiency', 'is_primary', 'certified', 'certification_details')
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related('language')
 
 
 class ContractBankingInline(admin.TabularInline):
@@ -31,6 +36,9 @@ class ContractBankingInline(admin.TabularInline):
         'status', 'signed_at', 'bank_name', 'account_holder_name',
         'account_type', 'account_number_reveal', 'routing_number_reveal', 'swift_code_reveal',
     )
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related('user', 'interpreter')
 
     def has_add_permission(self, request, obj=None):
         return False
@@ -99,6 +107,9 @@ class InterpreterInline(admin.StackedInline):
     )
     readonly_fields = ('profile_photo_preview',)
 
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related('user')
+
     def profile_photo_preview(self, obj):
         if obj.profile_image:
             import re
@@ -127,7 +138,7 @@ class InterpreterInline(admin.StackedInline):
     profile_photo_preview.short_description = 'Photo Preview'
 
 @admin.register(models.User)
-class CustomUserAdmin(UserAdmin):
+class CustomUserAdmin(AdminPerformanceMixin, UserAdmin):
     # AJOUT DES NOUVELLES COLONNES DEMANDÉES
     list_display = ('username', 'email', 'role', 'is_active', 'last_login', 'date_joined', 'registration_complete', 'contract_acceptance_date', 'is_dashboard_enabled')
     list_filter = ('role', 'is_active', 'groups', 'registration_complete', 'is_dashboard_enabled')
@@ -163,11 +174,13 @@ class CustomUserAdmin(UserAdmin):
         return super().user_change_password(request, id, form_url)
 
 @admin.register(models.Client)
-class ClientAdmin(admin.ModelAdmin):
+class ClientAdmin(AdminPerformanceMixin, admin.ModelAdmin):
+    admin_select_related = ('user', 'preferred_language')
     list_display = ('company_name', 'user', 'get_full_name', 'city', 'state', 'active')
     list_filter = ('active', 'state', 'preferred_language')
     search_fields = ('company_name', 'user__username', 'user__email', 'phone', 'email', 
                      'user__first_name', 'user__last_name')
+    autocomplete_fields = ('user', 'preferred_language')
     fieldsets = (
         ('User Information', {
             'fields': ('user', 'active')
@@ -183,12 +196,17 @@ class ClientAdmin(admin.ModelAdmin):
         }),
     )
     
+    @admin.display(description='Full Name', ordering='user__last_name')
     def get_full_name(self, obj):
-        return f"{obj.user.first_name} {obj.user.last_name}"
-    get_full_name.short_description = 'Full Name'
+        if not obj.user_id or not obj.user:
+            return '-'
+        full_name = f"{obj.user.first_name} {obj.user.last_name}".strip()
+        return full_name or obj.user.email or obj.user.username
 
 @admin.register(models.Interpreter)
-class InterpreterAdmin(admin.ModelAdmin):
+class InterpreterAdmin(AdminPerformanceMixin, admin.ModelAdmin):
+    admin_select_related = ('user', 'blocked_by')
+    admin_prefetch_related = ('interpreterlanguage_set__language',)
     list_display = (
         'get_full_name',
         'get_languages',
@@ -219,6 +237,7 @@ class InterpreterAdmin(admin.ModelAdmin):
         'zip_code',
         'blocked_reason'  # Added
     )
+    autocomplete_fields = ('user', 'blocked_by')
     inlines = [InterpreterLanguageInline, ContractBankingInline]
     fieldsets = (
         ('Status', {'fields': (('user', 'active'),)}),
@@ -265,19 +284,29 @@ class InterpreterAdmin(admin.ModelAdmin):
             return mark_safe(f'<img src="{url}" width="150" style="border-radius: 10px; border: 1px solid #ccc;" />')
         return "No photo"
     profile_photo_preview.short_description = 'Photo Preview'
+    @admin.display(description='Interpreter Name', ordering='user__last_name')
     def get_full_name(self, obj):
-        return f"{obj.user.first_name} {obj.user.last_name}"
-    get_full_name.short_description = 'Interpreter Name'
-    get_full_name.admin_order_field = 'user__last_name'
+        if not obj.user_id or not obj.user:
+            return f"Interpreter #{obj.pk}"
+        full_name = f"{obj.user.first_name} {obj.user.last_name}".strip()
+        return full_name or obj.user.email or obj.user.username
+
+    @admin.display(description='Languages')
     def get_languages(self, obj):
         languages = obj.interpreterlanguage_set.all()
-        language_list = []
-        for lang in languages:
-            cert_icon = '✓' if lang.certified else ''
-            primary_icon = '★' if lang.is_primary else ''
-            language_list.append(f"{lang.language.name} ({lang.get_proficiency_display()}){cert_icon}{primary_icon}")
-        return mark_safe("<br>".join(language_list))
-    get_languages.short_description = 'Languages'
+        return format_html_join(
+            mark_safe("<br>"),
+            "{} ({}){}{}",
+            (
+                (
+                    lang.language.name if lang.language_id and lang.language else "-",
+                    lang.get_proficiency_display(),
+                    " [certified]" if lang.certified else "",
+                    " [primary]" if lang.is_primary else "",
+                )
+                for lang in languages
+            ),
+        ) or "-"
     def _make_banking_reveal(self, masked, clear, field_id, request):
         """Show masked value. If reauth verified, allow toggle. Otherwise link to reauth."""
         is_unlocked = request and request.session.get('admin_reauth_verified')

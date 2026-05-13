@@ -2,7 +2,9 @@ from django.contrib import admin
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django.utils.html import format_html, mark_safe
+from django.db.models import Count, Q
 from app import models
+from .performance import AdminPerformanceMixin
 
 class ExpiresFilter(admin.SimpleListFilter):
     """Filtre personnalisé pour les clés expirées/non expirées"""
@@ -27,7 +29,8 @@ class ExpiresFilter(admin.SimpleListFilter):
 
 
 @admin.register(models.APIKey)
-class APIKeyAdmin(admin.ModelAdmin):
+class APIKeyAdmin(AdminPerformanceMixin, admin.ModelAdmin):
+    admin_select_related = ('user',)
     list_display = ('name_with_badge', 'app_badge', 'user_display', 
                    'masked_key', 'status_badge', 'created_at_formatted', 
                    'expires_formatted', 'last_used_formatted')
@@ -36,6 +39,15 @@ class APIKeyAdmin(admin.ModelAdmin):
     readonly_fields = ('id', 'key', 'created_at', 'last_used')
     actions = ['activate_keys', 'deactivate_keys', 'extend_expiration']
     save_as = True  # Permet de dupliquer une clé existante
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).annotate(
+            active_key_count=Count(
+                'user__api_keys',
+                filter=Q(user__api_keys__is_active=True),
+                distinct=True,
+            )
+        )
     
     def get_fieldsets(self, request, obj=None):
         """Définit des fieldsets différents selon qu'on crée ou modifie une clé"""
@@ -103,14 +115,14 @@ class APIKeyAdmin(admin.ModelAdmin):
         return format_html(
             '<span style="font-weight: 500;">{}</span> {}',
             obj.name,
-            self._get_app_count_badge(obj.user)
+            self._get_app_count_badge(obj)
         )
     name_with_badge.short_description = _('Nom')
     name_with_badge.admin_order_field = 'name'
     
-    def _get_app_count_badge(self, user):
+    def _get_app_count_badge(self, obj):
         """Génère un badge indiquant le nombre de clés pour cet utilisateur"""
-        count = models.APIKey.objects.filter(user=user, is_active=True).count()
+        count = getattr(obj, 'active_key_count', 0) or 0
         if count <= 1:
             return ''
         return format_html(
@@ -279,7 +291,9 @@ class APIKeyAdmin(admin.ModelAdmin):
     extend_expiration.short_description = _("Prolonger l'expiration (+30 jours)")
 
 @admin.register(models.AuditLog)
-class AuditLogAdmin(admin.ModelAdmin):
+class AuditLogAdmin(AdminPerformanceMixin, admin.ModelAdmin):
+    admin_select_related = ('user',)
+    admin_defer_changelist = ('changes',)
     list_display = ('timestamp', 'user', 'action', 'model_name', 'object_id')
     list_filter = ('action', 'model_name', 'timestamp')
     search_fields = ('user__email', 'action', 'changes')
@@ -292,7 +306,7 @@ class AuditLogAdmin(admin.ModelAdmin):
         return False
 
 @admin.register(models.PGPKey)
-class PGPKeyAdmin(admin.ModelAdmin):
+class PGPKeyAdmin(AdminPerformanceMixin, admin.ModelAdmin):
     list_display = (
         'name', 
         'key_id_display', 

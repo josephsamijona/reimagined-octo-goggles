@@ -8,6 +8,7 @@ from django.shortcuts import render, redirect
 from django.urls import path, reverse
 from app.models import OnboardingInvitation, OnboardingTrackingEvent
 import app.services.onboarding_service as onboarding_svc
+from .performance import AdminPerformanceMixin
 
 logger = logging.getLogger(__name__)
 
@@ -16,6 +17,9 @@ class OnboardingTrackingEventInline(admin.TabularInline):
     extra = 0
     readonly_fields = ('event_type', 'timestamp', 'performed_by', 'metadata_display')
     can_delete = False
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related('performed_by')
 
     def has_add_permission(self, request, obj=None):
         return False
@@ -26,7 +30,14 @@ class OnboardingTrackingEventInline(admin.TabularInline):
 
 
 @admin.register(OnboardingInvitation)
-class OnboardingInvitationAdmin(admin.ModelAdmin):
+class OnboardingInvitationAdmin(AdminPerformanceMixin, admin.ModelAdmin):
+    admin_select_related = (
+        'created_by',
+        'user',
+        'interpreter__user',
+        'contract_invitation',
+        'voided_by',
+    )
     list_display = (
         'invitation_number',
         'full_name_display',
@@ -38,6 +49,7 @@ class OnboardingInvitationAdmin(admin.ModelAdmin):
     )
     list_filter = ('current_phase', 'created_at')
     search_fields = ('invitation_number', 'email', 'first_name', 'last_name')
+    autocomplete_fields = ('user', 'interpreter', 'contract_invitation', 'created_by', 'voided_by')
     readonly_fields = (
         'invitation_number',
         'token',
@@ -134,11 +146,11 @@ class OnboardingInvitationAdmin(admin.ModelAdmin):
     full_name_display.short_description = 'Name'
     full_name_display.admin_order_field = 'last_name'
 
+    @admin.display(description='Sent By', ordering='created_by__username')
     def created_by_display(self, obj):
-        if obj.created_by:
-            return obj.created_by.get_full_name() or obj.created_by.username
+        if obj.created_by_id and obj.created_by:
+            return obj.created_by.get_full_name() or obj.created_by.email or obj.created_by.username
         return '-'
-    created_by_display.short_description = 'Sent By'
 
     def phase_badge(self, obj):
         colors = {
@@ -161,7 +173,7 @@ class OnboardingInvitationAdmin(admin.ModelAdmin):
     phase_badge.short_description = 'Phase'
 
     def tracking_timeline(self, obj):
-        events = obj.tracking_events.all().order_by('-timestamp')
+        events = obj.tracking_events.select_related('performed_by').order_by('-timestamp')
         if not events:
             return "No events recorded."
 

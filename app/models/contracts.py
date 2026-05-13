@@ -79,6 +79,8 @@ class ContractInvitation(models.Model):
             models.Index(fields=['accept_token']),
             models.Index(fields=['review_token']),
             models.Index(fields=['status']),
+            models.Index(fields=['status', 'created_at']),
+            models.Index(fields=['interpreter', 'status']),
             models.Index(fields=['invitation_number']),
         ]
         

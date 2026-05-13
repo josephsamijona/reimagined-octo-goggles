@@ -169,6 +169,10 @@ class InterpreterContractSignature(models.Model):
     reminder_count = models.IntegerField(default=0)
     
     class Meta:
+        indexes = [
+            models.Index(fields=['status', 'signed_at']),
+            models.Index(fields=['is_active', 'created_at']),
+        ]
         db_table = 'app_interpretercontractsignature'
 
     def __str__(self):
@@ -510,6 +514,7 @@ class Document(models.Model):
             models.Index(fields=['document_number']),
             models.Index(fields=['agreement_id']),
             models.Index(fields=['document_type']),
+            models.Index(fields=['status', 'created_at']),
             models.Index(fields=['created_at']),
         ]
         db_table = 'app_document'

@@ -2,15 +2,19 @@ from django.contrib import admin
 from django.urls import path, reverse
 from django.utils.safestring import mark_safe
 from app import models
+from .performance import AdminPerformanceMixin
 from .utils import format_boston_datetime
 from .paystub import PaystubGeneratorView, FetchAssignmentsView, BatchPaystubView, EarningsReportView, EarningsPreviewView
 from .invoice_maker import InvoiceMakerView, FetchClientAssignmentsView
 
 @admin.register(models.FinancialTransaction)
-class FinancialTransactionAdmin(admin.ModelAdmin):
+class FinancialTransactionAdmin(AdminPerformanceMixin, admin.ModelAdmin):
+    admin_select_related = ('created_by',)
+    admin_defer_changelist = ('description', 'notes')
     list_display = ('transaction_id', 'type', 'amount', 'created_by', 'date')
     list_filter = ('type', 'date')
     search_fields = ('transaction_id', 'description', 'notes')
+    autocomplete_fields = ('created_by',)
     readonly_fields = ('transaction_id', 'date')
     
     fieldsets = (
@@ -32,7 +36,8 @@ class FinancialTransactionAdmin(admin.ModelAdmin):
     )
 
 @admin.register(models.ClientPayment)
-class ClientPaymentAdmin(admin.ModelAdmin):
+class ClientPaymentAdmin(AdminPerformanceMixin, admin.ModelAdmin):
+    admin_select_related = ('transaction', 'client', 'assignment__client', 'quote')
     list_display = ('invoice_number', 'client', 'amount', 'payment_method', 'status', 'formatted_payment_date')
     list_filter = ('status', 'payment_method', 'payment_date')
     search_fields = ('invoice_number', 'client__company_name', 'external_reference')
@@ -71,7 +76,8 @@ class ClientPaymentAdmin(admin.ModelAdmin):
     formatted_payment_date.short_description = "Payment Date (Boston)"
 
 @admin.register(models.InterpreterPayment)
-class InterpreterPaymentAdmin(admin.ModelAdmin):
+class InterpreterPaymentAdmin(AdminPerformanceMixin, admin.ModelAdmin):
+    admin_select_related = ('transaction', 'interpreter__user', 'assignment')
     list_display = ('reference_number', 'interpreter', 'amount', 'payment_method', 'status', 'formatted_scheduled_date')
     list_filter = ('status', 'payment_method', 'scheduled_date')
     search_fields = ('reference_number', 'interpreter__user__first_name', 'interpreter__user__last_name')
@@ -109,7 +115,8 @@ class InterpreterPaymentAdmin(admin.ModelAdmin):
     formatted_scheduled_date.short_description = "Scheduled Date (Boston)"
 
 @admin.register(models.Expense)
-class ExpenseAdmin(admin.ModelAdmin):
+class ExpenseAdmin(AdminPerformanceMixin, admin.ModelAdmin):
+    admin_select_related = ('transaction', 'approved_by')
     list_display = ('transaction_id', 'expense_type', 'amount', 'status', 'formatted_date_incurred')
     list_filter = ('status', 'expense_type', 'date_incurred')
     search_fields = ('description', 'notes')
@@ -146,13 +153,13 @@ class ExpenseAdmin(admin.ModelAdmin):
         return format_boston_datetime(obj.date_incurred)
     formatted_date_incurred.short_description = "Date Incurred (Boston)"
 
+    @admin.display(description="Transaction ID", ordering='transaction__transaction_id')
     def transaction_id(self, obj):
         return obj.transaction.transaction_id if obj.transaction else '-'
-    transaction_id.short_description = "Transaction ID"
 
 class ServiceInline(admin.TabularInline):
     model = models.Service
-    extra = 1
+    extra = 0
 
 class ReimbursementInline(admin.TabularInline):
     model = models.Reimbursement
@@ -163,7 +170,7 @@ class DeductionInline(admin.TabularInline):
     extra = 0
 
 @admin.register(models.PayrollDocument)
-class PayrollDocumentAdmin(admin.ModelAdmin):
+class PayrollDocumentAdmin(AdminPerformanceMixin, admin.ModelAdmin):
     list_display = ('document_number', 'interpreter_name', 'document_date', 'created_at')
     search_fields = ('document_number', 'interpreter_name', 'interpreter_email')
     list_filter = ('document_date', 'created_at')
@@ -208,31 +215,38 @@ class PayrollDocumentAdmin(admin.ModelAdmin):
     change_list_template = 'admin/paystub/changelist.html'
 
 @admin.register(models.Service)
-class ServiceAdmin(admin.ModelAdmin):
+class ServiceAdmin(AdminPerformanceMixin, admin.ModelAdmin):
+    admin_select_related = ('payroll',)
     list_display = ('payroll', 'date', 'client', 'source_language', 'target_language', 'duration', 'rate', 'amount')
     list_filter = ('date',)
     search_fields = ('client', 'source_language', 'target_language')
+    raw_id_fields = ('payroll',)
 
 @admin.register(models.Reimbursement)
-class ReimbursementAdmin(admin.ModelAdmin):
+class ReimbursementAdmin(AdminPerformanceMixin, admin.ModelAdmin):
+    admin_select_related = ('payroll',)
     list_display = ('payroll', 'date', 'reimbursement_type', 'description', 'amount')
     list_filter = ('date', 'reimbursement_type')
     search_fields = ('description',)
+    raw_id_fields = ('payroll',)
 
 @admin.register(models.Deduction)
-class DeductionAdmin(admin.ModelAdmin):
+class DeductionAdmin(AdminPerformanceMixin, admin.ModelAdmin):
+    admin_select_related = ('payroll',)
     list_display = ('payroll', 'date', 'deduction_type', 'description', 'amount')
     list_filter = ('date', 'deduction_type')
     search_fields = ('description',)
+    raw_id_fields = ('payroll',)
 
 @admin.register(models.Invoice)
-class InvoiceAdmin(admin.ModelAdmin):
+class InvoiceAdmin(AdminPerformanceMixin, admin.ModelAdmin):
+    admin_select_related = ('client', 'created_by')
     list_display = ('invoice_number', 'display_client', 'total', 'status', 'issued_date', 'due_date')
     list_filter = ('status', 'issued_date', 'due_date')
     search_fields = ('invoice_number', 'client__company_name', 'client_name')
     raw_id_fields = ('client', 'created_by')
     readonly_fields = ('created_at', 'updated_at')
-    filter_horizontal = ('assignments',)
+    autocomplete_fields = ('assignments',)
     fieldsets = (
         ('Invoice', {
             'fields': ('invoice_number', 'status')
@@ -266,18 +280,20 @@ class InvoiceAdmin(admin.ModelAdmin):
         }),
     )
 
+    @admin.display(description='Client', ordering='client__company_name')
     def display_client(self, obj):
-        if obj.client:
+        if obj.client_id and obj.client:
             return obj.client.company_name
         return obj.client_name or '—'
-    display_client.short_description = 'Client'
 
 
 @admin.register(models.Payment)
-class PaymentAdmin(admin.ModelAdmin):
+class PaymentAdmin(AdminPerformanceMixin, admin.ModelAdmin):
+    admin_select_related = ('quote', 'assignment__client')
     list_display = ('transaction_id', 'payment_type', 'amount', 'status', 'formatted_payment_date')
     list_filter = ('status', 'payment_type', 'payment_date')
     search_fields = ('transaction_id', 'assignment__client__company_name')
+    raw_id_fields = ('quote', 'assignment')
     readonly_fields = ('payment_date', 'last_updated')
     fieldsets = (
         ('Payment Information', {

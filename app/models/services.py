@@ -60,6 +60,9 @@ class QuoteRequest(models.Model):
         self._original_status = self.status
 
     class Meta:
+        indexes = [
+            models.Index(fields=['status', 'created_at']),
+        ]
         db_table = 'app_quoterequest'
 
 class Quote(models.Model):
@@ -168,6 +171,8 @@ class Assignment(models.Model):
         ordering = ['-created_at']
         indexes = [
             models.Index(fields=['status', 'interpreter', 'start_time']),
+            models.Index(fields=['start_time']),
+            models.Index(fields=['status', 'start_time']),
             models.Index(fields=['created_at']),
         ]
         db_table = 'app_assignment'
@@ -282,6 +287,10 @@ class PublicQuoteRequest(models.Model):
     admin_notes = models.TextField(blank=True, null=True)
 
     class Meta:
+        indexes = [
+            models.Index(fields=['processed', 'created_at']),
+            models.Index(fields=['state', 'created_at']),
+        ]
         db_table = 'app_publicquoterequest'
 
     def __str__(self):

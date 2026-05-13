@@ -165,9 +165,6 @@ class Interpreter(models.Model):
     
     def __str__(self):
         if self.user:
-            languages_str = ', '.join([lang.name for lang in self.languages.all()[:3]])
-            if self.languages.count() > 3:
-                languages_str += f" +{self.languages.count() - 3} autres"
             address_str = f"{self.address}, {self.city}, {self.state} {self.zip_code}" if self.address else "Pas d'adresse"
             return f"{self.user.first_name} {self.user.last_name} ({self.user.email}) - {address_str}"
         return f"Interprète #{self.id}"

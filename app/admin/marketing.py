@@ -1,9 +1,11 @@
 from django.contrib import admin
 from app.models import Lead, Campaign
+from .performance import AdminPerformanceMixin
 
 
 @admin.register(Lead)
-class LeadAdmin(admin.ModelAdmin):
+class LeadAdmin(AdminPerformanceMixin, admin.ModelAdmin):
+    admin_select_related = ('assigned_to', 'converted_client', 'public_quote_request', 'contact_message')
     list_display = ('company_name', 'contact_name', 'email', 'source', 'stage', 'estimated_monthly_value', 'assigned_to', 'created_at')
     list_filter = ('source', 'stage', 'assigned_to')
     search_fields = ('company_name', 'contact_name', 'email')
@@ -14,7 +16,8 @@ class LeadAdmin(admin.ModelAdmin):
 
 
 @admin.register(Campaign)
-class CampaignAdmin(admin.ModelAdmin):
+class CampaignAdmin(AdminPerformanceMixin, admin.ModelAdmin):
+    admin_select_related = ('created_by',)
     list_display = ('name', 'channel', 'status', 'budget', 'spent', 'leads_generated', 'conversions', 'start_date', 'end_date')
     list_filter = ('channel', 'status')
     search_fields = ('name',)

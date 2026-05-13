@@ -14,6 +14,9 @@ class ContactMessage(models.Model):
     notes = models.TextField(blank=True, null=True)
 
     class Meta:
+        indexes = [
+            models.Index(fields=['processed', 'created_at']),
+        ]
         db_table = 'app_contactmessage'
 
 class Notification(models.Model):
@@ -35,6 +38,11 @@ class Notification(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        indexes = [
+            models.Index(fields=['type', 'created_at']),
+            models.Index(fields=['read', 'created_at']),
+            models.Index(fields=['recipient', 'read']),
+        ]
         db_table = 'app_notification'
 
 class NotificationPreference(models.Model):

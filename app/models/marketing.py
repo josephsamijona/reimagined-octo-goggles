@@ -53,6 +53,12 @@ class Lead(models.Model):
     assigned_to = models.ForeignKey('User', on_delete=models.SET_NULL, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['source', 'created_at']),
+            models.Index(fields=['stage', 'created_at']),
+        ]
     
     
 # app/models/marketing.py — AJOUTER
@@ -89,3 +95,9 @@ class Campaign(models.Model):
     created_by = models.ForeignKey('User', on_delete=models.PROTECT)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['channel', 'status']),
+            models.Index(fields=['status', 'start_date']),
+        ]

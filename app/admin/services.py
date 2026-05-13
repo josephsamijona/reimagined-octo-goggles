@@ -1,6 +1,7 @@
 from django.contrib import admin
 from django import forms
 from django.utils.html import format_html
+from django.utils import timezone
 from django.contrib import messages
 from django.core.exceptions import ValidationError
 from decimal import Decimal
@@ -8,6 +9,7 @@ import re
 
 from app import models
 from .utils import USDateTimeField, format_boston_datetime, BOSTON_TZ
+from .performance import AdminPerformanceMixin
 from app.mixins.assignment_mixins import AssignmentAdminMixin
 
 class CustomAssignmentForm(forms.ModelForm):
@@ -74,14 +76,15 @@ class CustomPublicQuoteRequestForm(forms.ModelForm):
         fields = '__all__'
 
 @admin.register(models.ServiceType)
-class ServiceTypeAdmin(admin.ModelAdmin):
+class ServiceTypeAdmin(AdminPerformanceMixin, admin.ModelAdmin):
     list_display = ('name', 'base_rate', 'minimum_hours', 'requires_certification', 'active')
     list_filter = ('active', 'requires_certification')
     search_fields = ('name', 'description')
 
 @admin.register(models.QuoteRequest)
-class QuoteRequestAdmin(admin.ModelAdmin):
+class QuoteRequestAdmin(AdminPerformanceMixin, admin.ModelAdmin):
     form = CustomQuoteRequestForm
+    admin_select_related = ('client', 'service_type', 'source_language', 'target_language')
     list_display = ('id', 'client', 'service_type', 'formatted_requested_date', 'status', 'created_at')
     list_filter = ('status', 'service_type', 'created_at')
     search_fields = ('client__company_name', 'location')
@@ -103,7 +106,8 @@ class QuoteRequestAdmin(admin.ModelAdmin):
         return super().response_change(request, obj)
 
 @admin.register(models.Quote)
-class QuoteAdmin(admin.ModelAdmin):
+class QuoteAdmin(AdminPerformanceMixin, admin.ModelAdmin):
+    admin_select_related = ('quote_request__client', 'created_by')
     list_display = ('reference_number', 'get_client', 'amount', 'status', 'created_at')
     list_filter = ('status', 'created_at')
     search_fields = ('reference_number', 'quote_request__client__company_name')
@@ -114,13 +118,23 @@ class QuoteAdmin(admin.ModelAdmin):
         ('Financial Details', {'fields': ('amount', 'tax_amount', 'valid_until')}),
         ('Additional Information', {'fields': ('terms', 'created_by')}),
     )
+    @admin.display(description='Client', ordering='quote_request__client__company_name')
     def get_client(self, obj):
-        return obj.quote_request.client.company_name
-    get_client.short_description = 'Client'
+        quote_request = getattr(obj, 'quote_request', None)
+        client = getattr(quote_request, 'client', None)
+        return getattr(client, 'company_name', '-') or '-'
 
 @admin.register(models.Assignment)
-class AssignmentAdmin(AssignmentAdminMixin, admin.ModelAdmin):
+class AssignmentAdmin(AdminPerformanceMixin, AssignmentAdminMixin, admin.ModelAdmin):
     form = CustomAssignmentForm
+    admin_select_related = (
+        'quote',
+        'client',
+        'interpreter__user',
+        'service_type',
+        'source_language',
+        'target_language',
+    )
     list_display = (
         'id', 
         'get_client_display', 
@@ -148,6 +162,7 @@ class AssignmentAdmin(AssignmentAdminMixin, admin.ModelAdmin):
         'interpreter__user__last_name'
     )
     raw_id_fields = ('quote', 'client')
+    autocomplete_fields = ('interpreter',)
     readonly_fields = (
         'created_at', 
         'updated_at', 
@@ -206,18 +221,19 @@ class AssignmentAdmin(AssignmentAdminMixin, admin.ModelAdmin):
         }),
     )
 
+    @admin.display(description="Languages", ordering='source_language__name')
     def get_languages(self, obj):
-        """Display languages"""
-        return f"{obj.source_language.name} → {obj.target_language.name}"
-    get_languages.short_description = "Languages"
-    get_languages.admin_order_field = 'source_language__name'
+        """Display languages."""
+        source = obj.source_language.name if obj.source_language_id and obj.source_language else "-"
+        target = obj.target_language.name if obj.target_language_id and obj.target_language else "-"
+        return f"{source} -> {target}"
 
+    @admin.display(description="Service Type", ordering='service_type__name')
     def get_service_type(self, obj):
-        """Display service type"""
-        return obj.service_type.name
-    get_service_type.short_description = "Service Type"
-    get_service_type.admin_order_field = 'service_type__name'
+        """Display service type."""
+        return obj.service_type.name if obj.service_type_id and obj.service_type else "-"
 
+    @admin.display(description='Status')
     def get_status_display(self, obj):
         """Display status with color coding"""
         status_colors = {
@@ -247,8 +263,8 @@ class AssignmentAdmin(AssignmentAdminMixin, admin.ModelAdmin):
             icon,
             obj.get_status_display()
         )
-    get_status_display.short_description = 'Status'
 
+    @admin.display(description='Payment Status')
     def get_payment_status(self, obj):
         """Display payment status with icon and color"""
         if obj.is_paid:
@@ -265,33 +281,36 @@ class AssignmentAdmin(AssignmentAdminMixin, admin.ModelAdmin):
             '<span style="color: {};">{}</span>',
             'gray', '- Pending'
         )
-    get_payment_status.short_description = 'Payment Status'
 
+    @admin.display(description='Client', ordering='client__company_name')
     def get_client_display(self, obj):
         """Display client information"""
-        if obj.client:
+        if obj.client_id and obj.client:
             return obj.client.company_name
         if obj.client_name:
             return obj.client_name
         return "Unspecified Client"
-    get_client_display.short_description = 'Client'
 
+    @admin.display(description='Interpreter', ordering='interpreter__user__last_name')
     def get_interpreter(self, obj):
         """Display interpreter information"""
-        if obj.interpreter:
-            return f"{obj.interpreter.user.first_name} {obj.interpreter.user.last_name}"
+        if obj.interpreter_id and obj.interpreter and obj.interpreter.user_id:
+            user = obj.interpreter.user
+            full_name = f"{user.first_name} {user.last_name}".strip()
+            return full_name or user.email or user.username
         return "-"
-    get_interpreter.short_description = 'Interpreter'
 
+    @admin.display(description='Interpreter Details')
     def get_interpreter_details(self, obj):
         """Display selected interpreter name and full address"""
-        if obj.interpreter:
-            name = f"{obj.interpreter.user.first_name} {obj.interpreter.user.last_name}"
+        if obj.interpreter_id and obj.interpreter:
+            user = obj.interpreter.user if obj.interpreter.user_id else None
+            name = f"{user.first_name} {user.last_name}".strip() if user else f"Interpreter #{obj.interpreter_id}"
+            name = name or getattr(user, 'email', '') or f"Interpreter #{obj.interpreter_id}"
             # Check if address exists, otherwise provide a fallback
             address = f"{obj.interpreter.address}, {obj.interpreter.city}, {obj.interpreter.state} {obj.interpreter.zip_code}" if obj.interpreter.address else "Pas d'adresse"
             return f"{name} - {address}"
         return "-"
-    get_interpreter_details.short_description = 'Interpreter Details'
 
     def formatted_start_time(self, obj):
         """Pour l'affichage en liste"""
@@ -381,8 +400,9 @@ class AssignmentAdmin(AssignmentAdminMixin, admin.ModelAdmin):
         super().save_model(request, obj, form, change)
 
 @admin.register(models.PublicQuoteRequest)
-class PublicQuoteRequestAdmin(admin.ModelAdmin):
+class PublicQuoteRequestAdmin(AdminPerformanceMixin, admin.ModelAdmin):
     form = CustomPublicQuoteRequestForm  # Utilisation du formulaire personnalisé pour 'requested_date'
+    admin_select_related = ('service_type', 'source_language', 'target_language', 'processed_by')
     list_display = (
         'full_name', 
         'company_name', 
@@ -417,20 +437,22 @@ class PublicQuoteRequestAdmin(admin.ModelAdmin):
         ('Processing Status', {'fields': ('processed', 'processed_by', 'processed_at', 'admin_notes'), 'classes': ('collapse',)}),
         ('System Information', {'fields': ('created_at',), 'classes': ('collapse',)}),
     )
+    @admin.display(description='Languages', ordering='source_language__name')
     def get_languages(self, obj):
-        return f"{obj.source_language} → {obj.target_language}"
-    get_languages.short_description = 'Languages'
+        source = str(obj.source_language) if obj.source_language_id and obj.source_language else "-"
+        target = str(obj.target_language) if obj.target_language_id and obj.target_language else "-"
+        return f"{source} -> {target}"
     def formatted_requested_date(self, obj):
         return format_boston_datetime(obj.requested_date)
     formatted_requested_date.short_description = "Requested Date (Boston)"
     actions = ['mark_as_processed', 'export_as_csv']
     def mark_as_processed(self, request, queryset):
-        queryset.update(
+        rows_updated = queryset.update(
             processed=True,
             processed_by=request.user,
             processed_at=timezone.now()
         )
-        self.message_user(request, f"{queryset.count()} quote request(s) marked as processed.")
+        self.message_user(request, f"{rows_updated} quote request(s) marked as processed.")
     mark_as_processed.short_description = "Mark selected requests as processed"
     def export_as_csv(self, request, queryset):
         import csv

@@ -6,6 +6,7 @@ from django.shortcuts import render, redirect
 from django.urls import path
 from app.models import ContractInvitation, ContractTrackingEvent, ContractReminder
 from django.utils.translation import gettext_lazy as _
+from .performance import AdminPerformanceMixin
 import datetime
 
 class ContractTrackingEventInline(admin.TabularInline):
@@ -13,6 +14,9 @@ class ContractTrackingEventInline(admin.TabularInline):
     extra = 0
     readonly_fields = ('event_type', 'timestamp', 'performed_by', 'metadata_display')
     can_delete = False
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related('performed_by')
     
     def has_add_permission(self, request, obj=None):
         return False
@@ -24,7 +28,8 @@ class ContractTrackingEventInline(admin.TabularInline):
 
 
 @admin.register(ContractInvitation)
-class ContractInvitationAdmin(admin.ModelAdmin):
+class ContractInvitationAdmin(AdminPerformanceMixin, admin.ModelAdmin):
+    admin_select_related = ('interpreter__user', 'contract_signature', 'created_by', 'voided_by')
     list_display = (
         'invitation_number',
         'interpreter_name',
@@ -41,6 +46,7 @@ class ContractInvitationAdmin(admin.ModelAdmin):
         'interpreter__user__first_name', 
         'interpreter__user__last_name'
     )
+    autocomplete_fields = ('interpreter', 'contract_signature', 'created_by', 'voided_by')
     readonly_fields = (
         'invitation_number', 
         'token', 
@@ -88,10 +94,14 @@ class ContractInvitationAdmin(admin.ModelAdmin):
     
     actions = ['void_invitations', 'resend_invitations']
     
+    @admin.display(description='Interpreter', ordering='interpreter__user__last_name')
     def interpreter_name(self, obj):
-        return obj.interpreter.user.get_full_name()
-    interpreter_name.short_description = 'Interpreter'
-    interpreter_name.admin_order_field = 'interpreter__user__last_name'
+        if not obj.interpreter_id or not obj.interpreter:
+            return '-'
+        user = obj.interpreter.user if obj.interpreter.user_id else None
+        if not user:
+            return f"Interpreter #{obj.interpreter_id}"
+        return user.get_full_name() or user.email or user.username
     
     def status_badge(self, obj):
         colors = {
@@ -116,7 +126,7 @@ class ContractInvitationAdmin(admin.ModelAdmin):
     
     def tracking_timeline(self, obj):
         """Display visual timeline of tracking events"""
-        events = obj.tracking_events.all().order_by('-timestamp')
+        events = obj.tracking_events.select_related('performed_by').order_by('-timestamp')
         if not events:
             return "No events recorded."
             
@@ -201,16 +211,22 @@ class ContractInvitationAdmin(admin.ModelAdmin):
 
 
 @admin.register(ContractReminder)
-class ContractReminderAdmin(admin.ModelAdmin):
+class ContractReminderAdmin(AdminPerformanceMixin, admin.ModelAdmin):
+    admin_select_related = ('interpreter__user', 'sent_by', 'invitation')
     list_display = ('interpreter_name', 'level', 'sent_at', 'sent_by', 'invitation_link')
     list_filter = ('level', 'sent_at', 'sent_by')
     search_fields = ('interpreter__user__email', 'interpreter__user__last_name', 'interpreter__user__first_name')
+    autocomplete_fields = ('interpreter', 'sent_by', 'invitation')
     readonly_fields = ('sent_at',)
     
+    @admin.display(description="Interpreter", ordering='interpreter__user__last_name')
     def interpreter_name(self, obj):
-        return obj.interpreter.user.get_full_name()
-    interpreter_name.short_description = "Interpreter"
-    interpreter_name.admin_order_field = 'interpreter__user__last_name'
+        if not obj.interpreter_id or not obj.interpreter:
+            return '-'
+        user = obj.interpreter.user if obj.interpreter.user_id else None
+        if not user:
+            return f"Interpreter #{obj.interpreter_id}"
+        return user.get_full_name() or user.email or user.username
 
     def invitation_link(self, obj):
         if obj.invitation:

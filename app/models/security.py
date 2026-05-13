@@ -13,6 +13,10 @@ class AuditLog(models.Model):
     timestamp = models.DateTimeField(auto_now_add=True)
     
     class Meta:
+        indexes = [
+            models.Index(fields=['action', 'timestamp']),
+            models.Index(fields=['model_name', 'timestamp']),
+        ]
         db_table = 'app_auditlog'
         
 class APIKey(models.Model):
@@ -36,6 +40,10 @@ class APIKey(models.Model):
         verbose_name = "Clé API"
         verbose_name_plural = "Clés API"
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['is_active', 'created_at']),
+            models.Index(fields=['app_name', 'created_at']),
+        ]
         db_table = 'app_apikey'
     
     def __str__(self):
@@ -91,6 +99,9 @@ class PGPKey(models.Model):
         verbose_name = "PGP Key"
         verbose_name_plural = "PGP Keys"
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['is_active', 'expires_at']),
+        ]
         db_table = 'app_pgpkey'
     
     def __str__(self):

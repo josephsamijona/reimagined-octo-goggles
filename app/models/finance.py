@@ -22,6 +22,9 @@ class FinancialTransaction(models.Model):
     notes = models.TextField(blank=True, null=True)
 
     class Meta:
+        indexes = [
+            models.Index(fields=['type', 'date']),
+        ]
         db_table = 'app_financialtransaction'
 
 class ClientPayment(models.Model):
@@ -99,6 +102,10 @@ class ClientPayment(models.Model):
     notes = models.TextField(blank=True, null=True)
 
     class Meta:
+        indexes = [
+            models.Index(fields=['status', 'payment_date']),
+            models.Index(fields=['payment_method', 'payment_date']),
+        ]
         db_table = 'app_clientpayment'
 
 class InterpreterPayment(models.Model):
@@ -261,6 +268,10 @@ class Payment(models.Model):
     notes = models.TextField(blank=True, null=True)
 
     class Meta:
+        indexes = [
+            models.Index(fields=['status', 'payment_date']),
+            models.Index(fields=['payment_type', 'payment_date']),
+        ]
         db_table = 'app_payment'
 
 class Expense(models.Model):
@@ -293,6 +304,10 @@ class Expense(models.Model):
     notes = models.TextField(blank=True, null=True)
 
     class Meta:
+        indexes = [
+            models.Index(fields=['status', 'date_incurred']),
+            models.Index(fields=['expense_type', 'date_incurred']),
+        ]
         db_table = 'app_expense'
 
 class PayrollDocument(models.Model):
@@ -320,6 +335,10 @@ class PayrollDocument(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     
     class Meta:
+        indexes = [
+            models.Index(fields=['document_date']),
+            models.Index(fields=['created_at']),
+        ]
         db_table = 'app_payrolldocument'
 
     def __str__(self):
@@ -344,6 +363,9 @@ class Service(models.Model):
             return Decimal('0')
 
     class Meta:
+        indexes = [
+            models.Index(fields=['date']),
+        ]
         db_table = 'app_service'
 
 class Reimbursement(models.Model):
@@ -368,6 +390,9 @@ class Reimbursement(models.Model):
     receipt = models.FileField(upload_to='receipts/', blank=True, null=True)
     
     class Meta:
+        indexes = [
+            models.Index(fields=['date', 'reimbursement_type']),
+        ]
         db_table = 'app_reimbursement'
 
     def __str__(self):
@@ -393,6 +418,9 @@ class Deduction(models.Model):
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     
     class Meta:
+        indexes = [
+            models.Index(fields=['date', 'deduction_type']),
+        ]
         db_table = 'app_deduction'
 
     def __str__(self):
@@ -439,3 +467,10 @@ class Invoice(models.Model):
     # Tracking relances
     last_reminder_sent = models.DateTimeField(null=True, blank=True)
     reminder_count = models.IntegerField(default=0)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['status', 'issued_date']),
+            models.Index(fields=['due_date']),
+            models.Index(fields=['created_at']),
+        ]

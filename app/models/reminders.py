@@ -46,6 +46,7 @@ class ContractReminder(models.Model):
         ordering = ['-sent_at']
         indexes = [
             models.Index(fields=['interpreter', 'level']),
+            models.Index(fields=['level', 'sent_at']),
             models.Index(fields=['sent_at']),
         ]
         

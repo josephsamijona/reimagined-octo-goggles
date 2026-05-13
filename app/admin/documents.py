@@ -3,9 +3,11 @@ from django.utils import timezone
 from django.utils.safestring import mark_safe
 from django.contrib import messages
 from app import models
+from .performance import AdminPerformanceMixin
 
 @admin.register(models.InterpreterContractSignature)
-class InterpreterContractSignatureAdmin(admin.ModelAdmin):
+class InterpreterContractSignatureAdmin(AdminPerformanceMixin, admin.ModelAdmin):
+    admin_select_related = ('user', 'interpreter__user')
     list_display = ('emoji_status', 'interpreter_name', 'interpreter_email', 
                     'token_display', 'signature_type_display', 'signed_date', 
                     'status', 'is_fully_signed', 'is_active')
@@ -14,6 +16,7 @@ class InterpreterContractSignatureAdmin(admin.ModelAdmin):
                   'account_type', 'signed_at')
     search_fields = ('interpreter_name', 'interpreter_email', 'interpreter_phone', 
                     'signature_hash', 'token', 'otp_code')
+    autocomplete_fields = ('user', 'interpreter')
     readonly_fields = ('signature_hash', 'signed_at', 'id', 'created_at',
                       'account_number_display', 'routing_number_display', 'swift_code_display',
                       'encrypted_account_number', 'encrypted_routing_number','account_holder_name',
@@ -196,7 +199,11 @@ class InterpreterContractSignatureAdmin(admin.ModelAdmin):
         User = get_user_model()
         
         # Récupérer les utilisateurs qui ont des profils d'interprète
-        users_with_interpreters = User.objects.filter(interpreter_profile__isnull=False)
+        users_with_interpreters = (
+            User.objects.filter(interpreter_profile__isnull=False)
+            .select_related('interpreter_profile')
+            .only('id', 'interpreter_profile__id')
+        )
         
         # Créer dictionnaires pour les mappings dans les deux sens
         user_to_interpreter = {}
@@ -435,7 +442,9 @@ class InterpreterContractSignatureAdmin(admin.ModelAdmin):
     resend_contract_email.short_description = "📧 Renvoyer un email avec nouveau lien de contrat"
 
 @admin.register(models.Document)
-class DocumentAdmin(admin.ModelAdmin):
+class DocumentAdmin(AdminPerformanceMixin, admin.ModelAdmin):
+    admin_select_related = ('user', 'interpreter_contract', 'signing_key')
+    admin_defer_changelist = ('metadata', 'pgp_signature')
     list_display = (
         'title', 
         'document_number', 
@@ -457,6 +466,7 @@ class DocumentAdmin(admin.ModelAdmin):
         'agreement_id',
         'metadata'
     )
+    autocomplete_fields = ('user', 'interpreter_contract', 'signing_key')
     
     readonly_fields = (
         'id', 

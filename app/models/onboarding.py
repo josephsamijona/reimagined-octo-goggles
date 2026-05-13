@@ -95,6 +95,7 @@ class OnboardingInvitation(models.Model):
             models.Index(fields=['token']),
             models.Index(fields=['email']),
             models.Index(fields=['current_phase']),
+            models.Index(fields=['current_phase', 'created_at']),
         ]
 
     def __str__(self):

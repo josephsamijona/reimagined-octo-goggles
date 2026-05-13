@@ -1,9 +1,10 @@
 from django.contrib import admin
 from app import models
+from .performance import AdminPerformanceMixin
 from .utils import mark_as_active, mark_as_inactive
 
 @admin.register(models.Language)
-class LanguageAdmin(admin.ModelAdmin):
+class LanguageAdmin(AdminPerformanceMixin, admin.ModelAdmin):
     list_display = ('name', 'code', 'is_active')
     list_filter = ('is_active',)
     search_fields = ('name', 'code')
